@@ -126,6 +126,74 @@ body {
   display: none;
 }
 
+/* ---- Admin content area: card depth ---- */
+/* Cards sit on white main, so --color-surface bg reads as warm-tinted vs. white.
+   This shadow gives them a subtle lift. Targets rounded-xl containers (cards, lists)
+   but not rounded-lg/rounded-full elements (buttons, badges, inputs). */
+.admin-main .rounded-xl {
+  box-shadow: 0 1px 3px rgba(25, 22, 20, 0.06), 0 1px 2px rgba(25, 22, 20, 0.04);
+}
+
+/* ---- Sonner toast overrides — ZMade theme ---- */
+[data-sonner-toaster] [data-sonner-toast] {
+  --width: 340px;
+  padding: 14px 16px;
+  border-radius: var(--radius-lg);
+  background: var(--color-cream);
+  border: 1px solid var(--color-border);
+  box-shadow: 0 4px 20px rgba(25,22,20,.09), 0 1px 4px rgba(25,22,20,.06);
+  font-family: var(--font-sans);
+  gap: 12px;
+}
+
+[data-sonner-toast][data-type="success"] {
+  background: #fcf9f5;
+  border-color: #b8e0c8;
+}
+[data-sonner-toast][data-type="success"] [data-icon] { color: var(--color-success); }
+[data-sonner-toast][data-type="success"] [data-title] { color: #1a4d30; }
+
+[data-sonner-toast][data-type="error"] {
+  background: #fffbfb;
+  border-color: #f5a5a5;
+}
+[data-sonner-toast][data-type="error"] [data-icon] { color: var(--color-danger); }
+[data-sonner-toast][data-type="error"] [data-title] { color: #7a1a1a; }
+
+[data-sonner-toast][data-type="warning"] {
+  background: #fffdf8;
+  border-color: #f5d99a;
+}
+[data-sonner-toast][data-type="warning"] [data-icon] { color: var(--color-warning); }
+[data-sonner-toast][data-type="warning"] [data-title] { color: #5a3a08; }
+
+[data-sonner-toast][data-type="info"] {
+  background: #f8fcff;
+  border-color: #93c5e0;
+}
+[data-sonner-toast][data-type="info"] [data-icon] { color: var(--color-info); }
+[data-sonner-toast][data-type="info"] [data-title] { color: #08405a; }
+
+[data-sonner-toast] [data-title] {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+[data-sonner-toast] [data-description] {
+  font-size: 11.5px;
+  color: var(--color-ink-muted);
+  margin-top: 2px;
+}
+
+[data-sonner-toast] [data-close-button] {
+  color: var(--color-ink-muted);
+  border-radius: var(--radius-sm);
+}
+[data-sonner-toast] [data-close-button]:hover {
+  background: var(--color-surface-raised);
+  color: var(--color-ink-secondary);
+}
+
 /* ---- react-big-calendar overrides ---- */
 .rbc-calendar {
   font-family: var(--font-sans);
@@ -159,6 +227,9 @@ body {
 }
 .rbc-off-range-bg {
   background: var(--color-surface-raised);
+}
+.rbc-off-range {
+  opacity: 0.38;
 }
 .rbc-today {
   background: var(--color-teal-light);

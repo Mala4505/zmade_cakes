@@ -4,7 +4,12 @@ import { useTransition, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { sendConfirmationLink, cancelInquiry } from '@/lib/actions/inquiries'
 import { Copy, Check, Link as LinkIcon, X, WhatsappLogo } from '@phosphor-icons/react'
-import type { Inquiry } from '@/lib/supabase/types'
+import type { Inquiry, WhatsAppTemplates } from '@/lib/supabase/types'
+import { DEFAULT_WHATSAPP_TEMPLATES } from '@/lib/supabase/types'
+
+function interpolate(template: string, vars: Record<string, string>): string {
+  return template.replace(/\{(\w+)\}/g, (_, key) => vars[key] ?? `{${key}}`)
+}
 
 function whatsappUrl(phone: string, text: string): string {
   const cleaned = phone.replace(/\D/g, '')
@@ -21,9 +26,11 @@ function whatsappUrlNoText(phone: string): string {
 export default function InquiryActions({
   inquiry,
   confirmLink,
+  templates,
 }: {
   inquiry: Inquiry
   confirmLink: string
+  templates?: WhatsAppTemplates
 }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
@@ -115,7 +122,7 @@ export default function InquiryActions({
               <a
                 href={whatsappUrl(
                   inquiry.customer_phone,
-                  `Hi ${firstName}! Here's your ZMade Cakes order confirmation link: ${confirmLink}\n\nPlease review and confirm your order. 🎂`
+                  interpolate(templates?.confirmationLink ?? DEFAULT_WHATSAPP_TEMPLATES.confirmationLink, { name: firstName, link: confirmLink })
                 )}
                 target="_blank"
                 rel="noopener noreferrer"
@@ -174,7 +181,7 @@ export default function InquiryActions({
           <a
             href={whatsappUrl(
               inquiry.customer_phone,
-              `Hi ${firstName}! Your ZMade Cakes order is ready! 🎂 Please arrange pickup at your earliest convenience.`
+              interpolate(templates?.orderReady ?? DEFAULT_WHATSAPP_TEMPLATES.orderReady, { name: firstName })
             )}
             target="_blank"
             rel="noopener noreferrer"
@@ -189,7 +196,7 @@ export default function InquiryActions({
             <a
               href={whatsappUrl(
                 inquiry.customer_phone,
-                `Hi ${firstName}! Just a reminder — the balance of KD ${balanceStr} is due on delivery/pickup. Payment methods: Cash or WAMD. Thank you!`
+                interpolate(templates?.balanceDue ?? DEFAULT_WHATSAPP_TEMPLATES.balanceDue, { name: firstName, amount: balanceStr ?? '0.000' })
               )}
               target="_blank"
               rel="noopener noreferrer"

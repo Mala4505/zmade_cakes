@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { formatDate, formatKWD } from '@/lib/utils'
 import { INQUIRY_STATUS_LABELS } from '@/lib/utils'
 import Link from 'next/link'
-import { ClipboardText, Package, Bell, ArrowRight, Plus, Warning, CalendarBlank, Wallet } from '@phosphor-icons/react/dist/ssr'
+import { ClipboardText, Package, Bell, ArrowRight, Plus, Warning, CalendarBlank, Wallet, TrendUp } from '@phosphor-icons/react/dist/ssr'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = { title: 'Dashboard' }
@@ -11,7 +11,12 @@ async function getDashboardData() {
   const supabase = await createClient()
   const today = new Date().toISOString().split('T')[0]
 
-  const [pendingRes, todayRes, activeOrdersRes, notificationsRes] = await Promise.all([
+  const now = new Date()
+  const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+  const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString()
+  const lastMonthEnd = thisMonthStart
+
+  const [pendingRes, todayRes, activeOrdersRes, notificationsRes, thisMonthRes, lastMonthRes, newCustomersRes, lastMonthCustomersRes] = await Promise.all([
     supabase
       .from('inquiries')
       .select('id', { count: 'exact', head: true })
@@ -36,6 +41,30 @@ async function getDashboardData() {
       .select('id, type, title, body, is_read, created_at')
       .order('created_at', { ascending: false })
       .limit(8),
+
+    supabase
+      .from('inquiries')
+      .select('admin_price')
+      .in('status', ['confirmed', 'in_progress', 'ready', 'delivered'])
+      .gte('created_at', thisMonthStart),
+
+    supabase
+      .from('inquiries')
+      .select('admin_price')
+      .in('status', ['confirmed', 'in_progress', 'ready', 'delivered'])
+      .gte('created_at', lastMonthStart)
+      .lt('created_at', lastMonthEnd),
+
+    supabase
+      .from('customers')
+      .select('id', { count: 'exact', head: true })
+      .gte('created_at', thisMonthStart),
+
+    supabase
+      .from('customers')
+      .select('id', { count: 'exact', head: true })
+      .gte('created_at', lastMonthStart)
+      .lt('created_at', lastMonthEnd),
   ])
 
   const activeOrders = activeOrdersRes.data ?? []
@@ -45,6 +74,11 @@ async function getDashboardData() {
     return inq?.admin_price && inq?.advance_amount && !inq?.balance_paid
   })
 
+  const thisMonthData = thisMonthRes.data ?? []
+  const lastMonthData = lastMonthRes.data ?? []
+  const thisMonthRevenue = thisMonthData.reduce((s, r: any) => s + (parseFloat(r.admin_price) || 0), 0)
+  const lastMonthRevenue = lastMonthData.reduce((s, r: any) => s + (parseFloat(r.admin_price) || 0), 0)
+
   return {
     pendingCount: pendingRes.count ?? 0,
     todayPickups: todayRes.data ?? [],
@@ -52,11 +86,19 @@ async function getDashboardData() {
     pendingPayments,
     notifications: notificationsRes.data ?? [],
     unreadCount: (notificationsRes.data ?? []).filter((n) => !n.is_read).length,
+    monthlyStats: {
+      revenue: thisMonthRevenue,
+      revenueDelta: thisMonthRevenue - lastMonthRevenue,
+      orders: thisMonthData.length,
+      ordersDelta: thisMonthData.length - lastMonthData.length,
+      newCustomers: newCustomersRes.count ?? 0,
+      newCustomersDelta: (newCustomersRes.count ?? 0) - (lastMonthCustomersRes.count ?? 0),
+    },
   }
 }
 
 export default async function DashboardPage() {
-  const { pendingCount, todayPickups, activeOrders, pendingPayments, notifications, unreadCount } =
+  const { pendingCount, todayPickups, activeOrders, pendingPayments, notifications, unreadCount, monthlyStats } =
     await getDashboardData()
 
   return (
@@ -118,7 +160,7 @@ export default async function DashboardPage() {
       </div>
 
       {/* Stat cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         <StatCard
           label="Pending"
           value={pendingCount}
@@ -144,6 +186,9 @@ export default async function DashboardPage() {
           accent={unreadCount > 0}
         />
       </div>
+
+      {/* Monthly stats */}
+      <MonthlyStats {...monthlyStats} />
 
       <div className="grid md:grid-cols-2 gap-6">
         {/* Today's pickups */}
@@ -319,6 +364,100 @@ export default async function DashboardPage() {
 }
 
 /* ---- Sub-components ---- */
+
+function MonthlyStats({
+  revenue,
+  revenueDelta,
+  orders,
+  ordersDelta,
+  newCustomers,
+  newCustomersDelta,
+}: {
+  revenue: number
+  revenueDelta: number
+  orders: number
+  ordersDelta: number
+  newCustomers: number
+  newCustomersDelta: number
+}) {
+  return (
+    <div
+      className="rounded-xl border overflow-hidden mb-8"
+      style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)' }}
+    >
+      <div
+        className="flex items-center gap-2 px-4 py-3 border-b"
+        style={{ borderColor: 'var(--color-border)' }}
+      >
+        <span style={{ color: 'var(--color-teal)' }}>
+          <TrendUp size={15} weight="fill" />
+        </span>
+        <span className="text-sm font-semibold" style={{ color: 'var(--color-ink)' }}>
+          This Month
+        </span>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-3">
+        <MonthStatItem
+          label="Revenue"
+          value={formatKWD(revenue.toFixed(3))}
+          delta={revenueDelta}
+          formatDelta={(v) => formatKWD(Math.abs(v).toFixed(3))}
+        />
+        <MonthStatItem
+          label="Orders"
+          value={String(orders)}
+          delta={ordersDelta}
+          formatDelta={(v) => String(Math.abs(v))}
+        />
+        <MonthStatItem
+          label="New Customers"
+          value={String(newCustomers)}
+          delta={newCustomersDelta}
+          formatDelta={(v) => String(Math.abs(v))}
+        />
+      </div>
+    </div>
+  )
+}
+
+function MonthStatItem({
+  label,
+  value,
+  delta,
+  formatDelta,
+}: {
+  label: string
+  value: string
+  delta: number
+  formatDelta: (v: number) => string
+}) {
+  const positive = delta > 0
+  const neutral = delta === 0
+  return (
+    <div
+      className="px-5 py-4 flex flex-col gap-0.5 border-b sm:border-b-0 sm:border-r last:border-0"
+      style={{ borderColor: 'var(--color-border)' }}
+    >
+      <span
+        className="text-xl font-semibold tracking-tight"
+        style={{ color: 'var(--color-ink)', fontFamily: 'var(--font-mono)' }}
+      >
+        {value}
+      </span>
+      <span className="text-xs" style={{ color: 'var(--color-ink-muted)' }}>
+        {label}
+      </span>
+      {!neutral && (
+        <span
+          className="text-[11px] font-medium mt-1"
+          style={{ color: positive ? 'var(--color-success)' : 'var(--color-danger)' }}
+        >
+          {positive ? '+' : '−'}{formatDelta(delta)} vs last month
+        </span>
+      )}
+    </div>
+  )
+}
 
 function StatCard({
   label,

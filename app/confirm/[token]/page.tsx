@@ -2,6 +2,7 @@ import { notFound, redirect } from 'next/navigation'
 import { createServiceClient } from '@/lib/supabase/server'
 import { isValidUUID, formatDate, formatTime, formatKWD, GOVERNORATE_LABELS } from '@/lib/utils'
 import ConfirmForm from './_components/ConfirmForm'
+import CustomerPhotoUpload from './_components/CustomerPhotoUpload'
 import type { Metadata } from 'next'
 
 interface Props { params: Promise<{ token: string }> }
@@ -185,6 +186,9 @@ export default async function ConfirmPage({ params }: Props) {
             </p>
           </section>
         )}
+
+        {/* Reference photo upload */}
+        <CustomerPhotoUpload token={token} />
 
         {/* Confirmation form */}
         <ConfirmForm

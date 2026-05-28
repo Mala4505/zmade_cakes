@@ -26,7 +26,7 @@ async function getInquiries(status: string) {
 
   let query = supabase
     .from('inquiries')
-    .select('id, customer_name, customer_phone, cake_size, flavor, occasion, event_date, status, priority, admin_price, confirmation_token, customer_confirmed, created_at')
+    .select('id, customer_name, customer_phone, cake_size, flavor, occasion, event_date, status, priority, admin_price, confirmation_token, customer_confirmed, created_at, customer_id')
     .order('priority', { ascending: false })
     .order('event_date', { ascending: true })
 
@@ -54,6 +54,20 @@ async function getStatusCounts(): Promise<Record<string, number>> {
   return counts
 }
 
+async function getCustomerInquiryCounts(customerIds: string[]): Promise<Record<string, number>> {
+  if (customerIds.length === 0) return {}
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('inquiries')
+    .select('customer_id')
+    .in('customer_id', customerIds)
+  const counts: Record<string, number> = {}
+  for (const row of (data ?? [])) {
+    if (row.customer_id) counts[row.customer_id] = (counts[row.customer_id] ?? 0) + 1
+  }
+  return counts
+}
+
 export default async function InquiriesPage({
   searchParams,
 }: {
@@ -64,6 +78,11 @@ export default async function InquiriesPage({
     getInquiries(status),
     getStatusCounts(),
   ])
+
+  const customerIds = [...new Set(
+    inquiries.filter((i: any) => i.customer_id).map((i: any) => i.customer_id as string)
+  )]
+  const customerInquiryCounts = await getCustomerInquiryCounts(customerIds)
 
   return (
     <div className="px-4 py-6 md:px-8 md:py-8 max-w-5xl mx-auto">
@@ -144,6 +163,14 @@ export default async function InquiriesPage({
                       >
                         {inq.customer_name}
                       </span>
+                      {(inq as any).customer_id && customerInquiryCounts[(inq as any).customer_id] > 1 && (
+                        <span
+                          className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
+                          style={{ backgroundColor: 'var(--color-teal-light)', color: 'var(--color-teal-deep)' }}
+                        >
+                          ↩ Returning
+                        </span>
+                      )}
                       {inq.priority > 0 && <PriorityBadge priority={inq.priority} />}
                     </div>
 

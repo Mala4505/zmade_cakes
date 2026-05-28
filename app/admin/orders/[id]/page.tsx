@@ -1,9 +1,12 @@
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { getInquiryImages } from '@/lib/actions/images'
 import { formatDate, formatTime, formatKWD, trackingLink, GOVERNORATE_LABELS } from '@/lib/utils'
 import { PageHeader } from '@/components/admin/PageHeader'
 import { StatusBadge } from '@/components/admin/StatusBadge'
 import OrderDetailActions from './_components/OrderDetailActions'
+import OrderEtaSection from './_components/OrderEtaSection'
+import OrderImageSection from './_components/OrderImageSection'
 import InvoicePrint from '@/components/admin/InvoicePrint'
 import type { Metadata } from 'next'
 
@@ -39,6 +42,8 @@ export default async function OrderDetailPage({ params }: Props) {
 
   const inq = (order as any).inquiry
   const trackLink = trackingLink(order.tracking_token)
+
+  const imagesResult = inq?.id ? await getInquiryImages(inq.id) : { data: [] }
 
   return (
     <div className="px-4 py-6 md:px-8 md:py-8 max-w-2xl mx-auto">
@@ -93,10 +98,37 @@ export default async function OrderDetailPage({ params }: Props) {
           )}
         </div>
 
+        {/* ETA */}
+        <div className="mb-6">
+          <OrderEtaSection
+            orderId={order.id}
+            initialDate={(order as any).eta_date ?? null}
+            initialTime={(order as any).eta_time ?? null}
+            initialNote={(order as any).eta_note ?? ''}
+          />
+        </div>
+
+        {/* Finished Cake Photos */}
+        {inq?.id && (
+          <div className="mb-6">
+            <p
+              className="text-xs font-semibold uppercase tracking-wider mb-3"
+              style={{ color: 'var(--color-ink-muted)' }}
+            >
+              Finished Cake Photos
+            </p>
+            <OrderImageSection
+              initialImages={imagesResult.data ?? []}
+              inquiryId={inq.id}
+            />
+          </div>
+        )}
+
         {/* Actions */}
         <OrderDetailActions
           order={order as any}
           trackingLink={trackLink}
+          inquiry={{ customer_name: inq?.customer_name ?? '' }}
         />
       </div>
 

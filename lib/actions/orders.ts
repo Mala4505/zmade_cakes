@@ -108,3 +108,29 @@ export async function cancelOrder(id: string): Promise<ActionResult<void>> {
 
   return { data: undefined, error: null }
 }
+
+export async function updateOrderEta(
+  id: string,
+  eta: { eta_date: string | null; eta_time: string | null; eta_note: string }
+): Promise<ActionResult<Order>> {
+  if (!tokenSchema.safeParse(id).success) {
+    return { data: null, error: 'Invalid order ID' }
+  }
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { data: null, error: 'Unauthorized' }
+
+  const { data, error } = await supabase
+    .from('orders')
+    .update({
+      eta_date: eta.eta_date || null,
+      eta_time: eta.eta_time || null,
+      eta_note: eta.eta_note,
+    })
+    .eq('id', id)
+    .select()
+    .single()
+
+  if (error || !data) return { data: null, error: error?.message ?? 'Failed to update ETA' }
+  return { data, error: null }
+}

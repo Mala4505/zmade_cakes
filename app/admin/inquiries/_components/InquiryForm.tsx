@@ -1,15 +1,18 @@
 'use client'
 
-import { useTransition } from 'react'
+import { useTransition, useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
+import PhoneInput from '@/components/PhoneInput'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useRouter } from 'next/navigation'
 import { inquirySchema, deliveryAddressSchema, type InquiryFormData } from '@/lib/validations/inquiry'
 import { createInquiry, updateInquiry } from '@/lib/actions/inquiries'
-import type { OptionRow, Inquiry } from '@/lib/supabase/types'
+import { lookupCustomerByPhone, upsertCustomer } from '@/lib/actions/customers'
+import type { OptionRow, Inquiry, BlackoutDate } from '@/lib/supabase/types'
 import type { DeliveryAddressData } from '@/lib/validations/inquiry'
 import { z } from 'zod'
 import { GOVERNORATE_LABELS } from '@/lib/utils'
+import { CustomerHistoryPanel } from './CustomerHistoryPanel'
 
 const fullSchema = inquirySchema.and(
   z.object({
@@ -33,9 +36,14 @@ interface Props {
     decorations: OptionRow[]
   }
   inquiry?: Inquiry
+  minLeadDays?: number
+  blackouts?: BlackoutDate[]
+  pricingMatrix?: Record<string, number>
+  minPriceGuard?: number
+  rushMultiplier?: number
 }
 
-export default function InquiryForm({ options, inquiry }: Props) {
+export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, pricingMatrix, minPriceGuard, rushMultiplier }: Props) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
 
@@ -43,6 +51,7 @@ export default function InquiryForm({ options, inquiry }: Props) {
     register,
     handleSubmit,
     watch,
+    setValue,
     setError,
     formState: { errors },
   } = useForm<FullFormData>({
@@ -93,6 +102,51 @@ export default function InquiryForm({ options, inquiry }: Props) {
   })
 
   const deliveryType = watch('delivery_type')
+  const watchedPhone = watch('customer_phone')
+  const watchedEventDate = watch('event_date')
+  const watchedCakeSize = watch('cake_size')
+  const watchedPrice = watch('admin_price')
+
+  const [customerHistory, setCustomerHistory] = useState<{
+    customer: { id: string; name: string; notes: string; vip: boolean; phone: string; created_at: string; updated_at: string }
+    recentInquiries: Array<{ id: string; cake_size: string; flavor: string; event_date: string; status: string }>
+    totalCount: number
+  } | null>(null)
+
+  useEffect(() => {
+    if (!watchedPhone || watchedPhone.trim().length < 7) {
+      setCustomerHistory(null)
+      return
+    }
+    const timer = setTimeout(async () => {
+      const result = await lookupCustomerByPhone(watchedPhone.trim())
+      setCustomerHistory(result.data ?? null)
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [watchedPhone])
+
+  const isWithinLeadTime = (date: string): boolean => {
+    if (!date || !minLeadDays) return false
+    const d = new Date(date)
+    const cutoff = new Date()
+    cutoff.setDate(cutoff.getDate() + minLeadDays)
+    return d < cutoff
+  }
+
+  const isDateBlackedOut = (date: string): boolean => {
+    if (!date || !blackouts?.length) return false
+    const d = new Date(date)
+    return blackouts.some((b) => new Date(b.date_from) <= d && d <= new Date(b.date_to))
+  }
+
+  const suggestedBase = pricingMatrix && watchedCakeSize ? pricingMatrix[watchedCakeSize] : undefined
+  const isRush = suggestedBase !== undefined && watchedEventDate ? (() => {
+    const d = new Date(watchedEventDate)
+    const cutoff = new Date()
+    cutoff.setDate(cutoff.getDate() + (minLeadDays ?? 3) + 2)
+    return d < cutoff
+  })() : false
+  const suggestedRush = isRush && rushMultiplier && suggestedBase ? suggestedBase * rushMultiplier : undefined
 
   const onSubmit = (data: FullFormData) => {
     startTransition(async () => {
@@ -124,6 +178,10 @@ export default function InquiryForm({ options, inquiry }: Props) {
         return
       }
 
+      if (inquiryData.customer_phone && inquiryData.customer_name) {
+        void upsertCustomer(inquiryData.customer_phone, inquiryData.customer_name)
+      }
+
       router.push(inquiry ? `/admin/inquiries/${inquiry.id}` : `/admin/inquiries/${result.data!.id}`)
       router.refresh()
     })
@@ -147,9 +205,21 @@ export default function InquiryForm({ options, inquiry }: Props) {
             <input {...register('customer_name')} placeholder="Fatima Al-Ahmad" className={inputClass} style={inputStyle} />
           </Field>
           <Field label="Phone" error={errors.customer_phone?.message} required>
-            <input {...register('customer_phone')} placeholder="+965 9999 9999" className={inputClass} style={inputStyle} />
+            <PhoneInput
+              value={watchedPhone}
+              onChange={value => setValue('customer_phone', value, { shouldValidate: true })}
+            />
           </Field>
         </div>
+        {customerHistory && (
+          <CustomerHistoryPanel
+            data={customerHistory}
+            onPrefill={(cakeSize, flavor) => {
+              setValue('cake_size', cakeSize)
+              setValue('flavor', flavor)
+            }}
+          />
+        )}
       </Section>
 
       {/* Cake details */}
@@ -231,8 +301,18 @@ export default function InquiryForm({ options, inquiry }: Props) {
       {/* Event & delivery */}
       <Section title="Event & Delivery">
         <div className="grid grid-cols-2 gap-4">
-          <Field label="Event Date" error={errors.event_date?.message} required>
+          <Field label={minLeadDays ? `Event Date (min ${minLeadDays} days)` : 'Event Date'} error={errors.event_date?.message} required>
             <input {...register('event_date')} type="date" className={inputClass} style={inputStyle} />
+            {watchedEventDate && isDateBlackedOut(watchedEventDate) && (
+              <p className="mt-1 text-xs" style={{ color: 'var(--color-danger)' }}>
+                This date is blocked — unavailable for new orders.
+              </p>
+            )}
+            {watchedEventDate && !isDateBlackedOut(watchedEventDate) && isWithinLeadTime(watchedEventDate) && (
+              <p className="mt-1 text-xs" style={{ color: 'var(--color-warning)' }}>
+                Warning: this date is within the minimum lead time of {minLeadDays} days.
+              </p>
+            )}
           </Field>
           <Field label="Pickup / Delivery Time" error={errors.pickup_time?.message}>
             <input {...register('pickup_time')} type="time" className={inputClass} style={inputStyle} />
@@ -286,6 +366,35 @@ export default function InquiryForm({ options, inquiry }: Props) {
         <div className="grid grid-cols-2 gap-4">
           <Field label="Price (KD)" error={errors.admin_price?.message}>
             <input {...register('admin_price', { valueAsNumber: true })} type="number" step="0.001" min="0" placeholder="12.500" className={inputClass} style={{ ...inputStyle, fontFamily: 'var(--font-mono)' }} />
+            {(suggestedBase !== undefined || suggestedRush !== undefined) && (
+              <div className="flex gap-2 mt-1 flex-wrap">
+                {suggestedBase !== undefined && (
+                  <button
+                    type="button"
+                    onClick={() => setValue('admin_price', suggestedBase)}
+                    className="text-xs px-2.5 py-1 rounded-full font-medium transition-colors"
+                    style={{ backgroundColor: 'var(--color-teal-light)', color: 'var(--color-teal-deep)' }}
+                  >
+                    Suggested: KD {suggestedBase.toFixed(3)}
+                  </button>
+                )}
+                {suggestedRush !== undefined && (
+                  <button
+                    type="button"
+                    onClick={() => setValue('admin_price', suggestedRush)}
+                    className="text-xs px-2.5 py-1 rounded-full font-medium transition-colors"
+                    style={{ backgroundColor: '#fef3c7', color: '#92400e' }}
+                  >
+                    Rush rate: KD {suggestedRush.toFixed(3)}
+                  </button>
+                )}
+              </div>
+            )}
+            {minPriceGuard !== undefined && watchedPrice !== undefined && watchedPrice !== null && !isNaN(watchedPrice as number) && (watchedPrice as number) > 0 && (watchedPrice as number) < minPriceGuard && (
+              <p className="mt-1 text-xs" style={{ color: 'var(--color-danger)' }}>
+                Minimum price is KD {minPriceGuard.toFixed(3)}
+              </p>
+            )}
           </Field>
           <Field label="Advance Amount (KD)" error={errors.advance_amount?.message}>
             <input {...register('advance_amount', { valueAsNumber: true })} type="number" step="0.001" min="0" placeholder="5.000" className={inputClass} style={{ ...inputStyle, fontFamily: 'var(--font-mono)' }} />

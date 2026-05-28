@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation'
+import Link from 'next/link'
 import { createServiceClient } from '@/lib/supabase/server'
-import { isValidUUID, formatDate, formatTime, formatKWD } from '@/lib/utils'
+import { isValidUUID, formatDate, formatTime, formatKWD, formatDateLong } from '@/lib/utils'
 import type { Metadata } from 'next'
 import type { OrderStatus } from '@/lib/supabase/types'
 import { CheckCircle, Circle } from '@phosphor-icons/react/dist/ssr'
@@ -43,6 +44,10 @@ export default async function TrackPage({ params }: Props) {
   const inq = o.inquiry
   const currentStep = STATUS_ORDER[o.status as OrderStatus] ?? -1
   const isCancelled = o.status === 'cancelled'
+
+  const finishedImages = (o.status === 'ready' || o.status === 'delivered') && inq?.id
+    ? (await supabase.from('inquiry_images').select('*').eq('inquiry_id', inq.id).eq('image_type', 'finished').order('created_at', { ascending: true })).data ?? []
+    : []
 
   return (
     <main
@@ -187,6 +192,62 @@ export default async function TrackPage({ params }: Props) {
           </section>
         )}
 
+        {/* Your Cake — finished photos */}
+        {finishedImages.length > 0 && (
+          <section
+            className="rounded-2xl border p-5"
+            style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
+          >
+            <h2
+              className="text-xs font-semibold uppercase tracking-widest mb-4"
+              style={{ color: 'var(--color-ink-muted)' }}
+            >
+              Your Cake
+            </h2>
+            <div className="flex flex-wrap gap-3">
+              {finishedImages.map((img: any) => (
+                <a
+                  key={img.id}
+                  href={img.url_original}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block rounded-xl overflow-hidden border"
+                  style={{
+                    borderColor: 'var(--color-border)',
+                    width: 120,
+                    height: 120,
+                    flexShrink: 0,
+                  }}
+                >
+                  <img
+                    src={img.url_medium}
+                    alt="Finished cake photo"
+                    className="w-full h-full object-cover"
+                  />
+                </a>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* ETA callout */}
+        {o.eta_date && (
+          <div
+            className="rounded-xl border px-4 py-4 flex flex-col gap-1"
+            style={{ borderColor: 'var(--color-teal-light)', backgroundColor: 'var(--color-teal-light)' }}
+          >
+            <p className="text-sm font-semibold" style={{ color: 'var(--color-teal-deep)' }}>
+              Expected by {formatDateLong(o.eta_date)}
+              {o.eta_time ? `, ${formatTime(o.eta_time)}` : ''}
+            </p>
+            {o.eta_note && (
+              <p className="text-xs" style={{ color: 'var(--color-teal-deep)', opacity: 0.8 }}>
+                {o.eta_note}
+              </p>
+            )}
+          </div>
+        )}
+
         {/* Order details */}
         <section
           className="rounded-2xl border p-5 flex flex-col gap-2.5"
@@ -225,6 +286,20 @@ export default async function TrackPage({ params }: Props) {
 
         {/* Contact */}
         <div className="text-center flex flex-col items-center gap-3">
+          <Link
+            href={`/invoice/${token}`}
+            className="text-xs"
+            style={{ color: 'var(--color-teal)' }}
+          >
+            View Invoice
+          </Link>
+          <Link
+            href="/my-orders"
+            className="text-xs"
+            style={{ color: 'var(--color-ink-secondary)' }}
+          >
+            My Orders
+          </Link>
           <p className="text-xs" style={{ color: 'var(--color-ink-muted)' }}>
             Questions about your order?
           </p>

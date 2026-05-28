@@ -1,4 +1,5 @@
 import { formatDate, formatTime, formatKWD, GOVERNORATE_LABELS } from '@/lib/utils'
+import { hasAllergens, ALLERGEN_LABELS } from '@/lib/supabase/types'
 
 interface Props {
   order: {
@@ -22,8 +23,15 @@ interface Props {
     admin_price: string | null
     advance_amount: string | null
     advance_paid: boolean
+    balance_paid: boolean
     payment_method: string
     special_requirements?: string
+    allergen_nut_free: boolean
+    allergen_gluten_free: boolean
+    allergen_dairy_free: boolean
+    allergen_egg_free: boolean
+    allergen_halal: boolean
+    allergen_other: string
     delivery_address?: {
       governorate: string
       area: string
@@ -49,35 +57,68 @@ export default function InvoicePrint({ order, inquiry }: Props) {
         .join(', ')
     : null
 
+  const allergenList = Object.entries(ALLERGEN_LABELS)
+    .filter(([key]) => inquiry[key as keyof typeof ALLERGEN_LABELS])
+    .map(([, label]) => label)
+  if (inquiry.allergen_other) allergenList.push(inquiry.allergen_other)
+
+  const total = parseFloat(order.final_price) || 0
+  const advance = inquiry.advance_amount ? parseFloat(inquiry.advance_amount) : null
+  const balance = advance !== null ? total - advance : null
+
   return (
     <div id="invoice" className="print-only">
       <style>{`
         @media print {
+          body { font-size: 11pt; margin: 0; }
+          @page { margin: 18mm 15mm; }
+          .no-print, header, nav, aside { display: none !important; }
           #invoice {
-            font-family: monospace;
-            font-size: 12px;
-            color: #000;
+            font-family: 'Cabinet Grotesk', 'Inter', sans-serif;
+            color: #111;
             width: 100%;
-            max-width: 400px;
+            max-width: 480px;
             margin: 0 auto;
             padding: 0;
           }
-          .inv-divider { border-top: 1px dashed #000; margin: 8px 0; }
-          .inv-row { display: flex; justify-content: space-between; margin: 3px 0; }
-          .inv-label { color: #555; }
-          .inv-title { font-size: 14px; font-weight: bold; text-align: center; margin-bottom: 4px; }
-          .inv-sub { text-align: center; font-size: 11px; margin-bottom: 2px; }
-          .inv-section-title { font-weight: bold; margin: 8px 0 4px; text-transform: uppercase; font-size: 11px; }
-          .inv-note { font-size: 10px; color: #555; margin-top: 12px; text-align: center; line-height: 1.5; }
+          .inv-accent { height: 3px; background: #0d9488; width: 100%; margin-bottom: 18px; }
+          .inv-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; }
+          .inv-brand-name { font-size: 20px; font-weight: 800; letter-spacing: -0.3px; color: #0d9488; }
+          .inv-tagline { font-size: 11px; color: #777; margin-top: 2px; }
+          .inv-label-invoice { font-size: 22px; font-weight: 700; letter-spacing: 2px; color: #ccc; text-transform: uppercase; }
+          .inv-divider { border-top: 1px dashed #ccc; margin: 10px 0; }
+          .inv-divider-solid { border-top: 1px solid #e5e5e5; margin: 10px 0; }
+          .inv-row { display: flex; justify-content: space-between; margin: 4px 0; font-size: 10.5pt; }
+          .inv-label { color: #777; }
+          .inv-section-title { font-weight: 700; margin: 10px 0 5px; text-transform: uppercase; font-size: 9pt; letter-spacing: 0.8px; color: #444; }
+          .inv-note { font-size: 9pt; color: #777; margin-top: 16px; text-align: center; line-height: 1.6; border-top: 1px dashed #ccc; padding-top: 10px; }
+          .inv-allergen-row { margin: 4px 0; font-size: 10.5pt; }
+          .inv-allergen-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+          .inv-allergen-tag { border: 1px solid #f59e0b; color: #92400e; font-size: 9pt; padding: 1px 6px; border-radius: 4px; }
+          .inv-total-row { display: flex; justify-content: space-between; margin: 5px 0; font-size: 10.5pt; }
+          .inv-total-main { font-weight: 700; font-size: 11.5pt; }
+          .inv-paid { color: #16a34a; font-weight: 700; font-size: 10.5pt; }
+          .inv-mono { font-family: 'Courier New', monospace; }
+          .inv-contact { text-align: center; font-size: 9.5pt; color: #555; margin-bottom: 12px; }
         }
       `}</style>
 
-      <div className="inv-title">ZMade Cakes — Kuwait</div>
-      <div className="inv-sub">@zmadecakes.q8</div>
-      <div className="inv-sub">+965 6685 7560</div>
+      <div className="inv-accent" />
+
+      <div className="inv-header">
+        <div>
+          <div className="inv-brand-name">ZMade Cakes</div>
+          <div className="inv-tagline">Handcrafted with love</div>
+        </div>
+        <div className="inv-label-invoice">INVOICE</div>
+      </div>
+
+      <div className="inv-contact">
+        @zmadecakes.q8 &nbsp;·&nbsp; +965 6685 7560
+      </div>
 
       <div className="inv-divider" />
-      <div className="inv-section-title">Order Confirmation</div>
+      <div className="inv-section-title">Order Details</div>
       <div className="inv-divider" />
 
       <div className="inv-row">
@@ -146,21 +187,47 @@ export default function InvoicePrint({ order, inquiry }: Props) {
         </div>
       )}
 
-      <div className="inv-divider" />
+      {hasAllergens(inquiry) && (
+        <>
+          <div className="inv-divider" />
+          <div className="inv-section-title">Dietary Requirements</div>
+          <div className="inv-allergen-tags">
+            {allergenList.map((label) => (
+              <span key={label} className="inv-allergen-tag">{label}</span>
+            ))}
+          </div>
+        </>
+      )}
 
-      <div className="inv-row">
-        <span className="inv-label">Amount:</span>
-        <span>{formatKWD(order.final_price)}</span>
+      <div className="inv-divider" />
+      <div className="inv-section-title">Payment</div>
+
+      <div className="inv-total-row inv-total-main">
+        <span>Total</span>
+        <span className="inv-mono">{formatKWD(order.final_price)}</span>
       </div>
-      {inquiry.advance_amount && (
-        <div className="inv-row">
-          <span className="inv-label">Advance Paid:</span>
-          <span>{formatKWD(inquiry.advance_amount)} — {inquiry.advance_paid ? 'PAID' : 'UNPAID'}</span>
+      {advance !== null && (
+        <div className="inv-total-row">
+          <span className="inv-label">Advance Paid</span>
+          <span className="inv-mono">{formatKWD(String(advance))}</span>
         </div>
+      )}
+      {balance !== null && (
+        inquiry.balance_paid ? (
+          <div className="inv-total-row">
+            <span className="inv-label">Balance</span>
+            <span className="inv-paid">✓ Fully Paid</span>
+          </div>
+        ) : (
+          <div className="inv-total-row">
+            <span className="inv-label">Balance Due</span>
+            <span className="inv-mono">{formatKWD(String(balance))}</span>
+          </div>
+        )
       )}
       {inquiry.payment_method && (
         <div className="inv-row">
-          <span className="inv-label">Payment:</span>
+          <span className="inv-label">Payment Method:</span>
           <span>{inquiry.payment_method === 'wamd' ? 'WAMD' : 'Cash'}</span>
         </div>
       )}
@@ -177,8 +244,6 @@ export default function InvoicePrint({ order, inquiry }: Props) {
           <span>{deliveryAddr}</span>
         </div>
       )}
-
-      <div className="inv-divider" />
 
       <p className="inv-note">
         Once the order is booked and confirmed, no further<br />

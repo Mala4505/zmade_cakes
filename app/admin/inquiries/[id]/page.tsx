@@ -1,12 +1,16 @@
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getOptions } from '@/lib/actions/options'
+import { getSettings, getBlackouts } from '@/lib/actions/settings'
+import { getInquiryImages } from '@/lib/actions/images'
 import { formatDate, formatTime, formatKWD, confirmationLink, trackingLink, GOVERNORATE_LABELS } from '@/lib/utils'
 import { PageHeader } from '@/components/admin/PageHeader'
 import { StatusBadge, PriorityBadge } from '@/components/admin/StatusBadge'
 import InquiryForm from '../_components/InquiryForm'
 import InquiryActions from './_components/InquiryActions'
+import InquiryImageSection from './_components/InquiryImageSection'
 import type { Metadata } from 'next'
+import type { WhatsAppTemplates } from '@/lib/supabase/types'
 
 interface Props {
   params: Promise<{ id: string }>
@@ -31,15 +35,30 @@ export default async function InquiryDetailPage({ params }: Props) {
 
   if (error || !inquiry) notFound()
 
-  const [flavors, sizes, occasions, themes, decorations] = await Promise.all([
+  const [flavors, sizes, occasions, themes, decorations, settingsResult, blackoutsResult, imagesResult] = await Promise.all([
     getOptions('flavor_options'),
     getOptions('size_options'),
     getOptions('occasion_options'),
     getOptions('theme_options'),
     getOptions('decoration_style_options'),
+    getSettings(['whatsapp_templates', 'min_lead_days', 'pricing_matrix', 'min_price_guard', 'rush_multiplier']),
+    getBlackouts(),
+    getInquiryImages(id),
   ])
 
   const confirmLink = confirmationLink(inquiry.confirmation_token)
+  const templates = settingsResult.data?.whatsapp_templates as WhatsAppTemplates | undefined
+  const minLeadDays = parseInt((settingsResult.data?.min_lead_days as string) ?? '3')
+  const pricingMatrix = (settingsResult.data?.pricing_matrix as Record<string, number>) ?? {}
+  const minPriceGuard = Number(settingsResult.data?.min_price_guard ?? 3)
+  const rushMultiplier = Number(settingsResult.data?.rush_multiplier ?? 1.3)
+
+  const customerId = (inquiry as any).customer_id
+  let customerData = null
+  if (customerId) {
+    const { data } = await supabase.from('customers').select('*').eq('id', customerId).single()
+    customerData = data
+  }
 
   return (
     <div className="px-4 py-6 md:px-8 md:py-8 max-w-2xl mx-auto">
@@ -108,7 +127,38 @@ export default async function InquiryDetailPage({ params }: Props) {
       <InquiryActions
         inquiry={inquiry as any}
         confirmLink={confirmLink}
+        templates={templates}
       />
+
+      {/* Reference Images */}
+      <div className="mt-6">
+        <p
+          className="text-xs font-semibold uppercase tracking-wider mb-3"
+          style={{ color: 'var(--color-ink-muted)' }}
+        >
+          Reference Images
+        </p>
+        <InquiryImageSection
+          initialImages={imagesResult.data ?? []}
+          inquiryId={id}
+        />
+      </div>
+
+      {/* Customer profile card */}
+      {customerData && (
+        <div className="mt-6 rounded-xl border p-4" style={{ borderColor: 'var(--color-teal-light)', backgroundColor: 'var(--color-teal-light)' }}>
+          <p className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--color-teal-deep)' }}>Customer Profile</p>
+          <p className="text-sm font-medium" style={{ color: 'var(--color-ink)' }}>
+            {customerData.name}
+            {customerData.vip && (
+              <span className="ml-2 text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full" style={{ backgroundColor: '#fef3c7', color: '#92400e' }}>VIP</span>
+            )}
+          </p>
+          {customerData.notes && (
+            <p className="text-xs mt-1" style={{ color: 'var(--color-ink-muted)' }}>{customerData.notes}</p>
+          )}
+        </div>
+      )}
 
       {/* Edit form */}
       <div className="mt-8">
@@ -127,6 +177,11 @@ export default async function InquiryDetailPage({ params }: Props) {
             themes: themes.data ?? [],
             decorations: decorations.data ?? [],
           }}
+          minLeadDays={minLeadDays}
+          blackouts={blackoutsResult.data ?? []}
+          pricingMatrix={pricingMatrix}
+          minPriceGuard={minPriceGuard}
+          rushMultiplier={rushMultiplier}
         />
       </div>
     </div>

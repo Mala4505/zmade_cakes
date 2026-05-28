@@ -26,6 +26,7 @@ export interface OptionRow {
   name: string
   sort_order: number
   is_active: boolean
+  image_url: string | null
   created_at: string
 }
 
@@ -74,6 +75,8 @@ export interface Inquiry {
   confirmation_token: string
   customer_confirmed: boolean
   customer_confirmed_at: string | null
+  customer_id: string | null
+  source: 'admin' | 'public_form'
   customer_comments: string
   created_at: string
   updated_at: string
@@ -87,6 +90,9 @@ export interface Order {
   status: OrderStatus
   final_price: string
   delivery_type: DeliveryType
+  eta_date: string | null
+  eta_time: string | null
+  eta_note: string
   created_at: string
   updated_at: string
   inquiry?: Inquiry
@@ -124,6 +130,78 @@ export const ALLERGEN_LABELS: Record<keyof Omit<AllergenFlags, 'allergen_other'>
   allergen_halal: 'Halal',
 }
 
+export interface Customer {
+  id: string
+  phone: string
+  name: string
+  notes: string
+  vip: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface InquiryImage {
+  id: string
+  inquiry_id: string
+  uploaded_by: 'customer' | 'admin'
+  image_type: 'reference' | 'finished'
+  url_original: string
+  url_medium: string
+  url_thumb: string
+  caption: string
+  created_at: string
+}
+
+export interface BlackoutDate {
+  id: string
+  date_from: string
+  date_to: string
+  reason: string
+  created_at: string
+}
+
+export type BusinessSettingKey =
+  | 'min_lead_days'
+  | 'business_phone'
+  | 'business_instagram'
+  | 'whatsapp_templates'
+  | 'pricing_matrix'
+  | 'min_price_guard'
+  | 'rush_multiplier'
+
+export interface BusinessSetting {
+  key: BusinessSettingKey
+  value: unknown
+  updated_at: string
+}
+
+export interface WhatsAppTemplates {
+  confirmationLink: string
+  orderReady: string
+  balanceDue: string
+  trackingLink: string
+}
+
+export const DEFAULT_WHATSAPP_TEMPLATES: WhatsAppTemplates = {
+  confirmationLink: 'Hi {name}! Here is your ZMade Cakes confirmation link: {link}',
+  orderReady: "Hi {name}! Great news — your cake is ready! Please contact us to arrange collection.",
+  balanceDue: 'Hi {name}! A reminder that your balance of KWD {amount} is due on delivery.',
+  trackingLink: 'Hi {name}! Track your ZMade order here: {link}',
+}
+
+export interface FlavorSizePrice {
+  id: string
+  flavor_id: string
+  size_id: string
+  price: string  // DECIMAL returned as string by Supabase JS client — use parseFloat() for math
+  created_at: string
+  updated_at: string
+}
+
+export interface FlavorWithPrices extends OptionRow {
+  prices: FlavorSizePrice[]
+}
+
 export interface Database {
   public: {
     Tables: {
@@ -136,6 +214,11 @@ export interface Database {
       inquiries: { Row: Inquiry; Insert: Omit<Inquiry, 'id' | 'confirmation_token' | 'customer_confirmed' | 'customer_confirmed_at' | 'created_at' | 'updated_at'>; Update: Partial<Omit<Inquiry, 'id' | 'created_at'>> }
       orders: { Row: Order; Insert: Omit<Order, 'id' | 'tracking_token' | 'created_at' | 'updated_at'>; Update: Partial<Omit<Order, 'id' | 'created_at'>> }
       notifications: { Row: Notification; Insert: Omit<Notification, 'id' | 'created_at'>; Update: Partial<Omit<Notification, 'id' | 'created_at'>> }
+      customers: { Row: Customer; Insert: Omit<Customer, 'id' | 'created_at' | 'updated_at'>; Update: Partial<Omit<Customer, 'id' | 'created_at'>> }
+      inquiry_images: { Row: InquiryImage; Insert: Omit<InquiryImage, 'id' | 'created_at'>; Update: Partial<Omit<InquiryImage, 'id' | 'created_at'>> }
+      blackout_dates: { Row: BlackoutDate; Insert: Omit<BlackoutDate, 'id' | 'created_at'>; Update: Partial<Omit<BlackoutDate, 'id' | 'created_at'>> }
+      business_settings: { Row: BusinessSetting; Insert: Omit<BusinessSetting, 'updated_at'>; Update: Partial<Omit<BusinessSetting, 'key'>> }
+      flavor_size_prices: { Row: FlavorSizePrice; Insert: Omit<FlavorSizePrice, 'id' | 'created_at' | 'updated_at'>; Update: Partial<Pick<FlavorSizePrice, 'price'>> }
     }
   }
 }

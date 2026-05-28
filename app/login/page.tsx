@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import LoginForm from './_components/LoginForm'
+import Image from 'next/image'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = { title: 'Sign In' }
@@ -18,14 +19,9 @@ export default async function LoginPage() {
       style={{ backgroundColor: 'var(--color-cream)' }}>
       <div className="w-full max-w-sm">
         {/* Wordmark */}
-        <div className="mb-10 text-center">
-          <h1
-            className="text-2xl font-semibold tracking-tight"
-            style={{ color: 'var(--color-ink)', fontFamily: 'var(--font-sans)' }}
-          >
-            ZMade Cakes
-          </h1>
-          <p className="mt-1 text-sm" style={{ color: 'var(--color-ink-muted)' }}>
+        <div className="mb-10 flex flex-col items-center gap-3">
+          <Image src="/logo.svg" alt="ZMade Cakes" width={96} height={96} className="rounded-xl" priority />
+          <p className="text-sm" style={{ color: 'var(--color-ink-muted)' }}>
             Order management
           </p>
         </div>

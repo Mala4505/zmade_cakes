@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import { Geist, Geist_Mono, Bricolage_Grotesque } from 'next/font/google'
+import { Toaster } from 'sonner'
 import './globals.css'
 
 const geistSans = Geist({
@@ -28,6 +29,7 @@ export const metadata: Metadata = {
   },
   description: 'Custom cake orders by ZMade Cakes, Kuwait.',
   robots: { index: false, follow: false },
+  icons: { icon: '/favicon.png' },
 }
 
 export const viewport: Viewport = {
@@ -43,7 +45,22 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} ${bricolageGrotesque.variable} h-full antialiased`}
     >
-      <body className="min-h-full">{children}</body>
+      <body className="min-h-full">
+        {children}
+        <Toaster
+          position="bottom-right"
+          mobilePosition="top-center"
+          toastOptions={{
+            duration: 4000,
+            classNames: {
+              toast: 'zmade-toast',
+              title: 'zmade-toast-title',
+              description: 'zmade-toast-desc',
+              closeButton: 'zmade-toast-close',
+            },
+          }}
+        />
+      </body>
     </html>
   )
 }

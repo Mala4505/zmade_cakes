@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { AdminSidebar, AdminBottomNav } from '@/components/admin/AdminNav'
+import Image from 'next/image'
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
@@ -24,8 +25,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const readyCount = readyRes.count ?? 0
 
   return (
-    <div className="flex min-h-svh" style={{ backgroundColor: 'var(--color-cream)' }}>
-      <AdminSidebar pendingCount={pendingCount} readyCount={readyCount} />
+    <div className="flex min-h-svh" style={{ backgroundColor: 'var(--color-surface)' }}>
+      <AdminSidebar pendingCount={pendingCount} readyCount={readyCount} user={user} />
 
       <div className="flex-1 flex flex-col min-w-0">
         <header
@@ -33,17 +34,13 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           style={{
             backgroundColor: 'var(--color-cream)',
             borderColor: 'var(--color-border)',
+            boxShadow: '0 1px 0 var(--color-border)',
           }}
         >
-          <span
-            className="text-base font-semibold tracking-tight"
-            style={{ color: 'var(--color-ink)' }}
-          >
-            ZMade Cakes
-          </span>
+          <Image src="/logo.svg" alt="ZMade Cakes" width={80} height={32} style={{ width: 'auto', height: '28px' }} priority />
         </header>
 
-        <main className="flex-1 pb-20 md:pb-0">
+        <main className="admin-main flex-1 pb-20 md:pb-0" style={{ backgroundColor: '#ffffff' }}>
           {children}
         </main>
       </div>

@@ -51,6 +51,7 @@ export const inquirySchema = z.object({
   payment_method: z.enum(['', 'cash', 'wamd']).default(''),
   admin_notes: z.string().max(2000).optional().default(''),
   priority: z.union([z.literal(0), z.literal(1), z.literal(2)]).default(0),
+  source: z.enum(['admin', 'public_form']).default('admin'),
 })
 
 export const inquiryUpdateSchema = inquirySchema.partial()

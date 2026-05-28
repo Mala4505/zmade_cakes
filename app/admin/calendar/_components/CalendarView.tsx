@@ -43,6 +43,18 @@ type OrderEvent = {
   resource: OrderResource
 }
 
+type BlackoutEvent = {
+  id: string
+  title: string
+  start: Date
+  end: Date
+  allDay: boolean
+  isBlackout: true
+  resource: null
+}
+
+type CalendarEvent = OrderEvent | BlackoutEvent
+
 function CustomToolbar({
   label,
   onView,
@@ -202,13 +214,45 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
   )
 }
 
-export default function CalendarView({ orders }: { orders: any[] }) {
+function DateCellWrapper({
+  children,
+  value,
+  orderCountByDate,
+}: {
+  children: React.ReactNode
+  value: Date
+  orderCountByDate: Record<string, number>
+}) {
+  const dateStr = format(value, 'yyyy-MM-dd')
+  const count = orderCountByDate[dateStr]
+  return (
+    <div className="relative w-full h-full">
+      {children}
+      {count > 0 && (
+        <span
+          className="absolute bottom-1 right-1 text-[9px] font-bold min-w-[16px] h-[16px] rounded-full flex items-center justify-center px-1"
+          style={{ backgroundColor: 'var(--color-teal)', color: 'var(--color-cream)', pointerEvents: 'none' }}
+        >
+          {count}
+        </span>
+      )}
+    </div>
+  )
+}
+
+interface CalendarViewProps {
+  orders: any[]
+  blackouts: { id: string; date_from: string; date_to: string; reason: string }[]
+  orderCountByDate: Record<string, number>
+}
+
+export default function CalendarView({ orders, blackouts, orderCountByDate }: CalendarViewProps) {
   const [selectedEvent, setSelectedEvent] = useState<OrderEvent | null>(null)
   const [view, setView] = useState<View>('month')
   const [date, setDate] = useState(new Date())
 
-  const events = useMemo<OrderEvent[]>(() => {
-    return orders
+  const events = useMemo<CalendarEvent[]>(() => {
+    const orderEvents: OrderEvent[] = orders
       .filter((o: any) => o.inquiry?.event_date)
       .map((order: any) => {
         const inq = order.inquiry
@@ -235,17 +279,27 @@ export default function CalendarView({ orders }: { orders: any[] }) {
           },
         }
       })
-  }, [orders])
 
-  function eventPropGetter(event: OrderEvent) {
-    const base = {
-      border: 'none',
-      borderRadius: '4px',
-      cursor: 'pointer',
+    const blackoutEvents: BlackoutEvent[] = blackouts.map((b) => ({
+      id: `blackout-${b.id}`,
+      title: b.reason || 'Unavailable',
+      start: parseISO(b.date_from),
+      end: parseISO(b.date_to),
+      allDay: true,
+      isBlackout: true as const,
+      resource: null,
+    }))
+
+    return [...blackoutEvents, ...orderEvents]
+  }, [orders, blackouts])
+
+  function eventPropGetter(event: CalendarEvent) {
+    const base = { border: 'none', borderRadius: '4px', cursor: 'pointer' }
+    if ('isBlackout' in event && event.isBlackout) {
+      return { style: { ...base, backgroundColor: '#fde8e8', color: '#b91c1c', opacity: 0.8 } }
     }
-    if (event.isDelivered) {
-      return { style: { ...base, backgroundColor: '#2e7d52', color: '#fff' } }
-    }
+    const oe = event as OrderEvent
+    if (oe.isDelivered) return { style: { ...base, backgroundColor: '#2e7d52', color: '#fff' } }
     return { style: { ...base, backgroundColor: '#006860', color: '#fcf9f5' } }
   }
 
@@ -290,7 +344,14 @@ export default function CalendarView({ orders }: { orders: any[] }) {
             onNavigate={setDate}
             views={['month', 'week', 'day']}
             eventPropGetter={eventPropGetter as any}
-            onSelectEvent={(event) => setSelectedEvent(event as OrderEvent)}
+            onSelectEvent={(event) => {
+              if (!('isBlackout' in event)) setSelectedEvent(event as OrderEvent)
+            }}
+            components={{
+              dateCellWrapper: ({ children, value }: any) => (
+                <DateCellWrapper value={value} orderCountByDate={orderCountByDate} children={children} />
+              ),
+            }}
             popup
             style={{ height: '100%' }}
             toolbar={false}

@@ -57,9 +57,30 @@ export async function POST(req: NextRequest) {
     return data.publicUrl
   }
 
+  const originalUrl = publicUrl(`${base}/original.jpg`)
+  const mediumUrl = publicUrl(`${base}/medium.jpg`)
+  const thumbUrl = publicUrl(`${base}/thumb.jpg`)
+
+  // If inquiry_id is provided, save a record to inquiry_images
+  const inquiryId = formData.get('inquiry_id') as string | null
+  const imageType = formData.get('image_type') as string | null
+  if (inquiryId) {
+    await service
+      .from('inquiry_images')
+      .insert({
+        inquiry_id: inquiryId,
+        uploaded_by: 'admin',
+        image_type: imageType === 'finished' ? 'finished' : 'reference',
+        url_original: originalUrl,
+        url_medium: mediumUrl,
+        url_thumb: thumbUrl,
+        caption: '',
+      })
+  }
+
   return NextResponse.json({
-    original: publicUrl(`${base}/original.jpg`),
-    medium: publicUrl(`${base}/medium.jpg`),
-    thumb: publicUrl(`${base}/thumb.jpg`),
+    original: originalUrl,
+    medium: mediumUrl,
+    thumb: thumbUrl,
   })
 }
