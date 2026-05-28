@@ -5,11 +5,11 @@ const envSchema = z.object({
   NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1, 'NEXT_PUBLIC_SUPABASE_ANON_KEY is required'),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1, 'SUPABASE_SERVICE_ROLE_KEY is required'),
   UPSTASH_REDIS_REST_URL: z.preprocess(
-    (v) => (v === '' ? undefined : v),
+    (v) => (v == null || String(v).trim() === '' ? undefined : v),
     z.string().url('UPSTASH_REDIS_REST_URL must be a valid URL').optional()
   ),
   UPSTASH_REDIS_REST_TOKEN: z.preprocess(
-    (v) => (v === '' ? undefined : v),
+    (v) => (v == null || String(v).trim() === '' ? undefined : v),
     z.string().min(1, 'UPSTASH_REDIS_REST_TOKEN is required').optional()
   ),
   NEXT_PUBLIC_APP_URL: z.string().url('NEXT_PUBLIC_APP_URL must be a valid URL').default('http://localhost:3000'),
