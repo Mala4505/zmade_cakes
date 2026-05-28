@@ -29,7 +29,7 @@ export function FlavorImageUpload({ flavorId, currentUrl, onChanged }: Props) {
       if (result.error) {
         toast.error('Upload failed', { description: result.error })
       } else {
-        onChanged(result.data.url)
+        onChanged(result.data!.url)
         toast.success('Photo updated')
       }
     } finally {

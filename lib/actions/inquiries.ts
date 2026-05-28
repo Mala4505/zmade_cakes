@@ -60,7 +60,7 @@ export async function createInquiry(
     is_read: false,
   })
 
-  return { data: inquiry, error: null, fieldErrors: null }
+  return { data: inquiry as unknown as Inquiry, error: null, fieldErrors: null }
 }
 
 export async function updateInquiry(
@@ -105,7 +105,7 @@ export async function updateInquiry(
     await supabase.from('delivery_addresses').delete().eq('inquiry_id', id)
   }
 
-  return { data, error: null, fieldErrors: null }
+  return { data: data as unknown as Inquiry, error: null, fieldErrors: null }
 }
 
 export async function cancelInquiry(id: string): Promise<ActionResult<void>> {
@@ -235,7 +235,7 @@ export async function confirmInquiry(
       .insert({
         inquiry_id: inquiry.id,
         status: 'confirmed',
-        final_price: parseFloat(inquiry.admin_price) as unknown as string,
+        final_price: inquiry.admin_price!,
         delivery_type: inquiry.delivery_type,
       })
       .select()
@@ -254,7 +254,7 @@ export async function confirmInquiry(
       is_read: false,
     })
 
-    return { data: { inquiry: updatedInquiry, order }, error: null, fieldErrors: null }
+    return { data: { inquiry: updatedInquiry as unknown as Inquiry, order: order as unknown as Order }, error: null, fieldErrors: null }
   } else {
     // action === 'request_changes'
     const { data: updatedInquiry, error: updateError } = await supabase
@@ -277,6 +277,6 @@ export async function confirmInquiry(
       is_read: false,
     })
 
-    return { data: { inquiry: updatedInquiry }, error: null, fieldErrors: null }
+    return { data: { inquiry: updatedInquiry as unknown as Inquiry }, error: null, fieldErrors: null }
   }
 }

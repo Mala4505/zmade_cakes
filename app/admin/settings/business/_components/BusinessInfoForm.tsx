@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { toast } from 'sonner'
 import { updateSetting } from '@/lib/actions/settings'
 
 export default function BusinessInfoForm({
@@ -12,25 +13,20 @@ export default function BusinessInfoForm({
 }) {
   const [phone, setPhone] = useState(initialPhone)
   const [instagram, setInstagram] = useState(initialInstagram)
-  const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle')
-  const [errorMsg, setErrorMsg] = useState('')
   const [isPending, startTransition] = useTransition()
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    setStatus('idle')
     startTransition(async () => {
       const [r1, r2] = await Promise.all([
         updateSetting('business_phone', phone),
         updateSetting('business_instagram', instagram),
       ])
       if (r1.error || r2.error) {
-        setErrorMsg(r1.error ?? r2.error ?? 'Failed to save')
-        setStatus('error')
+        toast.error('Failed to save', { description: r1.error ?? r2.error ?? 'Failed to save' })
         return
       }
-      setStatus('success')
-      setTimeout(() => setStatus('idle'), 2000)
+      toast.success('Changes saved')
     })
   }
 
@@ -83,18 +79,6 @@ export default function BusinessInfoForm({
             }}
           />
         </div>
-
-        {status === 'error' && (
-          <p className="text-xs" style={{ color: 'var(--color-danger)' }}>
-            {errorMsg}
-          </p>
-        )}
-
-        {status === 'success' && (
-          <p className="text-xs font-medium" style={{ color: 'var(--color-success)' }}>
-            Saved!
-          </p>
-        )}
 
         <button
           type="submit"

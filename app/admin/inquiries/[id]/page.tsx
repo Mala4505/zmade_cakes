@@ -10,7 +10,7 @@ import InquiryForm from '../_components/InquiryForm'
 import InquiryActions from './_components/InquiryActions'
 import InquiryImageSection from './_components/InquiryImageSection'
 import type { Metadata } from 'next'
-import type { WhatsAppTemplates } from '@/lib/supabase/types'
+import type { WhatsAppTemplates, InquiryStatus } from '@/lib/supabase/types'
 
 interface Props {
   params: Promise<{ id: string }>
@@ -67,7 +67,7 @@ export default async function InquiryDetailPage({ params }: Props) {
         subtitle={`${inquiry.cake_size} · ${inquiry.flavor} · ${formatDate(inquiry.event_date)}`}
         backHref="/admin/inquiries"
         backLabel="Inquiries"
-        action={<StatusBadge status={inquiry.status} />}
+        action={<StatusBadge status={inquiry.status as InquiryStatus} />}
       />
 
       {/* Summary card */}
@@ -91,8 +91,8 @@ export default async function InquiryDetailPage({ params }: Props) {
             </p>
           </div>
         )}
-        <Detail label="Price" value={formatKWD(inquiry.admin_price)} mono />
-        <Detail label="Advance" value={formatKWD(inquiry.advance_amount)} mono />
+        <Detail label="Price" value={formatKWD(inquiry.admin_price?.toString())} mono />
+        <Detail label="Advance" value={formatKWD(inquiry.advance_amount?.toString())} mono />
         <Detail label="Payment" value={inquiry.payment_method || '—'} />
         <Detail label="Priority" value={null}>
           <PriorityBadge priority={inquiry.priority as 0 | 1 | 2} />

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { toast } from 'sonner'
 import { updateSetting } from '@/lib/actions/settings'
 import type { WhatsAppTemplates } from '@/lib/supabase/types'
 
@@ -21,8 +22,6 @@ export default function WhatsAppTemplatesForm({
   initialTemplates: WhatsAppTemplates
 }) {
   const [templates, setTemplates] = useState<WhatsAppTemplates>(initialTemplates)
-  const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle')
-  const [errorMsg, setErrorMsg] = useState('')
   const [isPending, startTransition] = useTransition()
 
   function handleChange(key: keyof WhatsAppTemplates, value: string) {
@@ -31,16 +30,13 @@ export default function WhatsAppTemplatesForm({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    setStatus('idle')
     startTransition(async () => {
       const result = await updateSetting('whatsapp_templates', templates)
       if (result.error) {
-        setErrorMsg(result.error)
-        setStatus('error')
+        toast.error('Failed to save', { description: result.error })
         return
       }
-      setStatus('success')
-      setTimeout(() => setStatus('idle'), 2000)
+      toast.success('Templates saved')
     })
   }
 
@@ -76,18 +72,6 @@ export default function WhatsAppTemplatesForm({
             />
           </div>
         ))}
-
-        {status === 'error' && (
-          <p className="text-xs" style={{ color: 'var(--color-danger)' }}>
-            {errorMsg}
-          </p>
-        )}
-
-        {status === 'success' && (
-          <p className="text-xs font-medium" style={{ color: 'var(--color-success)' }}>
-            Saved!
-          </p>
-        )}
 
         <button
           type="submit"

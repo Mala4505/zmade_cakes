@@ -16,7 +16,7 @@ export const inquirySchema = z.object({
   decoration_style: z.string().min(1, 'Select a decoration style').max(100),
   message_on_cake: z.string().max(255, 'Message must be under 255 characters').optional().default(''),
   quantity: z
-    .number({ invalid_type_error: 'Quantity must be a number' })
+    .number({ error: 'Quantity must be a number' })
     .int()
     .min(1, 'Minimum 1 cake')
     .max(50, 'Maximum 50 cakes'),
@@ -41,7 +41,7 @@ export const inquirySchema = z.object({
   pickup_time: z.string().optional().nullable(),
   delivery_type: z.enum(['pickup', 'delivery']),
   admin_price: z
-    .number({ invalid_type_error: 'Price must be a number' })
+    .number({ error: 'Price must be a number' })
     .positive('Price must be greater than 0')
     .max(9999)
     .optional()

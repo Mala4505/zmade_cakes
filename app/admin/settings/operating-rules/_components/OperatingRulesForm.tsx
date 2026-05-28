@@ -1,26 +1,22 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { toast } from 'sonner'
 import { updateSetting } from '@/lib/actions/settings'
 
 export default function OperatingRulesForm({ initialLeadDays }: { initialLeadDays: number }) {
   const [value, setValue] = useState(initialLeadDays)
-  const [saved, setSaved] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    setError(null)
-    setSaved(false)
     startTransition(async () => {
       const result = await updateSetting('min_lead_days', String(value))
       if (result.error) {
-        setError(result.error)
+        toast.error('Failed to save', { description: result.error })
         return
       }
-      setSaved(true)
-      setTimeout(() => setSaved(false), 2000)
+      toast.success('Operating rules saved')
     })
   }
 
@@ -58,18 +54,6 @@ export default function OperatingRulesForm({ initialLeadDays }: { initialLeadDay
             Inquiries with event dates within this window will show a warning
           </p>
         </div>
-
-        {error && (
-          <p className="text-xs mt-3" style={{ color: 'var(--color-danger)' }}>
-            {error}
-          </p>
-        )}
-
-        {saved && (
-          <p className="text-xs font-medium mt-3" style={{ color: 'var(--color-success)' }}>
-            Saved!
-          </p>
-        )}
 
         <button
           type="submit"

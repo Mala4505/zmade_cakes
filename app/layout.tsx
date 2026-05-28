@@ -49,7 +49,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {children}
         <Toaster
           position="bottom-right"
-          mobilePosition="top-center"
           toastOptions={{
             duration: 4000,
             classNames: {

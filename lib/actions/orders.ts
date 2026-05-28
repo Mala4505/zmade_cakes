@@ -43,7 +43,7 @@ export async function updateOrderStatus(id: string, status: OrderStatus): Promis
 
   if (fetchError || !current) return { data: null, error: 'Order not found' }
 
-  const allowed = VALID_TRANSITIONS[current.status]
+  const allowed = VALID_TRANSITIONS[current.status as OrderStatus]
   if (!allowed.includes(status)) {
     return { data: null, error: `Cannot move from "${current.status}" to "${status}"` }
   }
@@ -77,7 +77,7 @@ export async function updateOrderStatus(id: string, status: OrderStatus): Promis
     })
   }
 
-  return { data, error: null }
+  return { data: data as unknown as Order, error: null }
 }
 
 export async function cancelOrder(id: string): Promise<ActionResult<void>> {
@@ -132,5 +132,5 @@ export async function updateOrderEta(
     .single()
 
   if (error || !data) return { data: null, error: error?.message ?? 'Failed to update ETA' }
-  return { data, error: null }
+  return { data: data as unknown as Order, error: null }
 }

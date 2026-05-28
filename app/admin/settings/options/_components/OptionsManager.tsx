@@ -3,6 +3,7 @@
 import { useTransition, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { toast } from 'sonner'
 import { createOption, updateOption, deleteOption } from '@/lib/actions/options'
 import { Plus, PencilSimple, Check, X, Trash, DotsSixVertical } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
@@ -21,11 +22,9 @@ export default function OptionsManager({ optionTypes, activeType, options }: Pro
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editValue, setEditValue] = useState('')
   const [newName, setNewName] = useState('')
-  const [error, setError] = useState<string | null>(null)
 
   const refresh = () => {
     router.refresh()
-    setError(null)
   }
 
   const handleCreate = () => {
@@ -36,7 +35,7 @@ export default function OptionsManager({ optionTypes, activeType, options }: Pro
         sort_order: options.length,
         is_active: true,
       })
-      if (result.error) { setError(result.error); return }
+      if (result.error) { toast.error('Failed to create', { description: result.error }); return }
       setNewName('')
       refresh()
     })
@@ -46,7 +45,7 @@ export default function OptionsManager({ optionTypes, activeType, options }: Pro
     if (!editValue.trim()) return
     startTransition(async () => {
       const result = await updateOption(id, activeType, { name: editValue.trim() })
-      if (result.error) { setError(result.error); return }
+      if (result.error) { toast.error('Failed to update', { description: result.error }); return }
       setEditingId(null)
       refresh()
     })
@@ -55,7 +54,7 @@ export default function OptionsManager({ optionTypes, activeType, options }: Pro
   const handleToggleActive = (option: OptionRow) => {
     startTransition(async () => {
       const result = await updateOption(option.id, activeType, { is_active: !option.is_active })
-      if (result.error) { setError(result.error); return }
+      if (result.error) { toast.error('Failed to update', { description: result.error }); return }
       refresh()
     })
   }
@@ -64,7 +63,7 @@ export default function OptionsManager({ optionTypes, activeType, options }: Pro
     if (!confirm('Remove this option? It will be hidden from the inquiry form.')) return
     startTransition(async () => {
       const result = await deleteOption(id, activeType)
-      if (result.error) { setError(result.error); return }
+      if (result.error) { toast.error('Failed to delete', { description: result.error }); return }
       refresh()
     })
   }
@@ -99,15 +98,6 @@ export default function OptionsManager({ optionTypes, activeType, options }: Pro
           )
         })}
       </div>
-
-      {error && (
-        <div
-          className="mb-4 rounded-lg px-4 py-3 text-sm"
-          style={{ backgroundColor: 'var(--color-danger-light)', color: 'var(--color-danger)' }}
-        >
-          {error}
-        </div>
-      )}
 
       {/* Add new */}
       <div

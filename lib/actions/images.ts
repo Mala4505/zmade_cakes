@@ -17,7 +17,7 @@ export async function getInquiryImages(inquiry_id: string): Promise<ActionResult
     .order('created_at', { ascending: true })
 
   if (error) return { data: null, error: error.message }
-  return { data: data ?? [], error: null }
+  return { data: (data ?? []) as unknown as InquiryImage[], error: null }
 }
 
 export async function deleteInquiryImage(id: string): Promise<ActionResult<void>> {

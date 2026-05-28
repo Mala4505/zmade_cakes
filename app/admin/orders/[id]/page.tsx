@@ -9,6 +9,7 @@ import OrderEtaSection from './_components/OrderEtaSection'
 import OrderImageSection from './_components/OrderImageSection'
 import InvoicePrint from '@/components/admin/InvoicePrint'
 import type { Metadata } from 'next'
+import type { OrderStatus } from '@/lib/supabase/types'
 
 interface Props { params: Promise<{ id: string }> }
 
@@ -53,7 +54,7 @@ export default async function OrderDetailPage({ params }: Props) {
           subtitle={`${inq?.cake_size} · ${inq?.flavor} · ${inq?.event_date ? formatDate(inq.event_date) : '—'}`}
           backHref="/admin/orders"
           backLabel="Orders"
-          action={<StatusBadge status={order.status} />}
+          action={<StatusBadge status={order.status as OrderStatus} />}
         />
 
         {/* Summary */}
@@ -71,7 +72,7 @@ export default async function OrderDetailPage({ params }: Props) {
           {inq?.decoration_style && <Detail label="Decoration" value={inq.decoration_style} />}
           {inq?.message_on_cake && <Detail label="Message" value={inq.message_on_cake} />}
           <Detail label="Quantity" value={String(inq?.quantity ?? 1)} mono />
-          <Detail label="Final Price" value={formatKWD(order.final_price)} mono />
+          <Detail label="Final Price" value={formatKWD(order.final_price?.toString())} mono />
           <Detail label="Advance" value={inq?.advance_amount ? formatKWD(inq.advance_amount) : '—'} mono />
           <Detail
             label="Advance Status"

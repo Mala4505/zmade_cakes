@@ -42,7 +42,7 @@ async function getAnalyticsData() {
   const monthMap: Record<string, number> = {}
   for (const row of (revenueRes.data ?? [])) {
     const key = (row.event_date as string).slice(0, 7)
-    monthMap[key] = (monthMap[key] ?? 0) + (parseFloat(row.admin_price) || 0)
+    monthMap[key] = (monthMap[key] ?? 0) + (row.admin_price ?? 0)
   }
 
   const months: { label: string; key: string; revenue: number }[] = []
@@ -81,7 +81,7 @@ async function getAnalyticsData() {
   const conversionRate = all.length > 0 ? Math.round((confirmedCount / all.length) * 100) : 0
 
   const pricedRows = revenueRes.data ?? []
-  const totalRevenue12m = pricedRows.reduce((s, r) => s + (parseFloat(r.admin_price) || 0), 0)
+  const totalRevenue12m = pricedRows.reduce((s, r) => s + (r.admin_price ?? 0), 0)
   const avgOrderValue = pricedRows.length > 0 ? totalRevenue12m / pricedRows.length : 0
 
   return {

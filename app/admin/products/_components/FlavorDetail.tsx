@@ -18,7 +18,7 @@ interface Props {
 
 function buildPriceMap(prices: FlavorSizePrice[]): Record<string, string> {
   const map: Record<string, string> = {}
-  for (const p of prices) map[p.size_id] = p.price
+  for (const p of prices) map[p.size_id] = String(p.price)
   return map
 }
 

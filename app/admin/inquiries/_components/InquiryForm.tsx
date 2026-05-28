@@ -2,6 +2,7 @@
 
 import { useTransition, useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
+import { toast } from 'sonner'
 import PhoneInput from '@/components/PhoneInput'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useRouter } from 'next/navigation'
@@ -55,7 +56,7 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
     setError,
     formState: { errors },
   } = useForm<FullFormData>({
-    resolver: zodResolver(fullSchema),
+    resolver: zodResolver(fullSchema) as any,
     defaultValues: inquiry
       ? {
           customer_name: inquiry.customer_name,
@@ -78,8 +79,8 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
           event_date: inquiry.event_date,
           pickup_time: inquiry.pickup_time ?? undefined,
           delivery_type: inquiry.delivery_type,
-          admin_price: inquiry.admin_price ? parseFloat(inquiry.admin_price) : undefined,
-          advance_amount: inquiry.advance_amount ? parseFloat(inquiry.advance_amount) : undefined,
+          admin_price: inquiry.admin_price ? Number(inquiry.admin_price) : undefined,
+          advance_amount: inquiry.advance_amount ? Number(inquiry.advance_amount) : undefined,
           advance_paid: inquiry.advance_paid,
           payment_method: inquiry.payment_method,
           admin_notes: inquiry.admin_notes,
@@ -168,7 +169,7 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
         : await createInquiry(inquiryData, addressData)
 
       if (result.error) {
-        setError('root', { message: result.error })
+        toast.error('Failed to save', { description: result.error })
         return
       }
       if (result.fieldErrors) {
@@ -189,15 +190,6 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-8">
-      {errors.root && (
-        <div
-          className="rounded-lg px-4 py-3 text-sm"
-          style={{ backgroundColor: 'var(--color-danger-light)', color: 'var(--color-danger)' }}
-        >
-          {errors.root.message}
-        </div>
-      )}
-
       {/* Customer info */}
       <Section title="Customer">
         <div className="grid grid-cols-2 gap-4">

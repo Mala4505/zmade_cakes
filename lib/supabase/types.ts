@@ -193,7 +193,7 @@ export interface FlavorSizePrice {
   id: string
   flavor_id: string
   size_id: string
-  price: string  // DECIMAL returned as string by Supabase JS client — use parseFloat() for math
+  price: number
   created_at: string
   updated_at: string
 }
@@ -202,23 +202,106 @@ export interface FlavorWithPrices extends OptionRow {
   prices: FlavorSizePrice[]
 }
 
-export interface Database {
+export type Database = {
+  __InternalSupabase: {
+    PostgrestVersion: '14.5'
+  }
   public: {
     Tables: {
-      flavor_options: { Row: OptionRow; Insert: Omit<OptionRow, 'id' | 'created_at'>; Update: Partial<Omit<OptionRow, 'id' | 'created_at'>> }
-      size_options: { Row: OptionRow; Insert: Omit<OptionRow, 'id' | 'created_at'>; Update: Partial<Omit<OptionRow, 'id' | 'created_at'>> }
-      occasion_options: { Row: OptionRow; Insert: Omit<OptionRow, 'id' | 'created_at'>; Update: Partial<Omit<OptionRow, 'id' | 'created_at'>> }
-      theme_options: { Row: OptionRow; Insert: Omit<OptionRow, 'id' | 'created_at'>; Update: Partial<Omit<OptionRow, 'id' | 'created_at'>> }
-      decoration_style_options: { Row: OptionRow; Insert: Omit<OptionRow, 'id' | 'created_at'>; Update: Partial<Omit<OptionRow, 'id' | 'created_at'>> }
-      delivery_addresses: { Row: DeliveryAddress; Insert: Omit<DeliveryAddress, 'id' | 'created_at'>; Update: Partial<Omit<DeliveryAddress, 'id' | 'created_at'>> }
-      inquiries: { Row: Inquiry; Insert: Omit<Inquiry, 'id' | 'confirmation_token' | 'customer_confirmed' | 'customer_confirmed_at' | 'created_at' | 'updated_at'>; Update: Partial<Omit<Inquiry, 'id' | 'created_at'>> }
-      orders: { Row: Order; Insert: Omit<Order, 'id' | 'tracking_token' | 'created_at' | 'updated_at'>; Update: Partial<Omit<Order, 'id' | 'created_at'>> }
-      notifications: { Row: Notification; Insert: Omit<Notification, 'id' | 'created_at'>; Update: Partial<Omit<Notification, 'id' | 'created_at'>> }
-      customers: { Row: Customer; Insert: Omit<Customer, 'id' | 'created_at' | 'updated_at'>; Update: Partial<Omit<Customer, 'id' | 'created_at'>> }
-      inquiry_images: { Row: InquiryImage; Insert: Omit<InquiryImage, 'id' | 'created_at'>; Update: Partial<Omit<InquiryImage, 'id' | 'created_at'>> }
-      blackout_dates: { Row: BlackoutDate; Insert: Omit<BlackoutDate, 'id' | 'created_at'>; Update: Partial<Omit<BlackoutDate, 'id' | 'created_at'>> }
-      business_settings: { Row: BusinessSetting; Insert: Omit<BusinessSetting, 'updated_at'>; Update: Partial<Omit<BusinessSetting, 'key'>> }
-      flavor_size_prices: { Row: FlavorSizePrice; Insert: Omit<FlavorSizePrice, 'id' | 'created_at' | 'updated_at'>; Update: Partial<Pick<FlavorSizePrice, 'price'>> }
+      blackout_dates: {
+        Row: { created_at: string; date_from: string; date_to: string; id: string; reason: string }
+        Insert: { created_at?: string; date_from: string; date_to: string; id?: string; reason?: string }
+        Update: { created_at?: string; date_from?: string; date_to?: string; id?: string; reason?: string }
+        Relationships: []
+      }
+      business_settings: {
+        Row: { key: string; updated_at: string; value: Json }
+        Insert: { key: string; updated_at?: string; value: Json }
+        Update: { key?: string; updated_at?: string; value?: Json }
+        Relationships: []
+      }
+      customers: {
+        Row: { created_at: string; id: string; name: string; notes: string; phone: string; updated_at: string; vip: boolean }
+        Insert: { created_at?: string; id?: string; name: string; notes?: string; phone: string; updated_at?: string; vip?: boolean }
+        Update: { created_at?: string; id?: string; name?: string; notes?: string; phone?: string; updated_at?: string; vip?: boolean }
+        Relationships: []
+      }
+      decoration_style_options: {
+        Row: { created_at: string; id: string; image_url: string | null; is_active: boolean; name: string; sort_order: number }
+        Insert: { created_at?: string; id?: string; image_url?: string | null; is_active?: boolean; name: string; sort_order?: number }
+        Update: { created_at?: string; id?: string; image_url?: string | null; is_active?: boolean; name?: string; sort_order?: number }
+        Relationships: []
+      }
+      delivery_addresses: {
+        Row: { area: string; block: string; created_at: string; extra_notes: string; governorate: string; house_no: string; id: string; inquiry_id: string; street: string }
+        Insert: { area: string; block: string; created_at?: string; extra_notes?: string; governorate: string; house_no: string; id?: string; inquiry_id: string; street: string }
+        Update: { area?: string; block?: string; created_at?: string; extra_notes?: string; governorate?: string; house_no?: string; id?: string; inquiry_id?: string; street?: string }
+        Relationships: [{ foreignKeyName: 'delivery_addresses_inquiry_id_fkey'; columns: ['inquiry_id']; isOneToOne: true; referencedRelation: 'inquiries'; referencedColumns: ['id'] }]
+      }
+      flavor_options: {
+        Row: { created_at: string; id: string; image_url: string | null; is_active: boolean; name: string; sort_order: number }
+        Insert: { created_at?: string; id?: string; image_url?: string | null; is_active?: boolean; name: string; sort_order?: number }
+        Update: { created_at?: string; id?: string; image_url?: string | null; is_active?: boolean; name?: string; sort_order?: number }
+        Relationships: []
+      }
+      flavor_size_prices: {
+        Row: { created_at: string; flavor_id: string; id: string; price: number; size_id: string; updated_at: string }
+        Insert: { created_at?: string; flavor_id: string; id?: string; price: number; size_id: string; updated_at?: string }
+        Update: { created_at?: string; flavor_id?: string; id?: string; price?: number; size_id?: string; updated_at?: string }
+        Relationships: [
+          { foreignKeyName: 'flavor_size_prices_flavor_id_fkey'; columns: ['flavor_id']; isOneToOne: false; referencedRelation: 'flavor_options'; referencedColumns: ['id'] },
+          { foreignKeyName: 'flavor_size_prices_size_id_fkey'; columns: ['size_id']; isOneToOne: false; referencedRelation: 'size_options'; referencedColumns: ['id'] },
+        ]
+      }
+      inquiries: {
+        Row: { admin_notes: string; admin_price: number | null; advance_amount: number | null; advance_paid: boolean; allergen_dairy_free: boolean; allergen_egg_free: boolean; allergen_gluten_free: boolean; allergen_halal: boolean; allergen_nut_free: boolean; allergen_other: string; balance_paid: boolean; balance_paid_at: string | null; cake_size: string; confirmation_token: string; created_at: string; customer_comments: string; customer_confirmed: boolean; customer_confirmed_at: string | null; customer_id: string | null; customer_name: string; customer_phone: string; decoration_style: string; delivery_type: string; event_date: string; flavor: string; id: string; message_on_cake: string; occasion: string; payment_method: string; pickup_time: string | null; priority: number; quantity: number; source: string; special_requirements: string; status: string; theme: string; updated_at: string }
+        Insert: { admin_notes?: string; admin_price?: number | null; advance_amount?: number | null; advance_paid?: boolean; allergen_dairy_free?: boolean; allergen_egg_free?: boolean; allergen_gluten_free?: boolean; allergen_halal?: boolean; allergen_nut_free?: boolean; allergen_other?: string; balance_paid?: boolean; balance_paid_at?: string | null; cake_size: string; confirmation_token?: string; created_at?: string; customer_comments?: string; customer_confirmed?: boolean; customer_confirmed_at?: string | null; customer_id?: string | null; customer_name: string; customer_phone: string; decoration_style: string; delivery_type?: string; event_date: string; flavor: string; id?: string; message_on_cake?: string; occasion?: string; payment_method?: string; pickup_time?: string | null; priority?: number; quantity?: number; source?: string; special_requirements?: string; status?: string; theme?: string; updated_at?: string }
+        Update: { admin_notes?: string; admin_price?: number | null; advance_amount?: number | null; advance_paid?: boolean; allergen_dairy_free?: boolean; allergen_egg_free?: boolean; allergen_gluten_free?: boolean; allergen_halal?: boolean; allergen_nut_free?: boolean; allergen_other?: string; balance_paid?: boolean; balance_paid_at?: string | null; cake_size?: string; confirmation_token?: string; created_at?: string; customer_comments?: string; customer_confirmed?: boolean; customer_confirmed_at?: string | null; customer_id?: string | null; customer_name?: string; customer_phone?: string; decoration_style?: string; delivery_type?: string; event_date?: string; flavor?: string; id?: string; message_on_cake?: string; occasion?: string; payment_method?: string; pickup_time?: string | null; priority?: number; quantity?: number; source?: string; special_requirements?: string; status?: string; theme?: string; updated_at?: string }
+        Relationships: [{ foreignKeyName: 'inquiries_customer_id_fkey'; columns: ['customer_id']; isOneToOne: false; referencedRelation: 'customers'; referencedColumns: ['id'] }]
+      }
+      inquiry_images: {
+        Row: { caption: string; created_at: string; id: string; image_type: string; inquiry_id: string; uploaded_by: string; url_medium: string; url_original: string; url_thumb: string }
+        Insert: { caption?: string; created_at?: string; id?: string; image_type?: string; inquiry_id: string; uploaded_by: string; url_medium: string; url_original: string; url_thumb: string }
+        Update: { caption?: string; created_at?: string; id?: string; image_type?: string; inquiry_id?: string; uploaded_by?: string; url_medium?: string; url_original?: string; url_thumb?: string }
+        Relationships: [{ foreignKeyName: 'inquiry_images_inquiry_id_fkey'; columns: ['inquiry_id']; isOneToOne: false; referencedRelation: 'inquiries'; referencedColumns: ['id'] }]
+      }
+      notifications: {
+        Row: { body: string; created_at: string; id: string; inquiry_id: string | null; is_read: boolean; order_id: string | null; title: string; type: string }
+        Insert: { body: string; created_at?: string; id?: string; inquiry_id?: string | null; is_read?: boolean; order_id?: string | null; title: string; type: string }
+        Update: { body?: string; created_at?: string; id?: string; inquiry_id?: string | null; is_read?: boolean; order_id?: string | null; title?: string; type?: string }
+        Relationships: [
+          { foreignKeyName: 'notifications_inquiry_id_fkey'; columns: ['inquiry_id']; isOneToOne: false; referencedRelation: 'inquiries'; referencedColumns: ['id'] },
+          { foreignKeyName: 'notifications_order_id_fkey'; columns: ['order_id']; isOneToOne: false; referencedRelation: 'orders'; referencedColumns: ['id'] },
+        ]
+      }
+      occasion_options: {
+        Row: { created_at: string; id: string; image_url: string | null; is_active: boolean; name: string; sort_order: number }
+        Insert: { created_at?: string; id?: string; image_url?: string | null; is_active?: boolean; name: string; sort_order?: number }
+        Update: { created_at?: string; id?: string; image_url?: string | null; is_active?: boolean; name?: string; sort_order?: number }
+        Relationships: []
+      }
+      orders: {
+        Row: { created_at: string; delivery_type: string; eta_date: string | null; eta_note: string; eta_time: string | null; final_price: number; id: string; inquiry_id: string; status: string; tracking_token: string; updated_at: string }
+        Insert: { created_at?: string; delivery_type: string; eta_date?: string | null; eta_note?: string; eta_time?: string | null; final_price: number; id?: string; inquiry_id: string; status?: string; tracking_token?: string; updated_at?: string }
+        Update: { created_at?: string; delivery_type?: string; eta_date?: string | null; eta_note?: string; eta_time?: string | null; final_price?: number; id?: string; inquiry_id?: string; status?: string; tracking_token?: string; updated_at?: string }
+        Relationships: [{ foreignKeyName: 'orders_inquiry_id_fkey'; columns: ['inquiry_id']; isOneToOne: true; referencedRelation: 'inquiries'; referencedColumns: ['id'] }]
+      }
+      size_options: {
+        Row: { created_at: string; id: string; image_url: string | null; is_active: boolean; name: string; sort_order: number }
+        Insert: { created_at?: string; id?: string; image_url?: string | null; is_active?: boolean; name: string; sort_order?: number }
+        Update: { created_at?: string; id?: string; image_url?: string | null; is_active?: boolean; name?: string; sort_order?: number }
+        Relationships: []
+      }
+      theme_options: {
+        Row: { created_at: string; id: string; image_url: string | null; is_active: boolean; name: string; sort_order: number }
+        Insert: { created_at?: string; id?: string; image_url?: string | null; is_active?: boolean; name: string; sort_order?: number }
+        Update: { created_at?: string; id?: string; image_url?: string | null; is_active?: boolean; name?: string; sort_order?: number }
+        Relationships: []
+      }
     }
+    Views: { [_ in never]: never }
+    Functions: { [_ in never]: never }
+    Enums: { [_ in never]: never }
+    CompositeTypes: { [_ in never]: never }
   }
 }

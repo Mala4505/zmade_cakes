@@ -18,7 +18,7 @@ interface Props {
 
 function priceRange(flavor: FlavorWithPrices): string {
   if (!flavor.prices || flavor.prices.length === 0) return ''
-  const nums = flavor.prices.map((p) => parseFloat(p.price)).filter((n) => !isNaN(n))
+  const nums = flavor.prices.map((p) => p.price).filter((n) => !isNaN(n))
   if (nums.length === 0) return ''
   const min = Math.min(...nums)
   const max = Math.max(...nums)

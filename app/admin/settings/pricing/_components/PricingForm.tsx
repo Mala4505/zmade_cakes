@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { toast } from 'sonner'
 import { updateSetting } from '@/lib/actions/settings'
 
 interface Props {
@@ -20,8 +21,6 @@ export default function PricingForm({
   const [minGuard, setMinGuard] = useState(initialMinGuard)
   const [rushMultiplier, setRushMultiplier] = useState(initialRushMultiplier)
 
-  const [saved, setSaved] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
   function handleMatrixChange(sizeName: string, rawValue: string) {
@@ -31,8 +30,6 @@ export default function PricingForm({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    setError(null)
-    setSaved(false)
     startTransition(async () => {
       const [r1, r2, r3] = await Promise.all([
         updateSetting('pricing_matrix', matrix),
@@ -41,11 +38,10 @@ export default function PricingForm({
       ])
       const err = r1.error ?? r2.error ?? r3.error
       if (err) {
-        setError(err)
+        toast.error('Failed to save', { description: err })
         return
       }
-      setSaved(true)
-      setTimeout(() => setSaved(false), 2000)
+      toast.success('Pricing saved')
     })
   }
 
@@ -160,18 +156,6 @@ export default function PricingForm({
           </div>
         </div>
       </div>
-
-      {error && (
-        <p className="text-xs mb-3" style={{ color: 'var(--color-danger)' }}>
-          {error}
-        </p>
-      )}
-
-      {saved && (
-        <p className="text-xs font-medium mb-3" style={{ color: 'var(--color-success)' }}>
-          Saved!
-        </p>
-      )}
 
       <button
         type="submit"

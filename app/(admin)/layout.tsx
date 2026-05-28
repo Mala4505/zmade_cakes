@@ -10,9 +10,14 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   if (!user) redirect('/login')
 
+  const [{ count: pendingCount }, { count: readyCount }] = await Promise.all([
+    supabase.from('inquiries').select('*', { count: 'exact', head: true }).in('status', ['pending', 'awaiting_confirmation']),
+    supabase.from('orders').select('*', { count: 'exact', head: true }).eq('status', 'ready'),
+  ])
+
   return (
     <div className="flex min-h-svh" style={{ backgroundColor: 'var(--color-cream)' }}>
-      <AdminSidebar />
+      <AdminSidebar pendingCount={pendingCount ?? 0} readyCount={readyCount ?? 0} user={user} />
 
       <div className="flex-1 flex flex-col min-w-0">
         {/* Mobile page header */}
@@ -36,7 +41,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         </main>
       </div>
 
-      <AdminBottomNav />
+      <AdminBottomNav pendingCount={pendingCount ?? 0} readyCount={readyCount ?? 0} />
     </div>
   )
 }
