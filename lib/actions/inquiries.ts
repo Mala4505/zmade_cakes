@@ -8,7 +8,7 @@ import {
   tokenSchema,
 } from '@/lib/validations/inquiry'
 import { customerConfirmSchema } from '@/lib/validations/confirm'
-import type { Inquiry, Order } from '@/lib/supabase/types'
+import type { Inquiry, Order, InquiryStatus } from '@/lib/supabase/types'
 
 type FieldErrors = Record<string, string[]>
 type ActionResult<T> =
@@ -145,7 +145,7 @@ export async function sendConfirmationLink(
 
   const { data, error } = await supabase
     .from('inquiries')
-    .update({ status: 'awaiting_confirmation' })
+    .update({ status: 'awaiting_confirmation', confirmation_sent_at: new Date().toISOString() })
     .eq('id', id)
     .eq('status', 'pending')
     .select('confirmation_token')
@@ -183,6 +183,13 @@ export async function confirmInquiry(
 
   if (fetchError || !inquiry) {
     return { data: null, error: 'Inquiry not found', fieldErrors: null }
+  }
+
+  if (inquiry.confirmation_sent_at) {
+    const ageMs = Date.now() - new Date(inquiry.confirmation_sent_at).getTime()
+    if (ageMs > 72 * 60 * 60 * 1000) {
+      return { data: null, error: 'This confirmation link has expired. Please contact Zainab for a new one.', fieldErrors: null }
+    }
   }
 
   if (inquiry.status === 'cancelled') {
@@ -279,4 +286,40 @@ export async function confirmInquiry(
 
     return { data: { inquiry: updatedInquiry as unknown as Inquiry }, error: null, fieldErrors: null }
   }
+}
+
+export async function updateInquiryStatus(
+  id: string,
+  status: InquiryStatus
+): Promise<ActionResult<void>> {
+  if (!tokenSchema.safeParse(id).success) {
+    return { data: null, error: 'Invalid inquiry ID', fieldErrors: null }
+  }
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { data: null, error: 'Unauthorized', fieldErrors: null }
+  const { error } = await supabase
+    .from('inquiries')
+    .update({ status })
+    .eq('id', id)
+  if (error) return { data: null, error: error.message, fieldErrors: null }
+  return { data: undefined, error: null, fieldErrors: null }
+}
+
+export async function updatePaymentStatus(
+  id: string,
+  paymentStatus: 'unpaid' | 'partial' | 'paid'
+): Promise<ActionResult<void>> {
+  if (!tokenSchema.safeParse(id).success) {
+    return { data: null, error: 'Invalid inquiry ID', fieldErrors: null }
+  }
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { data: null, error: 'Unauthorized', fieldErrors: null }
+  const { error } = await supabase
+    .from('inquiries')
+    .update({ payment_status: paymentStatus })
+    .eq('id', id)
+  if (error) return { data: null, error: error.message, fieldErrors: null }
+  return { data: undefined, error: null, fieldErrors: null }
 }

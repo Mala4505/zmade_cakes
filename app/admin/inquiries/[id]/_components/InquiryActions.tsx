@@ -2,9 +2,21 @@
 
 import { useTransition, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { sendConfirmationLink, cancelInquiry } from '@/lib/actions/inquiries'
-import { Copy, Check, Link as LinkIcon, X, WhatsappLogo } from '@phosphor-icons/react'
-import type { Inquiry, WhatsAppTemplates } from '@/lib/supabase/types'
+import { updateInquiryStatus } from '@/lib/actions/inquiries'
+import { toast } from 'sonner'
+import {
+  Clock,
+  CheckCircle,
+  ForkKnife,
+  Package,
+  Truck,
+  Spinner,
+  WhatsappLogo,
+  Link as LinkIcon,
+  Copy,
+  Check,
+} from '@phosphor-icons/react'
+import type { Inquiry, InquiryStatus, WhatsAppTemplates } from '@/lib/supabase/types'
 import { DEFAULT_WHATSAPP_TEMPLATES } from '@/lib/supabase/types'
 
 function interpolate(template: string, vars: Record<string, string>): string {
@@ -23,19 +35,52 @@ function whatsappUrlNoText(phone: string): string {
   return `https://wa.me/${number}`
 }
 
+const NEXT_STEP: Record<string, { label: string; Icon: React.ElementType } | null> = {
+  pending: { label: 'Mark as Awaiting', Icon: Clock },
+  awaiting_confirmation: { label: 'Mark as Confirmed', Icon: CheckCircle },
+  confirmed: { label: 'Mark as Making', Icon: ForkKnife },
+  in_progress: { label: 'Mark as Ready', Icon: Package },
+  ready: { label: 'Mark as Delivered', Icon: Truck },
+  delivered: null,
+  cancelled: null,
+}
+
+const STATUS_PROGRESSION: Record<string, InquiryStatus> = {
+  pending: 'awaiting_confirmation',
+  awaiting_confirmation: 'confirmed',
+  confirmed: 'in_progress',
+  in_progress: 'ready',
+  ready: 'delivered',
+}
+
 export default function InquiryActions({
   inquiry,
   confirmLink,
   templates,
 }: {
-  inquiry: Inquiry
+  inquiry: Inquiry & { payment_status?: string }
   confirmLink: string
   templates?: WhatsAppTemplates
 }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [copied, setCopied] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+
+  const nextStep = NEXT_STEP[inquiry.status]
+  const nextStatus = STATUS_PROGRESSION[inquiry.status]
+
+  const handleNextStep = () => {
+    if (!nextStatus) return
+    startTransition(async () => {
+      const result = await updateInquiryStatus(inquiry.id, nextStatus)
+      if (result.error) {
+        toast.error(result.error)
+      } else {
+        toast.success('Status updated')
+        router.refresh()
+      }
+    })
+  }
 
   const handleCopyLink = async () => {
     await navigator.clipboard.writeText(confirmLink)
@@ -43,141 +88,102 @@ export default function InquiryActions({
     setTimeout(() => setCopied(false), 2000)
   }
 
-  const handleSendLink = () => {
-    startTransition(async () => {
-      const result = await sendConfirmationLink(inquiry.id)
-      if (result.error) {
-        setError(result.error)
-        return
-      }
-      router.refresh()
-    })
-  }
-
-  const handleCancel = () => {
-    if (!confirm('Cancel this inquiry? This cannot be undone.')) return
-    startTransition(async () => {
-      const result = await cancelInquiry(inquiry.id)
-      if (result.error) {
-        setError(result.error)
-        return
-      }
-      router.refresh()
-    })
-  }
-
-  const canSendLink = inquiry.status === 'pending' && !!inquiry.admin_price
-  const isCancelled = inquiry.status === 'cancelled'
-  const isConfirmed = inquiry.customer_confirmed
-
   const firstName = inquiry.customer_name.split(' ')[0]
-  const balanceStr =
+  const balance =
     inquiry.admin_price && inquiry.advance_amount
-      ? (parseFloat(inquiry.admin_price) - parseFloat(inquiry.advance_amount)).toFixed(3)
+      ? parseFloat(inquiry.admin_price) - parseFloat(inquiry.advance_amount)
       : null
-  const showBalanceReminder = !!inquiry.admin_price && !!inquiry.advance_amount && !inquiry.balance_paid
+  const hasOutstandingBalance =
+    balance !== null && balance > 0 && !inquiry.balance_paid
+
+  const notConfirmed = !inquiry.customer_confirmed
+  const isConfirmedOrBeyond =
+    inquiry.status === 'confirmed' || inquiry.status === 'in_progress' || inquiry.status === 'ready'
+  const isCancelled = inquiry.status === 'cancelled'
+  const isDelivered = inquiry.status === 'delivered'
+
+  if (isCancelled || isDelivered) return null
 
   return (
-    <div className="flex flex-col gap-3">
-      {error && (
-        <p
-          className="rounded-lg px-4 py-3 text-sm"
-          style={{ backgroundColor: 'var(--color-danger-light)', color: 'var(--color-danger)' }}
+    <div className="flex flex-col gap-3 mb-4">
+      {/* Next Step banner */}
+      {nextStep && (
+        <div
+          className="rounded-xl p-3 px-4 flex items-center justify-between"
+          style={{ backgroundColor: 'var(--color-teal-light)', border: '1px solid #b2dbd9' }}
         >
-          {error}
-        </p>
+          <span
+            className="text-xs font-bold uppercase tracking-wider"
+            style={{ color: 'var(--color-teal-deep)' }}
+          >
+            Next Step
+          </span>
+          <button
+            type="button"
+            onClick={handleNextStep}
+            disabled={pending}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all active:scale-[0.97] disabled:opacity-60"
+            style={{ backgroundColor: 'var(--color-teal)', color: 'var(--color-cream)' }}
+          >
+            {pending ? (
+              <Spinner size={14} className="animate-spin" />
+            ) : (
+              <nextStep.Icon size={14} />
+            )}
+            {nextStep.label}
+          </button>
+        </div>
       )}
 
-      {!isCancelled && !isConfirmed && (
-        <div
-          className="rounded-xl border p-4 flex flex-col gap-3"
-          style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
+      {/* WhatsApp Quick Messages */}
+      <div
+        className="rounded-xl border p-4 flex flex-col gap-2.5"
+        style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
+      >
+        <p
+          className="text-xs font-bold uppercase tracking-wider"
+          style={{ color: 'var(--color-ink-muted)' }}
         >
-          <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--color-ink-muted)' }}>
-            Confirmation Link
-          </p>
+          Quick Message
+        </p>
 
-          {!inquiry.admin_price && (
-            <p className="text-xs" style={{ color: 'var(--color-warning)' }}>
-              Set a price before sending the confirmation link.
-            </p>
-          )}
-
+        {/* Not confirmed + has price: Send Confirmation */}
+        {notConfirmed && !!inquiry.admin_price && (
           <div className="flex gap-2">
+            <a
+              href={whatsappUrl(
+                inquiry.customer_phone,
+                interpolate(templates?.confirmationLink ?? DEFAULT_WHATSAPP_TEMPLATES.confirmationLink, {
+                  name: firstName,
+                  link: confirmLink,
+                })
+              )}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-all active:scale-[0.97]"
+              style={{ backgroundColor: 'var(--color-teal)', color: 'var(--color-cream)' }}
+            >
+              <WhatsappLogo size={15} weight="fill" />
+              Send Confirmation
+            </a>
             <button
               type="button"
               onClick={handleCopyLink}
-              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium border transition-colors"
+              className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium border transition-all active:scale-[0.97]"
               style={{
                 borderColor: 'var(--color-border)',
                 backgroundColor: 'var(--color-surface-raised)',
                 color: 'var(--color-ink-secondary)',
               }}
             >
-              {copied ? <Check size={15} weight="bold" /> : <Copy size={15} />}
-              {copied ? 'Copied!' : 'Copy Link'}
+              {copied ? <Check size={14} weight="bold" /> : <Copy size={14} />}
+              {copied ? 'Copied' : 'Copy Link'}
             </button>
-
-            {canSendLink && (
-              <a
-                href={whatsappUrl(
-                  inquiry.customer_phone,
-                  interpolate(templates?.confirmationLink ?? DEFAULT_WHATSAPP_TEMPLATES.confirmationLink, { name: firstName, link: confirmLink })
-                )}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-colors"
-                style={{ backgroundColor: '#25D366', color: '#fff' }}
-              >
-                <WhatsappLogo size={15} weight="fill" />
-                Send on WhatsApp
-              </a>
-            )}
-
-            {canSendLink && (
-              <button
-                type="button"
-                onClick={handleSendLink}
-                disabled={pending}
-                className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-60"
-                style={{
-                  backgroundColor: 'var(--color-teal)',
-                  color: 'var(--color-cream)',
-                }}
-              >
-                <LinkIcon size={15} />
-                {pending ? 'Sending…' : 'Mark as Sent'}
-              </button>
-            )}
           </div>
+        )}
 
-          <p className="text-xs break-all" style={{ color: 'var(--color-ink-muted)', fontFamily: 'var(--font-mono)' }}>
-            {confirmLink}
-          </p>
-        </div>
-      )}
-
-      {isConfirmed && inquiry.status !== 'cancelled' && (
-        <div
-          className="rounded-xl border px-4 py-3 flex items-center gap-3"
-          style={{ borderColor: 'var(--color-teal-light)', backgroundColor: 'var(--color-teal-light)' }}
-        >
-          <Check size={16} weight="bold" style={{ color: 'var(--color-teal)' }} />
-          <p className="text-sm font-medium" style={{ color: 'var(--color-teal-deep)' }}>
-            Customer confirmed this order
-          </p>
-        </div>
-      )}
-
-      {isConfirmed && inquiry.status !== 'cancelled' && (
-        <div
-          className="rounded-xl border p-4 flex flex-col gap-3"
-          style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
-        >
-          <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--color-ink-muted)' }}>
-            Quick Message
-          </p>
-
+        {/* Confirmed + making/ready: Order Ready */}
+        {isConfirmedOrBeyond && (
           <a
             href={whatsappUrl(
               inquiry.customer_phone,
@@ -185,62 +191,50 @@ export default function InquiryActions({
             )}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-colors"
+            className="flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-all active:scale-[0.97]"
             style={{ backgroundColor: '#25D366', color: '#fff' }}
           >
             <WhatsappLogo size={15} weight="fill" />
             Order Ready
           </a>
+        )}
 
-          {showBalanceReminder && (
-            <a
-              href={whatsappUrl(
-                inquiry.customer_phone,
-                interpolate(templates?.balanceDue ?? DEFAULT_WHATSAPP_TEMPLATES.balanceDue, { name: firstName, amount: balanceStr ?? '0.000' })
-              )}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-colors"
-              style={{ backgroundColor: '#25D366', color: '#fff' }}
-            >
-              <WhatsappLogo size={15} weight="fill" />
-              Balance Due
-            </a>
-          )}
-
+        {/* Outstanding balance reminder */}
+        {hasOutstandingBalance && (
           <a
-            href={whatsappUrlNoText(inquiry.customer_phone)}
+            href={whatsappUrl(
+              inquiry.customer_phone,
+              interpolate(templates?.balanceDue ?? DEFAULT_WHATSAPP_TEMPLATES.balanceDue, {
+                name: firstName,
+                amount: (balance ?? 0).toFixed(3),
+              })
+            )}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium border transition-colors"
-            style={{
-              borderColor: 'var(--color-border)',
-              backgroundColor: 'var(--color-surface-raised)',
-              color: 'var(--color-ink-secondary)',
-            }}
+            className="flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-all active:scale-[0.97]"
+            style={{ backgroundColor: '#1a9e4c', color: '#fff' }}
           >
             <WhatsappLogo size={15} weight="fill" />
-            Message Customer
+            Balance Due — KD {(balance ?? 0).toFixed(3)}
           </a>
-        </div>
-      )}
+        )}
 
-      {!isCancelled && (
-        <button
-          type="button"
-          onClick={handleCancel}
-          disabled={pending}
-          className="flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium border transition-colors disabled:opacity-60"
+        {/* Always: Message Customer */}
+        <a
+          href={whatsappUrlNoText(inquiry.customer_phone)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium border transition-all active:scale-[0.97]"
           style={{
-            borderColor: 'var(--color-danger-light)',
-            backgroundColor: 'transparent',
-            color: 'var(--color-danger)',
+            borderColor: 'var(--color-border)',
+            backgroundColor: 'var(--color-surface-raised)',
+            color: 'var(--color-ink-secondary)',
           }}
         >
-          <X size={15} />
-          Cancel Inquiry
-        </button>
-      )}
+          <WhatsappLogo size={15} weight="fill" />
+          Message Customer
+        </a>
+      </div>
     </div>
   )
 }

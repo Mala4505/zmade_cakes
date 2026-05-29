@@ -16,13 +16,23 @@ export default async function ConfirmPage({ params }: Props) {
 
   const supabase = createServiceClient()
 
-  const { data: rawInquiry, error } = await supabase
-    .from('inquiries')
-    .select('*, delivery_address:delivery_addresses(*)')
-    .eq('confirmation_token', token)
-    .single()
+  const [{ data: rawInquiry, error }, { data: phoneRow }, { data: igRow }] = await Promise.all([
+    supabase
+      .from('inquiries')
+      .select('*, delivery_address:delivery_addresses(*)')
+      .eq('confirmation_token', token)
+      .single(),
+    supabase.from('business_settings').select('value').eq('key', 'business_phone').single(),
+    supabase.from('business_settings').select('value').eq('key', 'business_instagram').single(),
+  ])
 
   if (error || !rawInquiry) notFound()
+
+  const businessPhone = (phoneRow?.value as string) ?? ''
+  const businessInstagram = (igRow?.value as string) ?? ''
+  const waNumber = businessPhone
+    ? businessPhone.replace(/\D/g, '').replace(/^(?!965)/, '965')
+    : ''
 
   const inquiry = rawInquiry as any
 
@@ -56,13 +66,24 @@ export default async function ConfirmPage({ params }: Props) {
         >
           ZMade Cakes
         </p>
-        <p className="text-xs mt-1" style={{ color: 'var(--color-ink-muted)' }}>
-          @zmadecakes.q8 · Kuwait
-        </p>
+        {businessInstagram && (
+          <p className="text-xs mt-1" style={{ color: 'var(--color-ink-muted)' }}>
+            {businessInstagram} · Kuwait
+          </p>
+        )}
       </header>
 
       {/* Body */}
       <div className="max-w-lg mx-auto px-4 py-8 flex flex-col gap-5">
+        {/* 3-step progress */}
+        <div className="flex items-center gap-2 text-sm mb-6">
+          <span className="font-medium" style={{ color: 'var(--color-teal)' }}>Review</span>
+          <span style={{ color: 'var(--color-border)' }}>—</span>
+          <span style={{ color: 'var(--color-ink-muted)' }}>Confirm</span>
+          <span style={{ color: 'var(--color-border)' }}>—</span>
+          <span style={{ color: 'var(--color-ink-muted)' }}>Track</span>
+        </div>
+
         {/* Intro */}
         <div>
           <h1
@@ -207,15 +228,17 @@ export default async function ConfirmPage({ params }: Props) {
         <p className="text-xs" style={{ color: 'var(--color-ink-muted)' }}>
           Need to make a change? Message Zainab on WhatsApp before confirming.
         </p>
-        <a
-          href={`https://wa.me/96566857560`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium"
-          style={{ color: 'var(--color-teal)' }}
-        >
-          Message Zainab →
-        </a>
+        {waNumber && (
+          <a
+            href={`https://wa.me/${waNumber}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium"
+            style={{ color: 'var(--color-teal)' }}
+          >
+            Message Zainab →
+          </a>
+        )}
       </footer>
     </main>
   )

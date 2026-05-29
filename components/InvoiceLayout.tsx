@@ -8,7 +8,11 @@ interface Props {
     final_price: string
     delivery_type: DeliveryType
     tracking_token: string
+    invoice_number?: number | null
   }
+  invoiceNumber?: number | null
+  businessPhone?: string
+  businessInstagram?: string
   inquiry: {
     customer_name: string
     customer_phone: string
@@ -45,7 +49,7 @@ interface Props {
   adminMode: boolean
 }
 
-export default function InvoiceLayout({ order, inquiry, adminMode }: Props) {
+export default function InvoiceLayout({ order, inquiry, adminMode, businessPhone, businessInstagram, invoiceNumber }: Props) {
   const deliveryAddr = order.delivery_type === 'delivery' && inquiry.delivery_address
     ? [
         GOVERNORATE_LABELS[inquiry.delivery_address.governorate as keyof typeof GOVERNORATE_LABELS],
@@ -103,15 +107,25 @@ export default function InvoiceLayout({ order, inquiry, adminMode }: Props) {
           >
             INVOICE
           </p>
+          {(invoiceNumber ?? order.invoice_number) && (
+            <p
+              className="text-xs mt-1"
+              style={{ color: 'var(--color-ink-muted)', fontFamily: 'var(--font-mono)', textAlign: 'right' }}
+            >
+              {`ZM-${new Date().getFullYear()}-${String(invoiceNumber ?? order.invoice_number).padStart(4, '0')}`}
+            </p>
+          )}
         </div>
       </div>
 
       {/* Contact line */}
-      <div className="px-6 pb-3">
-        <p className="text-xs" style={{ color: 'var(--color-ink-muted)' }}>
-          @zmadecakes.q8 &nbsp;·&nbsp; +965 6685 7560
-        </p>
-      </div>
+      {(businessInstagram || businessPhone) && (
+        <div className="px-6 pb-3">
+          <p className="text-xs" style={{ color: 'var(--color-ink-muted)' }}>
+            {[businessInstagram, businessPhone].filter(Boolean).join(' · ')}
+          </p>
+        </div>
+      )}
 
       {/* Divider */}
       <div style={{ borderTop: '1px dashed var(--color-border)', margin: '0 24px' }} />

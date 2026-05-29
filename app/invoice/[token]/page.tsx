@@ -12,16 +12,25 @@ export default async function PublicInvoicePage({ params }: Props) {
   const { token } = await params
 
   const supabase = createServiceClient()
-  const { data: order, error } = await supabase
-    .from('orders')
-    .select('*, inquiry:inquiries(*, delivery_address:delivery_addresses(*))')
-    .eq('tracking_token', token)
-    .single()
+  const [{ data: order, error }, { data: phoneRow }, { data: igRow }] = await Promise.all([
+    supabase
+      .from('orders')
+      .select('*, inquiry:inquiries(*, delivery_address:delivery_addresses(*))')
+      .eq('tracking_token', token)
+      .single(),
+    supabase.from('business_settings').select('value').eq('key', 'business_phone').single(),
+    supabase.from('business_settings').select('value').eq('key', 'business_instagram').single(),
+  ])
 
   if (error || !order) notFound()
 
   const o = order as any
   const inq = o.inquiry
+  const businessPhone = (phoneRow?.value as string) ?? ''
+  const businessInstagram = (igRow?.value as string) ?? ''
+  const waNumber = businessPhone
+    ? businessPhone.replace(/\D/g, '').replace(/^(?!965)/, '965')
+    : ''
 
   return (
     <main
@@ -41,9 +50,11 @@ export default async function PublicInvoicePage({ params }: Props) {
         >
           ZMade Cakes
         </p>
-        <p className="text-xs mt-1" style={{ color: 'var(--color-ink-muted)' }}>
-          @zmadecakes.q8 · Kuwait
-        </p>
+        {businessInstagram && (
+          <p className="text-xs mt-1" style={{ color: 'var(--color-ink-muted)' }}>
+            {businessInstagram} · Kuwait
+          </p>
+        )}
       </header>
 
       <div className="max-w-lg mx-auto px-4 py-8 flex flex-col gap-6">
@@ -53,23 +64,25 @@ export default async function PublicInvoicePage({ params }: Props) {
         </div>
 
         {/* Invoice */}
-        <InvoiceLayout order={o} inquiry={inq} adminMode={false} />
+        <InvoiceLayout order={o} inquiry={inq} adminMode={false} businessPhone={businessPhone} businessInstagram={businessInstagram} invoiceNumber={o.invoice_number ?? null} />
 
         {/* Footer */}
-        <div className="text-center pb-4">
-          <p className="text-xs mb-2" style={{ color: 'var(--color-ink-muted)' }}>
-            Questions? Message Zainab on WhatsApp
-          </p>
-          <a
-            href="https://wa.me/96566857560"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium"
-            style={{ backgroundColor: '#25D366', color: '#fff' }}
-          >
-            Message on WhatsApp
-          </a>
-        </div>
+        {waNumber && (
+          <div className="text-center pb-4">
+            <p className="text-xs mb-2" style={{ color: 'var(--color-ink-muted)' }}>
+              Questions? Message Zainab on WhatsApp
+            </p>
+            <a
+              href={`https://wa.me/${waNumber}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium"
+              style={{ backgroundColor: '#25D366', color: '#fff' }}
+            >
+              Message on WhatsApp
+            </a>
+          </div>
+        )}
       </div>
     </main>
   )

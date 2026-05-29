@@ -11,6 +11,7 @@ export type InquiryStatus =
   | 'ready'
   | 'delivered'
   | 'cancelled'
+export type PaymentStatus = 'unpaid' | 'partial' | 'paid'
 export type OrderStatus = 'confirmed' | 'in_progress' | 'ready' | 'delivered' | 'cancelled'
 export type NotificationType = 'inquiry_created' | 'customer_confirmed' | 'order_update' | 'general'
 export type Governorate =
@@ -70,9 +71,11 @@ export interface Inquiry {
   advance_amount: string | null
   advance_paid: boolean
   payment_method: PaymentMethod
+  payment_status: PaymentStatus
   admin_notes: string
   priority: Priority
   confirmation_token: string
+  confirmation_sent_at: string | null
   customer_confirmed: boolean
   customer_confirmed_at: string | null
   customer_id: string | null
@@ -254,9 +257,9 @@ export type Database = {
         ]
       }
       inquiries: {
-        Row: { admin_notes: string; admin_price: number | null; advance_amount: number | null; advance_paid: boolean; allergen_dairy_free: boolean; allergen_egg_free: boolean; allergen_gluten_free: boolean; allergen_halal: boolean; allergen_nut_free: boolean; allergen_other: string; balance_paid: boolean; balance_paid_at: string | null; cake_size: string; confirmation_token: string; created_at: string; customer_comments: string; customer_confirmed: boolean; customer_confirmed_at: string | null; customer_id: string | null; customer_name: string; customer_phone: string; decoration_style: string; delivery_type: string; event_date: string; flavor: string; id: string; message_on_cake: string; occasion: string; payment_method: string; pickup_time: string | null; priority: number; quantity: number; source: string; special_requirements: string; status: string; theme: string; updated_at: string }
-        Insert: { admin_notes?: string; admin_price?: number | null; advance_amount?: number | null; advance_paid?: boolean; allergen_dairy_free?: boolean; allergen_egg_free?: boolean; allergen_gluten_free?: boolean; allergen_halal?: boolean; allergen_nut_free?: boolean; allergen_other?: string; balance_paid?: boolean; balance_paid_at?: string | null; cake_size: string; confirmation_token?: string; created_at?: string; customer_comments?: string; customer_confirmed?: boolean; customer_confirmed_at?: string | null; customer_id?: string | null; customer_name: string; customer_phone: string; decoration_style: string; delivery_type?: string; event_date: string; flavor: string; id?: string; message_on_cake?: string; occasion?: string; payment_method?: string; pickup_time?: string | null; priority?: number; quantity?: number; source?: string; special_requirements?: string; status?: string; theme?: string; updated_at?: string }
-        Update: { admin_notes?: string; admin_price?: number | null; advance_amount?: number | null; advance_paid?: boolean; allergen_dairy_free?: boolean; allergen_egg_free?: boolean; allergen_gluten_free?: boolean; allergen_halal?: boolean; allergen_nut_free?: boolean; allergen_other?: string; balance_paid?: boolean; balance_paid_at?: string | null; cake_size?: string; confirmation_token?: string; created_at?: string; customer_comments?: string; customer_confirmed?: boolean; customer_confirmed_at?: string | null; customer_id?: string | null; customer_name?: string; customer_phone?: string; decoration_style?: string; delivery_type?: string; event_date?: string; flavor?: string; id?: string; message_on_cake?: string; occasion?: string; payment_method?: string; pickup_time?: string | null; priority?: number; quantity?: number; source?: string; special_requirements?: string; status?: string; theme?: string; updated_at?: string }
+        Row: { admin_notes: string; admin_price: number | null; advance_amount: number | null; advance_paid: boolean; allergen_dairy_free: boolean; allergen_egg_free: boolean; allergen_gluten_free: boolean; allergen_halal: boolean; allergen_nut_free: boolean; allergen_other: string; balance_paid: boolean; balance_paid_at: string | null; cake_size: string; confirmation_token: string; confirmation_sent_at: string | null; created_at: string; customer_comments: string; customer_confirmed: boolean; customer_confirmed_at: string | null; customer_id: string | null; customer_name: string; customer_phone: string; decoration_style: string; delivery_type: string; event_date: string; flavor: string; id: string; message_on_cake: string; occasion: string; payment_method: string; payment_status: string; pickup_time: string | null; priority: number; quantity: number; source: string; special_requirements: string; status: string; theme: string; updated_at: string }
+        Insert: { admin_notes?: string; admin_price?: number | null; advance_amount?: number | null; advance_paid?: boolean; allergen_dairy_free?: boolean; allergen_egg_free?: boolean; allergen_gluten_free?: boolean; allergen_halal?: boolean; allergen_nut_free?: boolean; allergen_other?: string; balance_paid?: boolean; balance_paid_at?: string | null; cake_size: string; confirmation_token?: string; confirmation_sent_at?: string | null; created_at?: string; customer_comments?: string; customer_confirmed?: boolean; customer_confirmed_at?: string | null; customer_id?: string | null; customer_name: string; customer_phone: string; decoration_style: string; delivery_type?: string; event_date: string; flavor: string; id?: string; message_on_cake?: string; occasion?: string; payment_method?: string; payment_status?: string | null; pickup_time?: string | null; priority?: number; quantity?: number; source?: string; special_requirements?: string; status?: string; theme?: string; updated_at?: string }
+        Update: { admin_notes?: string; admin_price?: number | null; advance_amount?: number | null; advance_paid?: boolean; allergen_dairy_free?: boolean; allergen_egg_free?: boolean; allergen_gluten_free?: boolean; allergen_halal?: boolean; allergen_nut_free?: boolean; allergen_other?: string; balance_paid?: boolean; balance_paid_at?: string | null; cake_size?: string; confirmation_token?: string; confirmation_sent_at?: string | null; created_at?: string; customer_comments?: string; customer_confirmed?: boolean; customer_confirmed_at?: string | null; customer_id?: string | null; customer_name?: string; customer_phone?: string; decoration_style?: string; delivery_type?: string; event_date?: string; flavor?: string; id?: string; message_on_cake?: string; occasion?: string; payment_method?: string; payment_status?: string | null; pickup_time?: string | null; priority?: number; quantity?: number; source?: string; special_requirements?: string; status?: string; theme?: string; updated_at?: string }
         Relationships: [{ foreignKeyName: 'inquiries_customer_id_fkey'; columns: ['customer_id']; isOneToOne: false; referencedRelation: 'customers'; referencedColumns: ['id'] }]
       }
       inquiry_images: {
@@ -300,7 +303,12 @@ export type Database = {
       }
     }
     Views: { [_ in never]: never }
-    Functions: { [_ in never]: never }
+    Functions: {
+      sync_order_status: {
+        Args: { p_order_id: string; p_new_status: string }
+        Returns: void
+      }
+    }
     Enums: { [_ in never]: never }
     CompositeTypes: { [_ in never]: never }
   }

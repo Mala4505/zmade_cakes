@@ -7,7 +7,11 @@ interface Props {
     final_price: string
     delivery_type: string
     tracking_token: string
+    invoice_number?: number | null
   }
+  invoiceNumber?: number | null
+  businessPhone?: string
+  businessInstagram?: string
   inquiry: {
     customer_name: string
     customer_phone: string
@@ -43,7 +47,7 @@ interface Props {
   }
 }
 
-export default function InvoicePrint({ order, inquiry }: Props) {
+export default function InvoicePrint({ order, inquiry, businessPhone, businessInstagram, invoiceNumber }: Props) {
   const deliveryAddr = order.delivery_type === 'delivery' && inquiry.delivery_address
     ? [
         GOVERNORATE_LABELS[inquiry.delivery_address.governorate as keyof typeof GOVERNORATE_LABELS],
@@ -100,6 +104,7 @@ export default function InvoicePrint({ order, inquiry }: Props) {
           .inv-paid { color: #16a34a; font-weight: 700; font-size: 10.5pt; }
           .inv-mono { font-family: 'Courier New', monospace; }
           .inv-contact { text-align: center; font-size: 9.5pt; color: #555; margin-bottom: 12px; }
+          .inv-invoice-number { font-family: 'Courier New', monospace; font-size: 9pt; color: #777; text-align: right; margin-top: 3px; }
         }
       `}</style>
 
@@ -110,12 +115,21 @@ export default function InvoicePrint({ order, inquiry }: Props) {
           <div className="inv-brand-name">ZMade Cakes</div>
           <div className="inv-tagline">Handcrafted with love</div>
         </div>
-        <div className="inv-label-invoice">INVOICE</div>
+        <div>
+          <div className="inv-label-invoice">INVOICE</div>
+          {(invoiceNumber ?? order.invoice_number) && (
+            <div className="inv-invoice-number">
+              {`ZM-${new Date().getFullYear()}-${String(invoiceNumber ?? order.invoice_number).padStart(4, '0')}`}
+            </div>
+          )}
+        </div>
       </div>
 
-      <div className="inv-contact">
-        @zmadecakes.q8 &nbsp;·&nbsp; +965 6685 7560
-      </div>
+      {(businessInstagram || businessPhone) && (
+        <div className="inv-contact">
+          {[businessInstagram, businessPhone].filter(Boolean).join(' · ')}
+        </div>
+      )}
 
       <div className="inv-divider" />
       <div className="inv-section-title">Order Details</div>

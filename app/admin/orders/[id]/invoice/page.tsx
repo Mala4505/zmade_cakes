@@ -10,16 +10,22 @@ export default async function AdminInvoicePage({ params }: Props) {
   const { id } = await params
 
   const supabase = await createClient()
-  const { data: order, error } = await supabase
-    .from('orders')
-    .select('*, inquiry:inquiries(*, delivery_address:delivery_addresses(*))')
-    .eq('id', id)
-    .single()
+  const [{ data: order, error }, { data: phoneRow }, { data: igRow }] = await Promise.all([
+    supabase
+      .from('orders')
+      .select('*, inquiry:inquiries(*, delivery_address:delivery_addresses(*))')
+      .eq('id', id)
+      .single(),
+    supabase.from('business_settings').select('value').eq('key', 'business_phone').single(),
+    supabase.from('business_settings').select('value').eq('key', 'business_instagram').single(),
+  ])
 
   if (error || !order) notFound()
 
   const o = order as any
   const inq = o.inquiry
+  const businessPhone = (phoneRow?.value as string) ?? ''
+  const businessInstagram = (igRow?.value as string) ?? ''
 
   return (
     <div
@@ -39,7 +45,7 @@ export default async function AdminInvoicePage({ params }: Props) {
         <PrintButton />
       </div>
 
-      <InvoiceLayout order={o} inquiry={inq} adminMode={true} />
+      <InvoiceLayout order={o} inquiry={inq} adminMode={true} businessPhone={businessPhone} businessInstagram={businessInstagram} invoiceNumber={o.invoice_number ?? null} />
     </div>
   )
 }

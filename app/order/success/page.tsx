@@ -10,10 +10,10 @@ export default async function OrderSuccessPage() {
   const { data: phoneRow } = await supabase.from('business_settings').select('value').eq('key', 'business_phone').single()
   const { data: igRow } = await supabase.from('business_settings').select('value').eq('key', 'business_instagram').single()
 
-  const phone = (phoneRow?.value as string) ?? '96500000000'
-  const instagram = (igRow?.value as string) ?? '@zmadecakes.q8'
+  const phone = (phoneRow?.value as string) ?? ''
+  const instagram = (igRow?.value as string) ?? ''
   const cleaned = phone.replace(/\D/g, '')
-  const waNumber = cleaned.startsWith('965') ? cleaned : `965${cleaned}`
+  const waNumber = cleaned ? (cleaned.startsWith('965') ? cleaned : `965${cleaned}`) : ''
 
   return (
     <div className="flex flex-col items-center text-center gap-6 py-8">
@@ -27,16 +27,18 @@ export default async function OrderSuccessPage() {
         </p>
       </div>
       <div className="w-full flex flex-col gap-3">
-        <a
-          href={`https://wa.me/${waNumber}?text=${encodeURIComponent("Hi, I just submitted a cake order on ZMade Cakes!")}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-medium"
-          style={{ backgroundColor: '#25D366', color: '#fff' }}
-        >
-          <WhatsappLogo size={18} weight="fill" />
-          Message Zainab on WhatsApp
-        </a>
+        {waNumber && (
+          <a
+            href={`https://wa.me/${waNumber}?text=${encodeURIComponent("Hi, I just submitted a cake order on ZMade Cakes!")}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-medium"
+            style={{ backgroundColor: '#25D366', color: '#fff' }}
+          >
+            <WhatsappLogo size={18} weight="fill" />
+            Message Zainab on WhatsApp
+          </a>
+        )}
         {instagram && (
           <p className="text-sm" style={{ color: 'var(--color-ink-muted)' }}>{instagram} on Instagram</p>
         )}

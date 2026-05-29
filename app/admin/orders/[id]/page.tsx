@@ -7,6 +7,7 @@ import { StatusBadge } from '@/components/admin/StatusBadge'
 import OrderDetailActions from './_components/OrderDetailActions'
 import OrderEtaSection from './_components/OrderEtaSection'
 import OrderImageSection from './_components/OrderImageSection'
+import WhatsAppCopy from './_components/WhatsAppCopy'
 import InvoicePrint from '@/components/admin/InvoicePrint'
 import type { Metadata } from 'next'
 import type { OrderStatus } from '@/lib/supabase/types'
@@ -29,20 +30,28 @@ export default async function OrderDetailPage({ params }: Props) {
   const { id } = await params
   const supabase = await createClient()
 
-  const { data: order, error } = await supabase
-    .from('orders')
-    .select(`
-      *, inquiry:inquiries (
-        *, delivery_address:delivery_addresses(*)
-      )
-    `)
-    .eq('id', id)
-    .single()
+  const [{ data: order, error }, { data: phoneRow }, { data: igRow }, { data: templateSetting }] = await Promise.all([
+    supabase
+      .from('orders')
+      .select(`
+        *, inquiry:inquiries (
+          *, delivery_address:delivery_addresses(*)
+        )
+      `)
+      .eq('id', id)
+      .single(),
+    supabase.from('business_settings').select('value').eq('key', 'business_phone').single(),
+    supabase.from('business_settings').select('value').eq('key', 'business_instagram').single(),
+    supabase.from('business_settings').select('value').eq('key', 'whatsapp_templates').single(),
+  ])
 
   if (error || !order) notFound()
 
   const inq = (order as any).inquiry
   const trackLink = trackingLink(order.tracking_token)
+  const businessPhone = (phoneRow?.value as string) ?? ''
+  const businessInstagram = (igRow?.value as string) ?? ''
+  const templates: string[] = Array.isArray(templateSetting?.value) ? (templateSetting.value as string[]) : []
 
   const imagesResult = inq?.id ? await getInquiryImages(inq.id) : { data: [] }
 
@@ -109,6 +118,18 @@ export default async function OrderDetailPage({ params }: Props) {
           />
         </div>
 
+        {/* WhatsApp Templates */}
+        {templates.length > 0 && (
+          <div className="mb-6">
+            <WhatsAppCopy
+              templates={templates}
+              customerName={inq?.customer_name ?? ''}
+              trackingLink={trackLink}
+              amount={order.final_price ? String(order.final_price) : ''}
+            />
+          </div>
+        )}
+
         {/* Finished Cake Photos */}
         {inq?.id && (
           <div className="mb-6">
@@ -134,7 +155,7 @@ export default async function OrderDetailPage({ params }: Props) {
       </div>
 
       {/* Invoice print component */}
-      <InvoicePrint order={order as any} inquiry={inq} />
+      <InvoicePrint order={order as any} inquiry={inq} businessPhone={businessPhone} businessInstagram={businessInstagram} invoiceNumber={(order as any).invoice_number ?? null} />
     </div>
   )
 }

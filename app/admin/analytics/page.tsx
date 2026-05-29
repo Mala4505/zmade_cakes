@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { formatKWD } from '@/lib/utils'
 import { PageHeader } from '@/components/admin/PageHeader'
+import ExportButton from './_components/ExportButton'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = { title: 'Analytics' }
@@ -9,7 +10,7 @@ async function getAnalyticsData() {
   const supabase = await createClient()
 
   const cutoffDate = new Date()
-  cutoffDate.setMonth(cutoffDate.getMonth() - 11)
+  cutoffDate.setMonth(cutoffDate.getMonth() - 12)
   cutoffDate.setDate(1)
   const cutoff = cutoffDate.toISOString().split('T')[0]
 
@@ -108,9 +109,17 @@ export default async function AnalyticsPage() {
     confirmedCount,
   } = await getAnalyticsData()
 
+  const now = new Date()
+  const exportYear = now.getFullYear()
+  const exportMonth = now.getMonth() + 1
+  const exportMonthLabel = now.toLocaleString('en', { month: 'long', year: 'numeric' })
+
   return (
     <div className="px-4 py-6 md:px-8 md:py-8 max-w-5xl mx-auto">
-      <PageHeader title="Analytics" />
+      <div className="flex items-center justify-between mb-0">
+        <PageHeader title="Analytics" />
+        <ExportButton year={exportYear} month={exportMonth} monthLabel={exportMonthLabel} />
+      </div>
 
       {/* Revenue bar chart */}
       <div

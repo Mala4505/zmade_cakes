@@ -3,12 +3,14 @@ import { createClient } from '@/lib/supabase/server'
 import { getOptions } from '@/lib/actions/options'
 import { getSettings, getBlackouts } from '@/lib/actions/settings'
 import { getInquiryImages } from '@/lib/actions/images'
-import { formatDate, formatTime, formatKWD, confirmationLink, trackingLink, GOVERNORATE_LABELS } from '@/lib/utils'
-import { PageHeader } from '@/components/admin/PageHeader'
-import { StatusBadge, PriorityBadge } from '@/components/admin/StatusBadge'
-import InquiryForm from '../_components/InquiryForm'
+import { formatKWD, confirmationLink } from '@/lib/utils'
+import { StatusBadge } from '@/components/admin/StatusBadge'
 import InquiryActions from './_components/InquiryActions'
-import InquiryImageSection from './_components/InquiryImageSection'
+import InquiryDetailForm from './_components/InquiryDetailForm'
+import CancelInquiryButton from './_components/CancelInquiryButton'
+import CollapsibleImages from './_components/CollapsibleImages'
+import Link from 'next/link'
+import { ArrowLeft } from '@phosphor-icons/react/dist/ssr'
 import type { Metadata } from 'next'
 import type { WhatsAppTemplates, InquiryStatus } from '@/lib/supabase/types'
 
@@ -23,6 +25,77 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return { title: data?.customer_name ? `${data.customer_name} — Inquiry` : 'Inquiry' }
 }
 
+const TIMELINE_STEPS: { status: InquiryStatus; label: string }[] = [
+  { status: 'pending', label: 'Pending' },
+  { status: 'awaiting_confirmation', label: 'Awaiting' },
+  { status: 'confirmed', label: 'Confirmed' },
+  { status: 'in_progress', label: 'Making' },
+  { status: 'ready', label: 'Ready' },
+  { status: 'delivered', label: 'Delivered' },
+]
+
+const STATUS_ORDER: Record<string, number> = {
+  pending: 0,
+  awaiting_confirmation: 1,
+  confirmed: 2,
+  in_progress: 3,
+  ready: 4,
+  delivered: 5,
+  cancelled: -1,
+}
+
+function OrderTimeline({ currentStatus }: { currentStatus: InquiryStatus }) {
+  const currentIdx = STATUS_ORDER[currentStatus] ?? 0
+
+  return (
+    <div className="flex justify-center items-center mb-4 overflow-x-auto pb-1">
+      {TIMELINE_STEPS.map((step, i) => {
+        const stepIdx = STATUS_ORDER[step.status]
+        const isPast = stepIdx < currentIdx
+        const isCurrent = stepIdx === currentIdx
+        const isFuture = stepIdx > currentIdx
+
+        return (
+          <div key={step.status} className="flex items-center">
+            <div className="flex flex-col items-center gap-1">
+              <div
+                className="w-3.5 h-3.5 rounded-full border-2 shrink-0"
+                style={{
+                  backgroundColor: isPast || isCurrent ? 'var(--color-teal)' : 'var(--color-surface-raised)',
+                  borderColor: isCurrent ? 'var(--color-teal)' : isPast ? 'var(--color-teal)' : 'var(--color-border)',
+                  boxShadow: isCurrent ? '0 0 0 3px var(--color-teal-light)' : undefined,
+                }}
+              />
+              <span
+                className="text-xs font-medium whitespace-nowrap"
+                style={{
+                  color: isCurrent
+                    ? 'var(--color-teal)'
+                    : isPast
+                    ? 'var(--color-teal-deep)'
+                    : 'var(--color-ink-muted)',
+                  fontWeight: isCurrent ? 700 : undefined,
+                }}
+              >
+                {step.label}
+              </span>
+            </div>
+            {i < TIMELINE_STEPS.length - 1 && (
+              <div
+                className="h-0.5 w-8 shrink-0 mx-0.5 -mt-4"
+                style={{
+                  backgroundColor:
+                    stepIdx < currentIdx ? 'var(--color-teal)' : 'var(--color-border)',
+                }}
+              />
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 export default async function InquiryDetailPage({ params }: Props) {
   const { id } = await params
   const supabase = await createClient()
@@ -35,16 +108,17 @@ export default async function InquiryDetailPage({ params }: Props) {
 
   if (error || !inquiry) notFound()
 
-  const [flavors, sizes, occasions, themes, decorations, settingsResult, blackoutsResult, imagesResult] = await Promise.all([
-    getOptions('flavor_options'),
-    getOptions('size_options'),
-    getOptions('occasion_options'),
-    getOptions('theme_options'),
-    getOptions('decoration_style_options'),
-    getSettings(['whatsapp_templates', 'min_lead_days', 'pricing_matrix', 'min_price_guard', 'rush_multiplier']),
-    getBlackouts(),
-    getInquiryImages(id),
-  ])
+  const [flavors, sizes, occasions, themes, decorations, settingsResult, blackoutsResult, imagesResult] =
+    await Promise.all([
+      getOptions('flavor_options'),
+      getOptions('size_options'),
+      getOptions('occasion_options'),
+      getOptions('theme_options'),
+      getOptions('decoration_style_options'),
+      getSettings(['whatsapp_templates', 'min_lead_days', 'pricing_matrix', 'min_price_guard', 'rush_multiplier']),
+      getBlackouts(),
+      getInquiryImages(id),
+    ])
 
   const confirmLink = confirmationLink(inquiry.confirmation_token)
   const templates = settingsResult.data?.whatsapp_templates as WhatsAppTemplates | undefined
@@ -60,161 +134,138 @@ export default async function InquiryDetailPage({ params }: Props) {
     customerData = data
   }
 
+  const { count: pastOrderCount } = await supabase
+    .from('orders')
+    .select('id, inquiry:inquiries!inner(customer_phone)', { count: 'exact', head: true })
+    .eq('inquiry.customer_phone', inquiry.customer_phone)
+    .neq('inquiry.id', inquiry.id)
+    .in('status', ['confirmed', 'in_progress', 'ready', 'delivered'])
+
+  const isCancelled = inquiry.status === 'cancelled'
+
   return (
     <div className="px-4 py-6 md:px-8 md:py-8 max-w-2xl mx-auto">
-      <PageHeader
-        title={inquiry.customer_name}
-        subtitle={`${inquiry.cake_size} · ${inquiry.flavor} · ${formatDate(inquiry.event_date)}`}
-        backHref="/admin/inquiries"
-        backLabel="Inquiries"
-        action={<StatusBadge status={inquiry.status as InquiryStatus} />}
-      />
-
-      {/* Summary card */}
-      <div
-        className="rounded-xl border p-4 mb-6 grid grid-cols-2 gap-x-6 gap-y-3"
-        style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
+      {/* Back link */}
+      <Link
+        href="/admin/inquiries"
+        className="inline-flex items-center gap-1.5 text-xs font-medium mb-4 transition-opacity hover:opacity-70"
+        style={{ color: 'var(--color-ink-muted)' }}
       >
-        <Detail label="Phone" value={inquiry.customer_phone} mono />
-        <Detail label="Event Date" value={formatDate(inquiry.event_date)} mono />
-        <Detail label="Pickup Time" value={formatTime(inquiry.pickup_time)} mono />
-        <Detail label="Delivery" value={inquiry.delivery_type === 'delivery' ? 'Delivery' : 'Pickup'} />
-        {inquiry.delivery_type === 'delivery' && (inquiry as any).delivery_address && (
-          <div className="col-span-2">
-            <p className="text-xs font-medium mb-0.5" style={{ color: 'var(--color-ink-muted)' }}>Address</p>
-            <p className="text-sm" style={{ color: 'var(--color-ink-secondary)' }}>
-              {GOVERNORATE_LABELS[(inquiry as any).delivery_address.governorate as keyof typeof GOVERNORATE_LABELS]},
-              {' '}{(inquiry as any).delivery_address.area},
-              {' Block '}{(inquiry as any).delivery_address.block},
-              {' '}{(inquiry as any).delivery_address.street},
-              {' '}{(inquiry as any).delivery_address.house_no}
-            </p>
-          </div>
-        )}
-        <Detail label="Price" value={formatKWD(inquiry.admin_price?.toString())} mono />
-        <Detail label="Advance" value={formatKWD(inquiry.advance_amount?.toString())} mono />
-        <Detail label="Payment" value={inquiry.payment_method || '—'} />
-        <Detail label="Priority" value={null}>
-          <PriorityBadge priority={inquiry.priority as 0 | 1 | 2} />
-        </Detail>
-        {inquiry.admin_notes && (
-          <div className="col-span-2">
-            <p className="text-xs font-medium mb-0.5" style={{ color: 'var(--color-ink-muted)' }}>Admin Notes</p>
-            <p className="text-sm" style={{ color: 'var(--color-ink-secondary)' }}>{inquiry.admin_notes}</p>
-          </div>
-        )}
-        {inquiry.customer_confirmed && (
-          <>
-            <div className="col-span-2 border-t pt-3" style={{ borderColor: 'var(--color-border)' }}>
-              <p className="text-xs font-medium mb-0.5" style={{ color: 'var(--color-teal)' }}>Customer Confirmed</p>
-            </div>
-            {inquiry.message_on_cake && (
-              <Detail label="Message on Cake" value={inquiry.message_on_cake} />
+        <ArrowLeft size={13} />
+        Inquiries
+      </Link>
+
+      {/* Sticky header card */}
+      <div
+        className="rounded-xl border p-4 mb-4 flex items-start justify-between gap-4"
+        style={{
+          backgroundColor: 'var(--color-surface-raised)',
+          borderColor: 'var(--color-border)',
+        }}
+      >
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h1 className="text-lg font-bold" style={{ color: 'var(--color-ink)' }}>
+              {inquiry.customer_name}
+            </h1>
+            {customerData?.vip && (
+              <span
+                className="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full"
+                style={{ backgroundColor: '#fef3c7', color: '#92400e' }}
+              >
+                VIP
+              </span>
             )}
-            {inquiry.customer_comments && (
-              <div className="col-span-2">
-                <p className="text-xs font-medium mb-0.5" style={{ color: 'var(--color-ink-muted)' }}>Customer Comments</p>
-                <p className="text-sm italic" style={{ color: 'var(--color-ink-secondary)' }}>
-                  "{inquiry.customer_comments}"
-                </p>
-              </div>
-            )}
-          </>
-        )}
+          </div>
+          <p className="text-sm mt-0.5" style={{ color: 'var(--color-ink-muted)' }}>
+            {inquiry.cake_size} · {inquiry.flavor}
+            {inquiry.admin_price ? ` · ${formatKWD(inquiry.admin_price)}` : ''}
+          </p>
+        </div>
+        <div className="shrink-0 flex flex-col items-end gap-1.5">
+          <StatusBadge status={inquiry.status as InquiryStatus} />
+          {(pastOrderCount ?? 0) > 0 && (
+            <span
+              className="inline-flex items-center text-[9px] font-bold px-1.5 py-0.5 rounded-full"
+              style={{ backgroundColor: 'var(--color-teal-light)', color: 'var(--color-teal-deep)' }}
+            >
+              Returning · {pastOrderCount}
+            </span>
+          )}
+        </div>
       </div>
 
-      {/* Actions */}
-      <InquiryActions
+      {/* Actions: Next Step banner + WA buttons */}
+      {!isCancelled && (
+        <InquiryActions
+          inquiry={inquiry as any}
+          confirmLink={confirmLink}
+          templates={templates}
+        />
+      )}
+
+      {/* Timeline */}
+      {!isCancelled && (
+        <OrderTimeline currentStatus={inquiry.status as InquiryStatus} />
+      )}
+
+      {/* Grouped editable form cards */}
+      <InquiryDetailForm
         inquiry={inquiry as any}
-        confirmLink={confirmLink}
-        templates={templates}
+        options={{
+          flavors: flavors.data ?? [],
+          sizes: sizes.data ?? [],
+          occasions: occasions.data ?? [],
+          themes: themes.data ?? [],
+          decorations: decorations.data ?? [],
+        }}
+        minLeadDays={minLeadDays}
+        blackouts={blackoutsResult.data ?? []}
+        pricingMatrix={pricingMatrix}
+        minPriceGuard={minPriceGuard}
+        rushMultiplier={rushMultiplier}
       />
 
       {/* Reference Images */}
-      <div className="mt-6">
-        <p
-          className="text-xs font-semibold uppercase tracking-wider mb-3"
-          style={{ color: 'var(--color-ink-muted)' }}
-        >
-          Reference Images
-        </p>
-        <InquiryImageSection
-          initialImages={imagesResult.data ?? []}
-          inquiryId={id}
-        />
+      <div className="mt-4">
+        <CollapsibleImages inquiryId={id} initialImages={imagesResult.data ?? []} />
       </div>
 
-      {/* Customer profile card */}
+
+      {/* Customer Profile card */}
       {customerData && (
-        <div className="mt-6 rounded-xl border p-4" style={{ borderColor: 'var(--color-teal-light)', backgroundColor: 'var(--color-teal-light)' }}>
-          <p className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--color-teal-deep)' }}>Customer Profile</p>
+        <div
+          className="mt-4 rounded-xl border p-4"
+          style={{ borderColor: 'var(--color-teal-light)', backgroundColor: 'var(--color-teal-light)' }}
+        >
+          <p
+            className="text-xs font-semibold uppercase tracking-wider mb-2"
+            style={{ color: 'var(--color-teal-deep)' }}
+          >
+            Customer Profile
+          </p>
           <p className="text-sm font-medium" style={{ color: 'var(--color-ink)' }}>
             {customerData.name}
             {customerData.vip && (
-              <span className="ml-2 text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full" style={{ backgroundColor: '#fef3c7', color: '#92400e' }}>VIP</span>
+              <span
+                className="ml-2 text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full"
+                style={{ backgroundColor: '#fef3c7', color: '#92400e' }}
+              >
+                VIP
+              </span>
             )}
           </p>
           {customerData.notes && (
-            <p className="text-xs mt-1" style={{ color: 'var(--color-ink-muted)' }}>{customerData.notes}</p>
+            <p className="text-xs mt-1" style={{ color: 'var(--color-ink-muted)' }}>
+              {customerData.notes}
+            </p>
           )}
         </div>
       )}
 
-      {/* Edit form */}
-      <div className="mt-8">
-        <p
-          className="text-xs font-semibold uppercase tracking-wider mb-3"
-          style={{ color: 'var(--color-ink-muted)' }}
-        >
-          Edit Inquiry
-        </p>
-        <InquiryForm
-          inquiry={inquiry as any}
-          options={{
-            flavors: flavors.data ?? [],
-            sizes: sizes.data ?? [],
-            occasions: occasions.data ?? [],
-            themes: themes.data ?? [],
-            decorations: decorations.data ?? [],
-          }}
-          minLeadDays={minLeadDays}
-          blackouts={blackoutsResult.data ?? []}
-          pricingMatrix={pricingMatrix}
-          minPriceGuard={minPriceGuard}
-          rushMultiplier={rushMultiplier}
-        />
-      </div>
+      {/* Cancel button */}
+      {!isCancelled && <CancelInquiryButton inquiryId={id} />}
     </div>
   )
 }
 
-function Detail({
-  label,
-  value,
-  mono,
-  children,
-}: {
-  label: string
-  value?: string | null
-  mono?: boolean
-  children?: React.ReactNode
-}) {
-  return (
-    <div>
-      <p className="text-xs font-medium mb-0.5" style={{ color: 'var(--color-ink-muted)' }}>
-        {label}
-      </p>
-      {children ?? (
-        <p
-          className="text-sm"
-          style={{
-            color: 'var(--color-ink-secondary)',
-            fontFamily: mono ? 'var(--font-mono)' : undefined,
-          }}
-        >
-          {value || '—'}
-        </p>
-      )}
-    </div>
-  )
-}

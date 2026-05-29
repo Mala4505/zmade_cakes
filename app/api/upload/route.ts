@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
   const inquiryId = formData.get('inquiry_id') as string | null
   const imageType = formData.get('image_type') as string | null
   if (inquiryId) {
-    await service
+    const { error: dbError } = await service
       .from('inquiry_images')
       .insert({
         inquiry_id: inquiryId,
@@ -76,6 +76,12 @@ export async function POST(req: NextRequest) {
         url_thumb: thumbUrl,
         caption: '',
       })
+    if (dbError) {
+      await Promise.allSettled([
+        service.storage.from(BUCKET).remove([`${base}/original.jpg`, `${base}/medium.jpg`, `${base}/thumb.jpg`])
+      ])
+      return NextResponse.json({ error: 'Failed to save image record' }, { status: 500 })
+    }
   }
 
   return NextResponse.json({

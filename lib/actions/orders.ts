@@ -16,13 +16,6 @@ const VALID_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   cancelled: [],
 }
 
-// Order status maps 1:1 to inquiry status for the overlapping states
-const INQUIRY_STATUS_SYNC: Partial<Record<OrderStatus, string>> = {
-  in_progress: 'in_progress',
-  ready: 'ready',
-  delivered: 'delivered',
-  cancelled: 'cancelled',
-}
 
 export async function updateOrderStatus(id: string, status: OrderStatus): Promise<ActionResult<Order>> {
   if (!tokenSchema.safeParse(id).success) {
@@ -48,20 +41,10 @@ export async function updateOrderStatus(id: string, status: OrderStatus): Promis
     return { data: null, error: `Cannot move from "${current.status}" to "${status}"` }
   }
 
-  const { data, error } = await supabase
-    .from('orders')
-    .update({ status })
-    .eq('id', id)
-    .select()
-    .single()
+  const { error } = await supabase.rpc('sync_order_status', { p_order_id: id, p_new_status: status })
+  if (error) return { data: null, error: error.message }
 
-  if (error || !data) return { data: null, error: error?.message ?? 'Failed to update order' }
-
-  // Keep inquiry status in sync
-  const inquiryStatus = INQUIRY_STATUS_SYNC[status]
-  if (inquiryStatus) {
-    await supabase.from('inquiries').update({ status: inquiryStatus }).eq('id', current.inquiry_id)
-  }
+  const { data } = await supabase.from('orders').select().eq('id', id).single()
 
   if (status === 'ready' || status === 'delivered') {
     await supabase.from('notifications').insert({
@@ -69,8 +52,8 @@ export async function updateOrderStatus(id: string, status: OrderStatus): Promis
       title: status === 'ready' ? 'Order Ready for Pickup' : 'Order Delivered',
       body:
         status === 'ready'
-          ? `Order for ${data.inquiry_id.slice(0, 8)} is ready!`
-          : `Order for ${data.inquiry_id.slice(0, 8)} has been delivered`,
+          ? `Order for ${current.inquiry_id.slice(0, 8)} is ready!`
+          : `Order for ${current.inquiry_id.slice(0, 8)} has been delivered`,
       inquiry_id: current.inquiry_id,
       order_id: id,
       is_read: false,
@@ -101,10 +84,8 @@ export async function cancelOrder(id: string): Promise<ActionResult<void>> {
   if (order.status === 'delivered') return { data: null, error: 'Cannot cancel a delivered order' }
   if (order.status === 'cancelled') return { data: null, error: 'Order is already cancelled' }
 
-  const { error } = await supabase.from('orders').update({ status: 'cancelled' }).eq('id', id)
+  const { error } = await supabase.rpc('sync_order_status', { p_order_id: id, p_new_status: 'cancelled' })
   if (error) return { data: null, error: error.message }
-
-  await supabase.from('inquiries').update({ status: 'cancelled' }).eq('id', order.inquiry_id)
 
   return { data: undefined, error: null }
 }

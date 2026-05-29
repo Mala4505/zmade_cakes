@@ -22,6 +22,16 @@ export async function getSettings(keys: BusinessSettingKey[]): Promise<ActionRes
 }
 
 export async function updateSetting(key: BusinessSettingKey, value: unknown): Promise<ActionResult<void>> {
+  const SETTING_VALIDATORS: Partial<Record<string, (v: unknown) => boolean>> = {
+    min_lead_days:      (v) => typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= 365,
+    business_phone:     (v) => typeof v === 'string' && v.length <= 30,
+    business_instagram: (v) => typeof v === 'string' && v.length <= 100,
+    rush_multiplier:    (v) => typeof v === 'number' && v >= 1 && v <= 10,
+    min_price_guard:    (v) => typeof v === 'number' && v >= 0,
+  }
+  const validator = SETTING_VALIDATORS[key as string]
+  if (validator && !validator(value)) return { data: null, error: `Invalid value for setting "${key}"` }
+
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { data: null, error: 'Unauthorized' }

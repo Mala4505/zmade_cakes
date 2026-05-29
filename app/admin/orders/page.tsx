@@ -3,6 +3,7 @@ import { formatDate, formatKWD } from '@/lib/utils'
 import { PageHeader } from '@/components/admin/PageHeader'
 import { StatusBadge, PriorityBadge } from '@/components/admin/StatusBadge'
 import OrderStatusActions from './_components/OrderStatusActions'
+import MobileOrderList from './_components/MobileOrderList'
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import type { OrderStatus } from '@/lib/supabase/types'
@@ -51,8 +52,13 @@ export default async function OrdersPage() {
     <div className="px-4 py-6 md:px-8 md:py-8">
       <PageHeader title="Orders" subtitle={`${orders.length} active`} />
 
-      {/* Kanban */}
-      <div className="flex gap-4 overflow-x-auto pb-4 -mx-4 px-4 md:mx-0 md:px-0">
+      {/* Mobile list — shown below md breakpoint */}
+      <div className="block md:hidden -mx-4">
+        <MobileOrderList orders={orders} />
+      </div>
+
+      {/* Kanban — hidden on mobile, shown md and up */}
+      <div className="hidden md:flex gap-4 overflow-x-auto pb-4">
         {COLUMNS.map(({ status, label }) => (
           <div key={status} className="flex-none w-72 md:flex-1 min-w-0">
             {/* Column header */}

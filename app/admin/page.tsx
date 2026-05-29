@@ -16,7 +16,11 @@ async function getDashboardData() {
   const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString()
   const lastMonthEnd = thisMonthStart
 
-  const [pendingRes, todayRes, activeOrdersRes, notificationsRes, thisMonthRes, lastMonthRes, newCustomersRes, lastMonthCustomersRes] = await Promise.all([
+  const twoDaysFromNow = new Date()
+  twoDaysFromNow.setDate(twoDaysFromNow.getDate() + 2)
+  const twoDaysStr = twoDaysFromNow.toISOString().split('T')[0]
+
+  const [pendingRes, todayRes, activeOrdersRes, notificationsRes, thisMonthRes, lastMonthRes, newCustomersRes, lastMonthCustomersRes, urgentOrdersRes] = await Promise.all([
     supabase
       .from('inquiries')
       .select('id', { count: 'exact', head: true })
@@ -65,9 +69,19 @@ async function getDashboardData() {
       .select('id', { count: 'exact', head: true })
       .gte('created_at', lastMonthStart)
       .lt('created_at', lastMonthEnd),
+
+    supabase
+      .from('orders')
+      .select('id, status, inquiry:inquiries(id, customer_name, cake_size, flavor, event_date)')
+      .in('status', ['confirmed', 'in_progress']),
   ])
 
   const activeOrders = activeOrdersRes.data ?? []
+
+  const urgentOrders = (urgentOrdersRes.data ?? []).filter((o: any) => {
+    const eventDate = o.inquiry?.event_date
+    return eventDate && eventDate <= twoDaysStr && eventDate >= today
+  })
 
   const pendingPayments = activeOrders.filter((o: any) => {
     const inq = o.inquiry
@@ -84,6 +98,7 @@ async function getDashboardData() {
     todayPickups: todayRes.data ?? [],
     activeOrders,
     pendingPayments,
+    urgentOrders,
     notifications: notificationsRes.data ?? [],
     unreadCount: (notificationsRes.data ?? []).filter((n) => !n.is_read).length,
     monthlyStats: {
@@ -98,7 +113,7 @@ async function getDashboardData() {
 }
 
 export default async function DashboardPage() {
-  const { pendingCount, todayPickups, activeOrders, pendingPayments, notifications, unreadCount, monthlyStats } =
+  const { pendingCount, todayPickups, activeOrders, pendingPayments, urgentOrders, notifications, unreadCount, monthlyStats } =
     await getDashboardData()
 
   return (
@@ -158,6 +173,35 @@ export default async function DashboardPage() {
           </Link>
         )}
       </div>
+
+      {/* Urgency alerts */}
+      {urgentOrders.length > 0 && (
+        <section
+          className="rounded-xl border p-4 mb-6"
+          style={{ backgroundColor: 'var(--color-warning-light)', borderColor: 'var(--color-warning)' }}
+        >
+          <h2
+            className="text-sm font-semibold mb-3 flex items-center gap-2"
+            style={{ color: 'var(--color-warning)' }}
+          >
+            <Warning size={15} weight="fill" />
+            Urgent — Event within 2 days
+          </h2>
+          <ul className="flex flex-col gap-2">
+            {urgentOrders.map((o: any) => (
+              <li key={o.id}>
+                <a
+                  href={`/admin/orders/${o.id}`}
+                  className="text-sm"
+                  style={{ color: 'var(--color-warning)' }}
+                >
+                  {o.inquiry?.customer_name} — {o.inquiry?.cake_size} {o.inquiry?.flavor} on {o.inquiry?.event_date}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">

@@ -32,13 +32,23 @@ export default async function TrackPage({ params }: Props) {
 
   const supabase = createServiceClient()
 
-  const { data: order, error } = await supabase
-    .from('orders')
-    .select('*, inquiry:inquiries(*, delivery_address:delivery_addresses(*))')
-    .eq('tracking_token', token)
-    .single()
+  const [{ data: order, error }, { data: phoneRow }, { data: igRow }] = await Promise.all([
+    supabase
+      .from('orders')
+      .select('*, inquiry:inquiries(*, delivery_address:delivery_addresses(*))')
+      .eq('tracking_token', token)
+      .single(),
+    supabase.from('business_settings').select('value').eq('key', 'business_phone').single(),
+    supabase.from('business_settings').select('value').eq('key', 'business_instagram').single(),
+  ])
 
   if (error || !order) notFound()
+
+  const businessPhone = (phoneRow?.value as string) ?? ''
+  const businessInstagram = (igRow?.value as string) ?? ''
+  const waNumber = businessPhone
+    ? businessPhone.replace(/\D/g, '').replace(/^(?!965)/, '965')
+    : ''
 
   const o = order as any
   const inq = o.inquiry
@@ -62,9 +72,11 @@ export default async function TrackPage({ params }: Props) {
         >
           ZMade Cakes
         </p>
-        <p className="text-xs mt-1" style={{ color: 'var(--color-ink-muted)' }}>
-          @zmadecakes.q8 · Kuwait
-        </p>
+        {businessInstagram && (
+          <p className="text-xs mt-1" style={{ color: 'var(--color-ink-muted)' }}>
+            {businessInstagram} · Kuwait
+          </p>
+        )}
       </header>
 
       <div className="max-w-lg mx-auto px-4 py-8 flex flex-col gap-6">
@@ -88,15 +100,17 @@ export default async function TrackPage({ params }: Props) {
               <p className="text-sm" style={{ color: 'var(--color-ink-muted)' }}>
                 This order has been cancelled. If you have questions or would like to rebook, Zainab is just a message away.
               </p>
-              <a
-                href={`https://wa.me/96566857560`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-4 inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium"
-                style={{ backgroundColor: '#25D366', color: '#fff' }}
-              >
-                Message Zainab on WhatsApp
-              </a>
+              {waNumber && (
+                <a
+                  href={`https://wa.me/${waNumber}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-4 inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium"
+                  style={{ backgroundColor: '#25D366', color: '#fff' }}
+                >
+                  Message Zainab on WhatsApp
+                </a>
+              )}
             </div>
           )}
         </div>
@@ -231,7 +245,7 @@ export default async function TrackPage({ params }: Props) {
         )}
 
         {/* ETA callout */}
-        {o.eta_date && (
+        {o.eta_date ? (
           <div
             className="rounded-xl border px-4 py-4 flex flex-col gap-1"
             style={{ borderColor: 'var(--color-teal-light)', backgroundColor: 'var(--color-teal-light)' }}
@@ -246,7 +260,18 @@ export default async function TrackPage({ params }: Props) {
               </p>
             )}
           </div>
-        )}
+        ) : (o.status !== 'cancelled' && o.status !== 'delivered') ? (
+          <div
+            className="rounded-xl px-5 py-4 text-sm"
+            style={{
+              border: '1.5px dashed var(--color-border)',
+              backgroundColor: 'var(--color-surface)',
+              color: 'var(--color-ink-muted)',
+            }}
+          >
+            Zainab will share an expected date soon.
+          </div>
+        ) : null}
 
         {/* Order details */}
         <section
@@ -303,19 +328,23 @@ export default async function TrackPage({ params }: Props) {
           <p className="text-xs" style={{ color: 'var(--color-ink-muted)' }}>
             Questions about your order?
           </p>
-          <a
-            href="https://wa.me/96566857560"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium"
-            style={{ backgroundColor: '#25D366', color: '#fff' }}
-          >
-            Message Zainab on WhatsApp
-          </a>
-          <p className="text-xs" style={{ color: 'var(--color-ink-muted)' }}>
-            Instagram:{' '}
-            <span style={{ color: 'var(--color-teal)' }}>@zmadecakes.q8</span>
-          </p>
+          {waNumber && (
+            <a
+              href={`https://wa.me/${waNumber}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium"
+              style={{ backgroundColor: '#25D366', color: '#fff' }}
+            >
+              Message Zainab on WhatsApp
+            </a>
+          )}
+          {businessInstagram && (
+            <p className="text-xs" style={{ color: 'var(--color-ink-muted)' }}>
+              Instagram:{' '}
+              <span style={{ color: 'var(--color-teal)' }}>{businessInstagram}</span>
+            </p>
+          )}
         </div>
       </div>
     </main>

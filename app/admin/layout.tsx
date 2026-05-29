@@ -40,7 +40,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           <Image src="/logo.svg" alt="ZMade Cakes" width={80} height={32} style={{ width: 'auto', height: '28px' }} priority />
         </header>
 
-        <main className="admin-main flex-1 pb-20 md:pb-0" style={{ backgroundColor: '#ffffff' }}>
+        <main className="admin-main flex-1 pb-20 md:pb-0" style={{ backgroundColor: 'var(--color-cream)' }}>
           {children}
         </main>
       </div>

@@ -29,6 +29,14 @@ const publicInquirySchema = z.object({
   address_house_no: z.string().optional().default(''),
   address_extra_notes: z.string().optional().default(''),
 })
+.superRefine((data, ctx) => {
+  if (data.delivery_type === 'delivery') {
+    if (!data.address_area?.trim()) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Area is required for delivery', path: ['address_area'] })
+    if (!data.address_block?.trim()) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Block is required', path: ['address_block'] })
+    if (!data.address_street?.trim()) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Street is required', path: ['address_street'] })
+    if (!data.address_house_no?.trim()) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'House number is required', path: ['address_house_no'] })
+  }
+})
 
 async function getRatelimit() {
   if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN) return null
@@ -44,7 +52,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const parsed = publicInquirySchema.safeParse(body)
     if (!parsed.success) {
-      return NextResponse.json({ error: 'Invalid data' }, { status: 400 })
+      return NextResponse.json({ error: 'Invalid data', fieldErrors: parsed.error.flatten().fieldErrors }, { status: 400 })
     }
     const data = parsed.data
 
@@ -56,10 +64,11 @@ export async function POST(req: NextRequest) {
 
     const supabase = createServiceClient()
 
-    const { data: customer } = await supabase
+    const { data: customer, error: customerError } = await supabase
       .from('customers')
       .upsert({ phone: data.customer_phone, name: data.customer_name, updated_at: new Date().toISOString() }, { onConflict: 'phone' })
       .select('id').single()
+    if (customerError) console.error('[inquiries] customer upsert failed:', customerError.message)
 
     const { address_governorate, address_area, address_block, address_street, address_house_no, address_extra_notes, ...inquiryFields } = data
 

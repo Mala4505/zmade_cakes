@@ -74,6 +74,18 @@ export default function LoginForm() {
         />
       </div>
 
+      <div className="text-right">
+        <a
+          href="/login/forgot"
+          className="text-xs"
+          style={{ color: 'var(--color-ink-muted)' }}
+          onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--color-teal)')}
+          onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--color-ink-muted)')}
+        >
+          Forgot password?
+        </a>
+      </div>
+
       {error && (
         <p
           className="rounded-lg px-3.5 py-2.5 text-sm"
