@@ -107,7 +107,6 @@ export function InquiryStatusSelect({
           backgroundColor: 'var(--color-surface)',
           borderColor: 'var(--color-border)',
           color: 'var(--color-ink)',
-          focusRingColor: 'var(--color-teal)',
         }}
       >
         {STATUS_OPTIONS.map(o => (

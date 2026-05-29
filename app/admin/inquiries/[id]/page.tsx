@@ -179,7 +179,7 @@ export default async function InquiryDetailPage({ params }: Props) {
           </div>
           <p className="text-sm mt-0.5" style={{ color: 'var(--color-ink-muted)' }}>
             {inquiry.cake_size} · {inquiry.flavor}
-            {inquiry.admin_price ? ` · ${formatKWD(inquiry.admin_price)}` : ''}
+            {inquiry.admin_price ? ` · ${formatKWD(inquiry.admin_price?.toString())}` : ''}
           </p>
         </div>
         <div className="shrink-0 flex flex-col items-end gap-1.5">

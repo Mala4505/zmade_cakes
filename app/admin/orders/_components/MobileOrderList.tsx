@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { formatDate, formatKWD } from '@/lib/utils'
 import { PriorityBadge } from '@/components/admin/StatusBadge'
-import { hasAllergens, ALLERGEN_LABELS } from '@/lib/supabase/types'
+import { hasAllergens, ALLERGEN_LABELS, type AllergenFlags } from '@/lib/supabase/types'
 
 interface OrderInquiry {
   customer_name?: string | null
@@ -98,12 +98,12 @@ function MobileOrderCard({ order }: { order: MobileOrder }) {
           className="text-xs font-mono font-medium"
           style={{ color: 'var(--color-ink)', fontFamily: 'var(--font-mono)' }}
         >
-          {formatKWD(order.final_price)}
+          {formatKWD(order.final_price?.toString())}
         </span>
       </div>
 
       {/* Allergen badges */}
-      {inq && hasAllergens(inq) && (
+      {inq && hasAllergens(inq as unknown as AllergenFlags) && (
         <div className="flex flex-wrap gap-1">
           {(Object.keys(ALLERGEN_LABELS) as Array<keyof typeof ALLERGEN_LABELS>).map((key) =>
             inq[key] ? (

@@ -215,7 +215,6 @@ export default function InquiryDetailForm({
         style={{
           borderColor: 'var(--color-border)',
           backgroundColor: 'var(--color-surface)',
-          divideColor: 'var(--color-border)',
         }}
       >
         <div className="p-4">
