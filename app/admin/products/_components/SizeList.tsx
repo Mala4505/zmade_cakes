@@ -122,8 +122,8 @@ function SizeRow({ size, onChanged }: { size: OptionRow; onChanged: (updated: Op
       if (result.error) {
         toast.error('Failed to deactivate', { description: result.error })
       } else {
-        onChanged({ ...size, is_active: false })
-        toast.success('Size deactivated')
+        onChanged(null)
+        toast.success('Size deleted')
       }
     })
   }

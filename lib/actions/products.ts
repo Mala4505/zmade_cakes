@@ -10,6 +10,7 @@ export async function getFlavorsWithPrices(): Promise<FlavorWithPrices[]> {
   const { data } = await supabase
     .from('flavor_options')
     .select('*, prices:flavor_size_prices(*)')
+    .eq('is_active', true)
     .order('sort_order', { ascending: true })
     .order('name', { ascending: true })
   return (data as FlavorWithPrices[] | null) ?? []

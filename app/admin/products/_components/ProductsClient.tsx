@@ -30,7 +30,7 @@ export function ProductsClient({ initialFlavors, sizes: initialSizes }: Props) {
   }
 
   const handleFlavorDeleted = (id: string) => {
-    setFlavors((prev) => prev.map((f) => (f.id === id ? { ...f, is_active: false } : f)))
+    setFlavors((prev) => prev.filter((f) => f.id !== id))
     if (selectedFlavorId === id) setSelectedFlavorId(null)
   }
 
