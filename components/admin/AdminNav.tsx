@@ -23,10 +23,10 @@ import type React from 'react'
 type AnyIcon = React.ComponentType<{ size?: number; weight?: string; 'aria-hidden'?: boolean | 'true' | 'false' }>
 
 const NAV_ITEMS: { href: string; label: string; Icon: AnyIcon; exact: boolean }[] = [
-  { href: '/admin', label: 'Home', Icon: HouseSimple as AnyIcon, exact: true },
+  { href: '/admin/calendar', label: 'Calendar', Icon: CalendarBlank as AnyIcon, exact: false },
+  { href: '/admin', label: 'Dashboard', Icon: HouseSimple as AnyIcon, exact: true },
   { href: '/admin/inquiries', label: 'Inquiries', Icon: ClipboardText as AnyIcon, exact: false },
   { href: '/admin/orders', label: 'Orders', Icon: Package as AnyIcon, exact: false },
-  { href: '/admin/calendar', label: 'Calendar', Icon: CalendarBlank as AnyIcon, exact: false },
   { href: '/admin/analytics', label: 'Analytics', Icon: ChartBar as AnyIcon, exact: false },
   { href: '/admin/customers', label: 'Customers', Icon: Users as AnyIcon, exact: false },
   { href: '/admin/products', label: 'Products', Icon: Layers as AnyIcon, exact: false },

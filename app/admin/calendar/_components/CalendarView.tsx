@@ -5,11 +5,13 @@ import { Calendar, dateFnsLocalizer, type View } from 'react-big-calendar'
 import { format, parse, startOfWeek, getDay, parseISO } from 'date-fns'
 import { enUS } from 'date-fns/locale'
 import 'react-big-calendar/lib/css/react-big-calendar.css'
-import { X, ArrowSquareOut, CaretLeft, CaretRight } from '@phosphor-icons/react'
+import { ArrowSquareOut, CaretLeft, CaretRight } from '@phosphor-icons/react'
 import Link from 'next/link'
-import { StatusBadge } from '@/components/admin/StatusBadge'
+import { Modal } from '@/components/ui/Modal'
+import { StatusBadge, PaymentBadge } from '@/components/admin/StatusBadge'
+import { derivePaymentStatus } from '@/lib/payments'
 import { formatDate, formatTime, formatKWD } from '@/lib/utils'
-import type { OrderStatus } from '@/lib/supabase/types'
+import type { InquiryStatus, OrderStatus } from '@/lib/supabase/types'
 
 const localizer = dateFnsLocalizer({
   format,
@@ -19,41 +21,81 @@ const localizer = dateFnsLocalizer({
   locales: { 'en-US': enUS },
 })
 
-type OrderResource = {
-  orderId: string
+// Only show "Inquiry made" markers for inquiries created in the last 60 days,
+// so old creation dates don't clutter the calendar.
+const INQUIRY_MADE_WINDOW_DAYS = 60
+
+type EventKind = 'order' | 'inquiry-delivery' | 'inquiry-made' | 'blackout'
+
+/** Everything the detail modal needs, normalized from either an order or an inquiry. */
+type EventDetails = {
+  /** Order id for order events, inquiry id for inquiry events. */
+  linkId: string
+  linkKind: 'order' | 'inquiry'
+  status: OrderStatus | InquiryStatus
   customerName: string
   customerPhone: string
   cakeSize: string
   flavor: string
-  occasion: string
+  quantity: number
+  theme: string
+  specialRequirements: string
+  messageOnCake: string
+  nutFree: boolean
+  dairyFree: boolean
+  eggFree: boolean
+  rawSugar: boolean
   eventDate: string
   pickupTime: string | null
-  status: OrderStatus
   deliveryType: string
-  finalPrice: string
+  price: string | null
+  advanceAmount: string | null
+  advancePaid: boolean
+  fullyPaid: boolean
 }
 
-type OrderEvent = {
+type BaseEvent = {
   id: string
   title: string
   start: Date
   end: Date
-  allDay: boolean
-  isDelivered: boolean
-  resource: OrderResource
+  allDay: true
 }
 
-type BlackoutEvent = {
-  id: string
-  title: string
-  start: Date
-  end: Date
-  allDay: boolean
-  isBlackout: true
-  resource: null
-}
+type OrderEvent = BaseEvent & { kind: 'order'; status: OrderStatus; resource: EventDetails }
+type InquiryDeliveryEvent = BaseEvent & { kind: 'inquiry-delivery'; resource: EventDetails }
+type InquiryMadeEvent = BaseEvent & { kind: 'inquiry-made'; resource: EventDetails }
+type BlackoutEvent = BaseEvent & { kind: 'blackout'; resource: null }
 
-type CalendarEvent = OrderEvent | BlackoutEvent
+type CalendarEvent = OrderEvent | InquiryDeliveryEvent | InquiryMadeEvent | BlackoutEvent
+type DetailEvent = OrderEvent | InquiryDeliveryEvent | InquiryMadeEvent
+
+function toDetails(inq: any, opts: { linkId: string; linkKind: 'order' | 'inquiry'; status: OrderStatus | InquiryStatus; deliveryType: string; price: unknown }): EventDetails {
+  return {
+    linkId: opts.linkId,
+    linkKind: opts.linkKind,
+    status: opts.status,
+    customerName: inq.customer_name,
+    customerPhone: inq.customer_phone,
+    cakeSize: inq.cake_size,
+    flavor: inq.flavor,
+    quantity: inq.quantity ?? 1,
+    theme: inq.theme ?? '',
+    specialRequirements: inq.special_requirements ?? '',
+    messageOnCake: inq.message_on_cake ?? '',
+    nutFree: !!inq.allergen_nut_free,
+    dairyFree: !!inq.allergen_dairy_free,
+    eggFree: !!inq.allergen_egg_free,
+    rawSugar: !!inq.allergen_raw_sugar,
+    eventDate: inq.event_date,
+    pickupTime: inq.pickup_time,
+    deliveryType: opts.deliveryType,
+    price: opts.price == null ? null : String(opts.price),
+    advanceAmount: inq.advance_amount == null ? null : String(inq.advance_amount),
+    advancePaid: !!inq.advance_paid,
+    fullyPaid: !!inq.fully_paid,
+  }
+}
 
 function CustomToolbar({
   label,
@@ -127,89 +169,98 @@ function CustomToolbar({
   )
 }
 
-function EventPanel({
-  event,
-  onClose,
-}: {
-  event: OrderEvent
-  onClose: () => void
-}) {
-  const r = event.resource
-  return (
-    <div
-      className="w-72 rounded-xl border flex-shrink-0 self-start"
-      style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
-    >
-      {/* Header */}
-      <div
-        className="flex items-start justify-between gap-2 px-4 pt-4 pb-3 border-b"
-        style={{ borderColor: 'var(--color-border)' }}
-      >
-        <div className="min-w-0">
-          <p className="font-semibold text-sm leading-tight" style={{ color: 'var(--color-ink)' }}>
-            {r.customerName}
-          </p>
-          <p
-            className="text-xs mt-0.5 font-mono"
-            style={{ color: 'var(--color-ink-muted)', fontFamily: 'var(--font-mono)' }}
-          >
-            {r.customerPhone}
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={onClose}
-          className="p-1 rounded transition-colors flex-shrink-0 hover:bg-[var(--color-surface-raised)]"
-          style={{ color: 'var(--color-ink-muted)' }}
-          aria-label="Close"
-        >
-          <X size={15} />
-        </button>
-      </div>
-
-      {/* Details */}
-      <div className="px-4 py-3 flex flex-col gap-2.5">
-        <Row label="Cake">
-          {r.cakeSize} · {r.flavor}
-          {r.occasion ? ` · ${r.occasion}` : ''}
-        </Row>
-        <Row label="Event Date">
-          {formatDate(r.eventDate)}
-          {r.pickupTime ? ` at ${formatTime(r.pickupTime)}` : ''}
-        </Row>
-        <Row label="Delivery">
-          {r.deliveryType === 'delivery' ? 'Delivery' : 'Pickup'}
-        </Row>
-        <div className="flex items-center gap-2 pt-0.5">
-          <StatusBadge status={r.status} />
-          <span
-            className="text-xs font-medium"
-            style={{ color: 'var(--color-ink)', fontFamily: 'var(--font-mono)' }}
-          >
-            {formatKWD(r.finalPrice)}
-          </span>
-        </div>
-      </div>
-
-      {/* CTA */}
-      <div className="px-4 pb-4">
-        <Link
-          href={`/admin/orders/${r.orderId}`}
-          className="flex items-center justify-center gap-1.5 w-full py-2 rounded-lg text-sm font-medium transition-colors"
-          style={{ backgroundColor: 'var(--color-teal)', color: 'var(--color-cream)' }}
-        >
-          View Order <ArrowSquareOut size={13} weight="bold" />
-        </Link>
-      </div>
-    </div>
-  )
-}
-
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
       <p className="text-xs" style={{ color: 'var(--color-ink-muted)' }}>{label}</p>
-      <p className="text-sm" style={{ color: 'var(--color-ink-secondary)' }}>{children}</p>
+      <p className="text-sm mt-0.5" style={{ color: 'var(--color-ink-secondary)' }}>{children}</p>
+    </div>
+  )
+}
+
+const DIETARY_CHIPS: { key: keyof Pick<EventDetails, 'nutFree' | 'dairyFree' | 'eggFree' | 'rawSugar'>; label: string }[] = [
+  { key: 'nutFree', label: 'Nut-free' },
+  { key: 'dairyFree', label: 'Dairy-free' },
+  { key: 'eggFree', label: 'Egg-free' },
+  { key: 'rawSugar', label: 'Raw sugar' },
+]
+
+function EventDetailBody({ event }: { event: DetailEvent }) {
+  const r = event.resource
+  const dietary = DIETARY_CHIPS.filter(({ key }) => r[key])
+
+  return (
+    <div className="flex flex-col gap-4">
+      {/* Phone + status */}
+      <div className="flex items-center justify-between gap-2">
+        <span
+          className="text-sm"
+          style={{ color: 'var(--color-ink-secondary)', fontFamily: 'var(--font-mono)' }}
+        >
+          {r.customerPhone}
+        </span>
+        <StatusBadge status={r.status} context="admin" />
+      </div>
+
+      {/* Cake */}
+      <div
+        className="flex flex-col gap-2.5 pt-3 border-t"
+        style={{ borderColor: 'var(--color-border)' }}
+      >
+        <Row label="Cake">
+          {r.cakeSize} · {r.flavor}
+          {r.quantity > 1 ? ` · ×${r.quantity}` : ''}
+        </Row>
+        <Row label="Theme">{r.theme || 'Normal'}</Row>
+        {r.specialRequirements && <Row label="Details">{r.specialRequirements}</Row>}
+        {r.messageOnCake && <Row label="Message on cake">&ldquo;{r.messageOnCake}&rdquo;</Row>}
+        {dietary.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {dietary.map(({ key, label }) => (
+              <span
+                key={key}
+                className="text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wide"
+                style={{ backgroundColor: 'var(--color-danger-light)', color: 'var(--color-danger)' }}
+              >
+                {label}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Schedule */}
+      <div
+        className="flex flex-col gap-2.5 pt-3 border-t"
+        style={{ borderColor: 'var(--color-border)' }}
+      >
+        <Row label="Event date">
+          {formatDate(r.eventDate)}
+          {r.pickupTime ? ` at ${formatTime(r.pickupTime)}` : ''}
+        </Row>
+        <Row label="Fulfilment">{r.deliveryType === 'delivery' ? 'Delivery' : 'Pickup'}</Row>
+      </div>
+
+      {/* Payment */}
+      <div
+        className="flex items-center justify-between gap-2 pt-3 border-t"
+        style={{ borderColor: 'var(--color-border)' }}
+      >
+        <div className="flex items-baseline gap-3">
+          <span
+            className="text-sm font-medium"
+            style={{ color: 'var(--color-ink)', fontFamily: 'var(--font-mono)' }}
+          >
+            {formatKWD(r.price)}
+          </span>
+          {r.advanceAmount != null && (
+            <span className="text-xs" style={{ color: 'var(--color-ink-muted)', fontFamily: 'var(--font-mono)' }}>
+              deposit {formatKWD(r.advanceAmount)}
+            </span>
+          )}
+        </div>
+        <PaymentBadge status={derivePaymentStatus(r.fullyPaid, r.advancePaid, r.advanceAmount)} />
+      </div>
     </div>
   )
 }
@@ -217,14 +268,14 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 function DateCellWrapper({
   children,
   value,
-  orderCountByDate,
+  deliveryCountByDate,
 }: {
   children: React.ReactNode
   value: Date
-  orderCountByDate: Record<string, number>
+  deliveryCountByDate: Record<string, number>
 }) {
   const dateStr = format(value, 'yyyy-MM-dd')
-  const count = orderCountByDate[dateStr]
+  const count = deliveryCountByDate[dateStr]
   return (
     <div className="relative w-full h-full">
       {children}
@@ -240,14 +291,49 @@ function DateCellWrapper({
   )
 }
 
-interface CalendarViewProps {
-  orders: any[]
-  blackouts: { id: string; date_from: string; date_to: string; reason: string }[]
-  orderCountByDate: Record<string, number>
+const LEGEND: { label: string; style: React.CSSProperties }[] = [
+  { label: 'Order', style: { backgroundColor: 'var(--color-teal)' } },
+  { label: 'Dispatched', style: { backgroundColor: 'var(--color-success)' } },
+  {
+    label: 'Inquiry delivery (tentative)',
+    style: { backgroundColor: 'var(--color-warning-light)', border: '1px dashed var(--color-warning)' },
+  },
+  {
+    label: 'Inquiry made',
+    style: { backgroundColor: 'var(--color-surface-raised)', border: '1px solid var(--color-border-strong)' },
+  },
+  {
+    label: 'Unavailable',
+    style: { backgroundColor: 'var(--color-danger-light)', border: '1px solid var(--color-danger)' },
+  },
+]
+
+function Legend() {
+  return (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 px-1">
+      {LEGEND.map(({ label, style }) => (
+        <span key={label} className="flex items-center gap-1.5">
+          <span aria-hidden="true" className="w-2.5 h-2.5 rounded-[3px] shrink-0" style={style} />
+          <span className="text-[11px] font-medium" style={{ color: 'var(--color-ink-muted)' }}>
+            {label}
+          </span>
+        </span>
+      ))}
+    </div>
+  )
 }
 
-export default function CalendarView({ orders, blackouts, orderCountByDate }: CalendarViewProps) {
-  const [selectedEvent, setSelectedEvent] = useState<OrderEvent | null>(null)
+interface CalendarViewProps {
+  orders: any[]
+  inquiries: any[]
+  blackouts: { id: string; date_from: string; date_to: string; reason: string }[]
+  deliveryCountByDate: Record<string, number>
+}
+
+export default function CalendarView({ orders, inquiries, blackouts, deliveryCountByDate }: CalendarViewProps) {
+  // `selected` is kept through the close animation; `detailOpen` drives the modal.
+  const [selected, setSelected] = useState<DetailEvent | null>(null)
+  const [detailOpen, setDetailOpen] = useState(false)
   const [view, setView] = useState<View>('month')
   const [date, setDate] = useState(new Date())
 
@@ -259,52 +345,121 @@ export default function CalendarView({ orders, blackouts, orderCountByDate }: Ca
         const eventDate = parseISO(inq.event_date)
         return {
           id: order.id,
+          kind: 'order' as const,
           title: `${inq.customer_name} · ${inq.cake_size}`,
           start: eventDate,
           end: eventDate,
-          allDay: true,
-          isDelivered: order.status === 'delivered',
-          resource: {
-            orderId: order.id,
-            customerName: inq.customer_name,
-            customerPhone: inq.customer_phone,
-            cakeSize: inq.cake_size,
-            flavor: inq.flavor,
-            occasion: inq.occasion ?? '',
-            eventDate: inq.event_date,
-            pickupTime: inq.pickup_time,
+          allDay: true as const,
+          status: order.status as OrderStatus,
+          resource: toDetails(inq, {
+            linkId: order.id,
+            linkKind: 'order',
             status: order.status as OrderStatus,
             deliveryType: order.delivery_type,
-            finalPrice: order.final_price,
-          },
+            price: order.final_price,
+          }),
+        }
+      })
+
+    const pendingWithDate = inquiries.filter((inq: any) => inq.event_date)
+
+    const inquiryDeliveryEvents: InquiryDeliveryEvent[] = pendingWithDate.map((inq: any) => {
+      const eventDate = parseISO(inq.event_date)
+      return {
+        id: `inquiry-delivery-${inq.id}`,
+        kind: 'inquiry-delivery' as const,
+        title: `? ${inq.customer_name} · ${inq.cake_size}`,
+        start: eventDate,
+        end: eventDate,
+        allDay: true as const,
+        resource: toDetails(inq, {
+          linkId: inq.id,
+          linkKind: 'inquiry',
+          status: inq.status as InquiryStatus,
+          deliveryType: inq.delivery_type,
+          price: inq.admin_price,
+        }),
+      }
+    })
+
+    const madeCutoff = new Date()
+    madeCutoff.setDate(madeCutoff.getDate() - INQUIRY_MADE_WINDOW_DAYS)
+
+    const inquiryMadeEvents: InquiryMadeEvent[] = inquiries
+      .filter((inq: any) => inq.created_at && parseISO(inq.created_at) >= madeCutoff)
+      .map((inq: any) => {
+        const createdDate = parseISO(inq.created_at)
+        return {
+          id: `inquiry-made-${inq.id}`,
+          kind: 'inquiry-made' as const,
+          title: `Inquiry · ${inq.customer_name}`,
+          start: createdDate,
+          end: createdDate,
+          allDay: true as const,
+          resource: toDetails(inq, {
+            linkId: inq.id,
+            linkKind: 'inquiry',
+            status: inq.status as InquiryStatus,
+            deliveryType: inq.delivery_type,
+            price: inq.admin_price,
+          }),
         }
       })
 
     const blackoutEvents: BlackoutEvent[] = blackouts.map((b) => ({
       id: `blackout-${b.id}`,
+      kind: 'blackout' as const,
       title: b.reason || 'Unavailable',
       start: parseISO(b.date_from),
       end: parseISO(b.date_to),
-      allDay: true,
-      isBlackout: true as const,
+      allDay: true as const,
       resource: null,
     }))
 
-    return [...blackoutEvents, ...orderEvents]
-  }, [orders, blackouts])
+    return [...blackoutEvents, ...orderEvents, ...inquiryDeliveryEvents, ...inquiryMadeEvents]
+  }, [orders, inquiries, blackouts])
 
   function eventPropGetter(event: CalendarEvent) {
-    const base = { border: 'none', borderRadius: '4px', cursor: 'pointer' }
-    if ('isBlackout' in event && event.isBlackout) {
-      return { style: { ...base, backgroundColor: '#fde8e8', color: '#b91c1c', opacity: 0.8 } }
+    const base: React.CSSProperties = { border: 'none', borderRadius: '4px', cursor: 'pointer' }
+    switch (event.kind) {
+      case 'blackout':
+        return {
+          style: {
+            ...base,
+            backgroundColor: 'var(--color-danger-light)',
+            color: 'var(--color-danger)',
+            opacity: 0.85,
+            cursor: 'default',
+          },
+        }
+      case 'inquiry-delivery':
+        return {
+          style: {
+            ...base,
+            backgroundColor: 'var(--color-warning-light)',
+            color: 'var(--color-warning)',
+            border: '1px dashed var(--color-warning)',
+          },
+        }
+      case 'inquiry-made':
+        return {
+          style: {
+            ...base,
+            backgroundColor: 'var(--color-surface-raised)',
+            color: 'var(--color-ink-muted)',
+            fontSize: '11px',
+          },
+        }
+      case 'order':
+        if (event.status === 'delivered') {
+          return { style: { ...base, backgroundColor: 'var(--color-success)', color: 'var(--color-cream)' } }
+        }
+        return { style: { ...base, backgroundColor: 'var(--color-teal)', color: 'var(--color-cream)' } }
     }
-    const oe = event as OrderEvent
-    if (oe.isDelivered) return { style: { ...base, backgroundColor: '#2e7d52', color: '#fff' } }
-    return { style: { ...base, backgroundColor: '#006860', color: '#fcf9f5' } }
   }
 
   return (
-    <div className="flex gap-4 flex-1">
+    <div className="flex flex-col gap-3 flex-1">
       {/* Calendar */}
       <div
         className="flex-1 rounded-xl border overflow-hidden flex flex-col"
@@ -345,11 +500,14 @@ export default function CalendarView({ orders, blackouts, orderCountByDate }: Ca
             views={['month', 'week', 'day']}
             eventPropGetter={eventPropGetter as any}
             onSelectEvent={(event) => {
-              if (!('isBlackout' in event)) setSelectedEvent(event as OrderEvent)
+              const e = event as CalendarEvent
+              if (e.kind === 'blackout') return
+              setSelected(e)
+              setDetailOpen(true)
             }}
             components={{
               dateCellWrapper: ({ children, value }: any) => (
-                <DateCellWrapper value={value} orderCountByDate={orderCountByDate} children={children} />
+                <DateCellWrapper value={value} deliveryCountByDate={deliveryCountByDate} children={children} />
               ),
             }}
             popup
@@ -359,10 +517,34 @@ export default function CalendarView({ orders, blackouts, orderCountByDate }: Ca
         </div>
       </div>
 
-      {/* Side panel */}
-      {selectedEvent && (
-        <EventPanel event={selectedEvent} onClose={() => setSelectedEvent(null)} />
-      )}
+      <Legend />
+
+      {/* Event detail modal — portals to document.body, so react-big-calendar's
+          overflow:hidden containers can't clip it. */}
+      <Modal
+        open={detailOpen && selected != null}
+        onClose={() => setDetailOpen(false)}
+        title={selected?.resource.customerName ?? ''}
+        size="sm"
+        footer={
+          selected && (
+            <Link
+              href={
+                selected.resource.linkKind === 'order'
+                  ? `/admin/orders/${selected.resource.linkId}`
+                  : `/admin/inquiries/${selected.resource.linkId}`
+              }
+              className="flex items-center justify-center gap-1.5 w-full py-2.5 rounded-lg text-sm font-medium transition-colors hover:bg-[var(--color-teal-deep)]"
+              style={{ backgroundColor: 'var(--color-teal)', color: 'var(--color-cream)' }}
+            >
+              {selected.resource.linkKind === 'order' ? 'Open order' : 'Open inquiry'}
+              <ArrowSquareOut size={13} weight="bold" />
+            </Link>
+          )
+        }
+      >
+        {selected && <EventDetailBody event={selected} />}
+      </Modal>
     </div>
   )
 }

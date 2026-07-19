@@ -156,7 +156,7 @@ export async function proxy(request: NextRequest) {
   }
 
   if (pathname === '/login' && user) {
-    return NextResponse.redirect(new URL('/admin', request.url))
+    return NextResponse.redirect(new URL('/admin/calendar', request.url))
   }
 
   return supabaseResponse
