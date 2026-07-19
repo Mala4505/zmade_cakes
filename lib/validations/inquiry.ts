@@ -1,9 +1,11 @@
 import { z } from 'zod'
 
-const KUWAIT_PHONE_REGEX = /^\+?[0-9\s\-]{7,20}$/
+export const KUWAIT_PHONE_REGEX = /^\+?[0-9\s\-]{7,20}$/
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
-export const inquirySchema = z.object({
+// Base shape, kept separate from the exported schemas below so both the full (create) and
+// .partial() (update) variants can share the same cake_type <-> theme refinement/transform.
+const inquiryShape = {
   customer_name: z.string().min(2, 'Name must be at least 2 characters').max(150).trim(),
   customer_phone: z
     .string()
@@ -12,23 +14,24 @@ export const inquirySchema = z.object({
   cake_size: z.string().min(1, 'Select a size').max(100),
   flavor: z.string().min(1, 'Select a flavor').max(150),
   occasion: z.string().max(150).optional().default(''),
+  // UI-only convenience field — 'theme' selection just means theme !== ''. Not a DB column;
+  // must be stripped before any insert/update (see lib/actions/inquiries.ts).
+  cake_type: z.enum(['normal', 'theme']),
   theme: z.string().max(200).optional().default(''),
-  decoration_style: z.string().min(1, 'Select a decoration style').max(100),
   message_on_cake: z.string().max(255, 'Message must be under 255 characters').optional().default(''),
   quantity: z
     .number({ error: 'Quantity must be a number' })
     .int()
     .min(1, 'Minimum 1 cake')
     .max(50, 'Maximum 50 cakes'),
+  // "Cake Details" — consolidated free-text field (decoration dropdown folded into this).
   special_requirements: z.string().max(1000).optional().default(''),
   allergen_nut_free: z.boolean().default(false),
-  allergen_gluten_free: z.boolean().default(false),
   allergen_dairy_free: z.boolean().default(false),
   allergen_egg_free: z.boolean().default(false),
-  allergen_halal: z.boolean().default(false),
+  allergen_raw_sugar: z.boolean().default(false),
   allergen_other: z.string().max(500).optional().default(''),
-  balance_paid: z.boolean().default(false),
-  balance_paid_at: z.string().optional().nullable(),
+  fully_paid: z.boolean().default(false),
   event_date: z
     .string()
     .refine((d) => {
@@ -50,11 +53,38 @@ export const inquirySchema = z.object({
   advance_paid: z.boolean().default(false),
   payment_method: z.enum(['', 'cash', 'wamd']).default(''),
   admin_notes: z.string().max(2000).optional().default(''),
-  priority: z.union([z.literal(0), z.literal(1), z.literal(2)]).default(0),
   source: z.enum(['admin', 'public_form']).default('admin'),
-})
+}
 
-export const inquiryUpdateSchema = inquirySchema.partial()
+function cakeTypeRefine(
+  data: { cake_type?: 'normal' | 'theme'; theme?: string },
+  ctx: z.RefinementCtx
+) {
+  if (data.cake_type === 'theme' && !data.theme?.trim()) {
+    ctx.addIssue({
+      code: 'custom',
+      message: 'Theme is required for a theme cake',
+      path: ['theme'],
+    })
+  }
+}
+
+function clearThemeWhenNormal<T extends { cake_type?: 'normal' | 'theme'; theme?: string }>(
+  data: T
+): T {
+  return data.cake_type === 'normal' ? { ...data, theme: '' } : data
+}
+
+export const inquirySchema = z
+  .object(inquiryShape)
+  .superRefine(cakeTypeRefine)
+  .transform(clearThemeWhenNormal)
+
+export const inquiryUpdateSchema = z
+  .object(inquiryShape)
+  .partial()
+  .superRefine(cakeTypeRefine)
+  .transform(clearThemeWhenNormal)
 
 export const deliveryAddressSchema = z.object({
   governorate: z.enum([

@@ -31,9 +31,12 @@ export async function createInquiry(
   } = await supabase.auth.getUser()
   if (!user) return { data: null, error: 'Unauthorized', fieldErrors: null }
 
+  // cake_type is a UI-only convenience field (not a DB column) — strip before insert.
+  const { cake_type: _cakeType, ...inquiryData } = parsed.data
+
   const { data: inquiry, error: inquiryError } = await supabase
     .from('inquiries')
-    .insert({ ...parsed.data, status: 'pending' as const })
+    .insert({ ...inquiryData, status: 'pending' as const })
     .select()
     .single()
 
@@ -83,9 +86,12 @@ export async function updateInquiry(
   } = await supabase.auth.getUser()
   if (!user) return { data: null, error: 'Unauthorized', fieldErrors: null }
 
+  // cake_type is a UI-only convenience field (not a DB column) — strip before update.
+  const { cake_type: _cakeType, ...updateData } = parsed.data
+
   const { data, error } = await supabase
     .from('inquiries')
-    .update(parsed.data)
+    .update(updateData)
     .eq('id', id)
     .select()
     .single()
