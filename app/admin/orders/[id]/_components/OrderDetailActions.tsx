@@ -3,7 +3,8 @@
 import { useTransition, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { updateOrderStatus, cancelOrder } from '@/lib/actions/orders'
-import { Copy, Check, Printer, ArrowRight, X, Image } from '@phosphor-icons/react'
+import { toast } from 'sonner'
+import { Copy, Check, Printer, ArrowRight, X, Image, Spinner } from '@phosphor-icons/react'
 import { toPng } from 'html-to-image'
 import type { OrderStatus } from '@/lib/supabase/types'
 
@@ -22,11 +23,12 @@ export default function OrderDetailActions({
   inquiry: { customer_name: string }
 }) {
   const router = useRouter()
-  const [pending, startTransition] = useTransition()
+  const [advancing, startAdvance] = useTransition()
+  const [cancelling, startCancel] = useTransition()
   const [copied, setCopied] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [downloading, setDownloading] = useState(false)
 
+  const pending = advancing || cancelling
   const next = NEXT_STATUS[order.status]
 
   const handleCopy = async () => {
@@ -37,19 +39,27 @@ export default function OrderDetailActions({
 
   const handleAdvance = () => {
     if (!next) return
-    startTransition(async () => {
+    startAdvance(async () => {
       const result = await updateOrderStatus(order.id, next.status)
-      if (result.error) { setError(result.error); return }
-      router.refresh()
+      if (result.error) {
+        toast.error(result.error)
+      } else {
+        toast.success('Status updated')
+        router.refresh()
+      }
     })
   }
 
   const handleCancel = () => {
     if (!confirm('Cancel this order?')) return
-    startTransition(async () => {
+    startCancel(async () => {
       const result = await cancelOrder(order.id)
-      if (result.error) { setError(result.error); return }
-      router.refresh()
+      if (result.error) {
+        toast.error(result.error)
+      } else {
+        toast.success('Order cancelled')
+        router.refresh()
+      }
     })
   }
 
@@ -63,6 +73,8 @@ export default function OrderDetailActions({
       link.download = `zmade-invoice-${inquiry.customer_name.replace(/\s+/g, '-').toLowerCase()}.png`
       link.href = dataUrl
       link.click()
+    } catch {
+      toast.error('Could not generate image')
     } finally {
       setDownloading(false)
     }
@@ -70,15 +82,6 @@ export default function OrderDetailActions({
 
   return (
     <div className="flex flex-col gap-3 mb-8">
-      {error && (
-        <p
-          className="rounded-lg px-4 py-3 text-sm"
-          style={{ backgroundColor: 'var(--color-danger-light)', color: 'var(--color-danger)' }}
-        >
-          {error}
-        </p>
-      )}
-
       {/* Tracking link */}
       <div
         className="rounded-xl border p-4 flex flex-col gap-3"
@@ -114,7 +117,8 @@ export default function OrderDetailActions({
           className="flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-medium transition-colors disabled:opacity-60"
           style={{ backgroundColor: 'var(--color-teal)', color: 'var(--color-cream)' }}
         >
-          {pending ? 'Updating…' : next.label} {!pending && <ArrowRight size={15} />}
+          {next.label}
+          {advancing ? <Spinner size={15} className="animate-spin" /> : <ArrowRight size={15} />}
         </button>
       )}
 
@@ -145,7 +149,7 @@ export default function OrderDetailActions({
           color: 'var(--color-ink-secondary)',
         }}
       >
-        <Image size={15} />
+        {downloading ? <Spinner size={15} className="animate-spin" /> : <Image size={15} />}
         {downloading ? 'Generating…' : 'Download as Image'}
       </button>
 
@@ -155,13 +159,13 @@ export default function OrderDetailActions({
           type="button"
           onClick={handleCancel}
           disabled={pending}
-          className="flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium border transition-colors"
+          className="flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium border transition-colors disabled:opacity-60"
           style={{
             borderColor: 'var(--color-danger-light)',
             color: 'var(--color-danger)',
           }}
         >
-          <X size={15} />
+          {cancelling ? <Spinner size={15} className="animate-spin" /> : <X size={15} />}
           Cancel Order
         </button>
       )}

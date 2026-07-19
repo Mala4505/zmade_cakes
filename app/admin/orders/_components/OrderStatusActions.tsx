@@ -3,7 +3,8 @@
 import { useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { updateOrderStatus } from '@/lib/actions/orders'
-import { ArrowRight } from '@phosphor-icons/react'
+import { toast } from 'sonner'
+import { ArrowRight, Spinner } from '@phosphor-icons/react'
 import type { OrderStatus } from '@/lib/supabase/types'
 
 const NEXT_STATUS: Partial<Record<OrderStatus, { status: OrderStatus; label: string }>> = {
@@ -26,8 +27,13 @@ export default function OrderStatusActions({
 
   const handleAdvance = () => {
     startTransition(async () => {
-      await updateOrderStatus(orderId, next.status)
-      router.refresh()
+      const result = await updateOrderStatus(orderId, next.status)
+      if (result.error) {
+        toast.error(result.error)
+      } else {
+        toast.success('Status updated')
+        router.refresh()
+      }
     })
   }
 
@@ -39,7 +45,8 @@ export default function OrderStatusActions({
       className="flex items-center justify-center gap-1.5 w-full py-2 rounded-lg text-xs font-medium transition-colors disabled:opacity-50"
       style={{ backgroundColor: 'var(--color-teal-light)', color: 'var(--color-teal-deep)' }}
     >
-      {pending ? 'Updating…' : next.label} {!pending && <ArrowRight size={12} />}
+      {next.label}
+      {pending ? <Spinner size={12} className="animate-spin" /> : <ArrowRight size={12} />}
     </button>
   )
 }

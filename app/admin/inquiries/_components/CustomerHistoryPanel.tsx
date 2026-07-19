@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { cn } from '@/lib/utils'
 import type { Customer } from '@/lib/supabase/types'
 import { updateCustomerNotes } from '@/lib/actions/customers'
+import { toast } from 'sonner'
 
 interface CustomerWithHistory {
   customer: Customer
@@ -29,7 +30,8 @@ export function CustomerHistoryPanel({ data, onPrefill }: Props) {
   const last = recentInquiries[0]
 
   async function handleBlur() {
-    await updateCustomerNotes(customer.id, notes)
+    const result = await updateCustomerNotes(customer.id, notes)
+    if (result.error) toast.error(result.error)
   }
 
   return (
