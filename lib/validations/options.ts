@@ -1,11 +1,12 @@
 import { z } from 'zod'
 
+// theme_options / decoration_style_options dropped: cake type is now a fixed
+// Normal/Theme radio with free-text theme, and decoration folded into the
+// consolidated Cake Details field. Flavors + sizes stay — still used by Products.
 export const OPTION_TABLES = [
   'flavor_options',
   'size_options',
   'occasion_options',
-  'theme_options',
-  'decoration_style_options',
 ] as const
 
 export type OptionTable = (typeof OPTION_TABLES)[number]

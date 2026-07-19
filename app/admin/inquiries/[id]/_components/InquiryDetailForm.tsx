@@ -8,6 +8,9 @@ import { useRouter } from 'next/navigation'
 import { inquirySchema } from '@/lib/validations/inquiry'
 import { updateInquiry } from '@/lib/actions/inquiries'
 import { upsertCustomer } from '@/lib/actions/customers'
+import { derivePaymentStatus, balanceOwed } from '@/lib/payments'
+import { PaymentBadge } from '@/components/admin/StatusBadge'
+import { Button, Checkbox, Field, Input, RadioGroup, Select, Textarea } from '@/components/ui'
 import { Copy, WhatsappLogo } from '@phosphor-icons/react'
 import type { OptionRow, Inquiry, BlackoutDate } from '@/lib/supabase/types'
 import { z } from 'zod'
@@ -24,7 +27,8 @@ const fullSchema = inquirySchema.and(
   })
 )
 
-type FullFormData = z.infer<typeof fullSchema>
+type FormInput = z.input<typeof fullSchema>
+type FormOutput = z.output<typeof fullSchema>
 
 interface Props {
   inquiry: Inquiry & { delivery_address?: { governorate: string; area: string; block: string; street: string; house_no: string; extra_notes?: string } | null }
@@ -32,8 +36,6 @@ interface Props {
     flavors: OptionRow[]
     sizes: OptionRow[]
     occasions: OptionRow[]
-    themes: OptionRow[]
-    decorations: OptionRow[]
   }
   minLeadDays?: number
   blackouts?: BlackoutDate[]
@@ -47,6 +49,8 @@ function whatsappUrl(phone: string): string {
   const number = cleaned.startsWith('965') ? cleaned : `965${cleaned}`
   return `https://wa.me/${number}`
 }
+
+const numberOrNull = (v: unknown) => (v === '' || v == null ? null : Number(v))
 
 export default function InquiryDetailForm({
   inquiry,
@@ -67,36 +71,35 @@ export default function InquiryDetailForm({
     watch,
     setValue,
     setError,
+    clearErrors,
     formState: { errors },
-  } = useForm<FullFormData>({
-    resolver: zodResolver(fullSchema) as any,
+  } = useForm<FormInput, unknown, FormOutput>({
+    resolver: zodResolver(fullSchema),
     defaultValues: {
       customer_name: inquiry.customer_name,
       customer_phone: inquiry.customer_phone,
       cake_size: inquiry.cake_size,
       flavor: inquiry.flavor,
       occasion: inquiry.occasion,
+      cake_type: inquiry.theme ? 'theme' : 'normal',
       theme: inquiry.theme,
-      decoration_style: inquiry.decoration_style,
       message_on_cake: inquiry.message_on_cake,
       quantity: inquiry.quantity,
       special_requirements: inquiry.special_requirements,
       allergen_nut_free: inquiry.allergen_nut_free,
-      allergen_gluten_free: inquiry.allergen_gluten_free,
       allergen_dairy_free: inquiry.allergen_dairy_free,
       allergen_egg_free: inquiry.allergen_egg_free,
-      allergen_halal: inquiry.allergen_halal,
+      allergen_raw_sugar: inquiry.allergen_raw_sugar,
       allergen_other: inquiry.allergen_other,
-      balance_paid: inquiry.balance_paid,
       event_date: inquiry.event_date,
       pickup_time: inquiry.pickup_time ?? undefined,
       delivery_type: inquiry.delivery_type,
       admin_price: inquiry.admin_price ? Number(inquiry.admin_price) : undefined,
       advance_amount: inquiry.advance_amount ? Number(inquiry.advance_amount) : undefined,
       advance_paid: inquiry.advance_paid,
+      fully_paid: inquiry.fully_paid,
       payment_method: inquiry.payment_method,
       admin_notes: inquiry.admin_notes,
-      priority: inquiry.priority,
       address_governorate: inquiry.delivery_address?.governorate ?? '',
       address_area: inquiry.delivery_address?.area ?? '',
       address_block: inquiry.delivery_address?.block ?? '',
@@ -107,11 +110,15 @@ export default function InquiryDetailForm({
   })
 
   const deliveryType = watch('delivery_type')
+  const cakeType = watch('cake_type')
+  const paymentMethod = watch('payment_method')
   const watchedPhone = watch('customer_phone')
   const watchedEventDate = watch('event_date')
   const watchedCakeSize = watch('cake_size')
   const watchedPrice = watch('admin_price')
   const watchedAdvance = watch('advance_amount')
+  const advancePaid = watch('advance_paid')
+  const fullyPaid = watch('fully_paid')
 
   const isWithinLeadTime = (date: string): boolean => {
     if (!date || !minLeadDays) return false
@@ -151,15 +158,17 @@ export default function InquiryDetailForm({
       ? '#92600f'
       : 'var(--color-ink-muted)'
 
-  // Balance bar
-  const priceNum = watchedPrice ? Number(watchedPrice) : null
-  const advanceNum = watchedAdvance ? Number(watchedAdvance) : null
+  // Live payment preview — same derivation as the DB's generated payment_status column.
+  const depositAmount =
+    typeof watchedAdvance === 'number' && !Number.isNaN(watchedAdvance) ? watchedAdvance : 0
+  const paymentStatus = derivePaymentStatus(!!fullyPaid, !!advancePaid, depositAmount)
+  const priceNum =
+    typeof watchedPrice === 'number' && !Number.isNaN(watchedPrice) ? watchedPrice : null
+  const remaining = balanceOwed(priceNum, depositAmount, !!advancePaid, !!fullyPaid)
   const balanceFill =
-    priceNum && advanceNum && priceNum > 0 ? Math.min((advanceNum / priceNum) * 100, 100) : 0
-  const balanceRemaining = priceNum && advanceNum ? priceNum - advanceNum : null
-  const isSettled = balanceRemaining !== null && balanceRemaining <= 0
+    priceNum && priceNum > 0 ? Math.min(((priceNum - remaining) / priceNum) * 100, 100) : 0
 
-  const onSubmit = (data: FullFormData) => {
+  const onSubmit = (data: FormOutput) => {
     startTransition(async () => {
       const {
         address_governorate, address_area, address_block, address_street,
@@ -186,7 +195,7 @@ export default function InquiryDetailForm({
       }
       if (result.fieldErrors) {
         Object.entries(result.fieldErrors).forEach(([field, msgs]) => {
-          setError(field as keyof FullFormData, { message: (msgs as string[])[0] })
+          setError(field as keyof FormInput, { message: (msgs as string[])[0] })
         })
         return
       }
@@ -200,18 +209,11 @@ export default function InquiryDetailForm({
     })
   }
 
-  const ic = 'w-full rounded-lg border px-3.5 py-2.5 text-sm outline-none transition-all focus:border-[var(--color-teal)] focus:ring-2 focus:ring-[var(--color-teal-light)]'
-  const is: React.CSSProperties = {
-    backgroundColor: 'var(--color-surface)',
-    borderColor: 'var(--color-border)',
-    color: 'var(--color-ink)',
-  }
-
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
       {/* Card 1: Customer & Contact */}
       <div
-        className="rounded-xl border divide-y"
+        className="rounded-xl border"
         style={{
           borderColor: 'var(--color-border)',
           backgroundColor: 'var(--color-surface)',
@@ -222,25 +224,21 @@ export default function InquiryDetailForm({
             Customer & Contact
           </p>
           <div className="flex flex-col gap-3">
-            <div>
-              <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--color-ink-muted)' }}>
-                Name
-              </label>
-              <input {...register('customer_name')} className={ic} style={is} />
-              {errors.customer_name && (
-                <p className="mt-1 text-xs" style={{ color: 'var(--color-danger)' }}>{errors.customer_name.message}</p>
-              )}
-            </div>
-            <div>
-              <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--color-ink-muted)' }}>
-                Phone
-              </label>
+            <Field label="Name" error={errors.customer_name?.message} required>
+              <Input
+                {...register('customer_name')}
+                required
+                aria-invalid={errors.customer_name ? true : undefined}
+              />
+            </Field>
+            <Field label="Phone" error={errors.customer_phone?.message} required>
               <div className="flex gap-2 items-center">
-                <input
+                <Input
                   {...register('customer_phone')}
-                  className={ic + ' flex-1 min-w-0'}
-                  style={is}
+                  className="flex-1 min-w-0"
                   placeholder="+965 XXXX XXXX"
+                  required
+                  aria-invalid={errors.customer_phone ? true : undefined}
                 />
                 <button
                   type="button"
@@ -252,10 +250,10 @@ export default function InquiryDetailForm({
                   className="shrink-0 p-2.5 rounded-lg border transition-all active:scale-[0.97]"
                   style={{
                     borderColor: 'var(--color-border)',
-                    backgroundColor: 'var(--color-surface-raised)',
-                    color: 'var(--color-ink-secondary)',
+                    backgroundColor: copiedPhone ? 'var(--color-teal-light)' : 'var(--color-surface-raised)',
+                    color: copiedPhone ? 'var(--color-teal-deep)' : 'var(--color-ink-secondary)',
                   }}
-                  title="Copy phone"
+                  title={copiedPhone ? 'Copied' : 'Copy phone'}
                 >
                   <Copy size={15} />
                 </button>
@@ -274,10 +272,7 @@ export default function InquiryDetailForm({
                   <WhatsappLogo size={15} weight="fill" />
                 </a>
               </div>
-              {errors.customer_phone && (
-                <p className="mt-1 text-xs" style={{ color: 'var(--color-danger)' }}>{errors.customer_phone.message}</p>
-              )}
-            </div>
+            </Field>
           </div>
         </div>
       </div>
@@ -287,55 +282,97 @@ export default function InquiryDetailForm({
         className="rounded-xl border divide-y"
         style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
       >
-        <div className="p-4">
+        <div className="p-4" style={{ borderColor: 'var(--color-border)' }}>
           <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--color-ink-muted)' }}>
-            Cake & Event
+            Cake
           </p>
           <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--color-ink-muted)' }}>Size</label>
-              <select {...register('cake_size')} className={ic} style={is}>
+            <Field label="Size" error={errors.cake_size?.message} required>
+              <Select {...register('cake_size')} required aria-invalid={errors.cake_size ? true : undefined}>
                 <option value="">Select size</option>
                 {options.sizes.map(o => <option key={o.id} value={o.name}>{o.name}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--color-ink-muted)' }}>Flavor</label>
-              <select {...register('flavor')} className={ic} style={is}>
+              </Select>
+            </Field>
+            <Field label="Flavor" error={errors.flavor?.message} required>
+              <Select {...register('flavor')} required aria-invalid={errors.flavor ? true : undefined}>
                 <option value="">Select flavor</option>
                 {options.flavors.map(o => <option key={o.id} value={o.name}>{o.name}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--color-ink-muted)' }}>Occasion</label>
-              <select {...register('occasion')} className={ic} style={is}>
+              </Select>
+            </Field>
+            <Field label="Occasion" error={errors.occasion?.message} className="col-span-2">
+              <Select {...register('occasion')}>
                 <option value="">— Optional —</option>
                 {options.occasions.map(o => <option key={o.id} value={o.name}>{o.name}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--color-ink-muted)' }}>Theme</label>
-              <select {...register('theme')} className={ic} style={is}>
-                <option value="">— Optional —</option>
-                {options.themes.map(o => <option key={o.id} value={o.name}>{o.name}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--color-ink-muted)' }}>Decorations</label>
-              <select {...register('decoration_style')} className={ic} style={is}>
-                <option value="">Select style</option>
-                {options.decorations.map(o => <option key={o.id} value={o.name}>{o.name}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--color-ink-muted)' }}>Message on Cake</label>
-              <input {...register('message_on_cake')} placeholder="Happy Birthday…" className={ic} style={is} />
-            </div>
+              </Select>
+            </Field>
+            <Field label="Cake Type" error={errors.cake_type?.message} required className="col-span-2">
+              <RadioGroup
+                value={cakeType}
+                onChange={(v) => {
+                  setValue('cake_type', v, { shouldDirty: true })
+                  if (v === 'normal') clearErrors('theme')
+                }}
+                options={[
+                  { value: 'normal', label: 'Normal cake' },
+                  { value: 'theme', label: 'Theme cake' },
+                ]}
+                aria-label="Cake type"
+              />
+            </Field>
+            {cakeType === 'theme' && (
+              <Field label="Theme" error={errors.theme?.message} required className="col-span-2">
+                <Input
+                  {...register('theme')}
+                  placeholder="e.g. Butterfly garden, football, unicorn…"
+                  required
+                  aria-invalid={errors.theme ? true : undefined}
+                />
+              </Field>
+            )}
+            <Field label="Message on Cake" error={errors.message_on_cake?.message} className="col-span-2">
+              <Input {...register('message_on_cake')} placeholder="Happy Birthday…" />
+            </Field>
+            <Field
+              label="Cake Details"
+              error={errors.special_requirements?.message}
+              hint="Tiers, colours, decoration, toppers — everything the bake needs."
+              className="col-span-2"
+            >
+              <Textarea {...register('special_requirements')} rows={3} placeholder="Two tiers, sage green palette, gold leaf accents…" />
+            </Field>
           </div>
         </div>
 
-        <div className="p-4">
+        <div className="p-4" style={{ borderColor: 'var(--color-border)' }}>
+          <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--color-ink-muted)' }}>
+            Dietary
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            <Checkbox {...register('allergen_nut_free')} label="Nut-free" />
+            <Checkbox {...register('allergen_dairy_free')} label="Dairy-free" />
+            <Checkbox {...register('allergen_egg_free')} label="Egg-free" />
+            <Checkbox {...register('allergen_raw_sugar')} label="Raw sugar" />
+          </div>
+          <div className="mt-3">
+            <Field label="Other dietary notes" error={errors.allergen_other?.message}>
+              <Input {...register('allergen_other')} placeholder="e.g. no artificial colouring…" />
+            </Field>
+          </div>
+        </div>
+
+        <div className="p-4" style={{ borderColor: 'var(--color-border)' }}>
           <div className="grid grid-cols-2 gap-3">
+            <Field label="Delivery Type" error={errors.delivery_type?.message} required className="col-span-2">
+              <RadioGroup
+                value={deliveryType}
+                onChange={(v) => setValue('delivery_type', v, { shouldDirty: true })}
+                options={[
+                  { value: 'pickup', label: 'Pickup' },
+                  { value: 'delivery', label: 'Delivery' },
+                ]}
+                aria-label="Delivery type"
+              />
+            </Field>
             <div>
               <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--color-ink-muted)' }}>
                 Event Date
@@ -348,7 +385,15 @@ export default function InquiryDetailForm({
                   </span>
                 )}
               </label>
-              <input {...register('event_date')} type="date" className={ic} style={is} />
+              <Input
+                {...register('event_date')}
+                type="date"
+                required
+                aria-invalid={errors.event_date ? true : undefined}
+              />
+              {errors.event_date && (
+                <p className="mt-1 text-xs" style={{ color: 'var(--color-danger)' }}>{errors.event_date.message}</p>
+              )}
               {watchedEventDate && isDateBlackedOut(watchedEventDate) && (
                 <p className="mt-1 text-xs" style={{ color: 'var(--color-danger)' }}>Date is blocked</p>
               )}
@@ -358,52 +403,34 @@ export default function InquiryDetailForm({
                 </p>
               )}
             </div>
-            <div>
-              <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--color-ink-muted)' }}>Pickup Time</label>
-              <input {...register('pickup_time')} type="time" className={ic} style={is} />
-            </div>
-            <div className="col-span-2">
-              <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--color-ink-muted)' }}>Delivery Type</label>
-              <div className="flex gap-4">
-                {(['pickup', 'delivery'] as const).map(val => (
-                  <label key={val} className="flex items-center gap-2 cursor-pointer">
-                    <input {...register('delivery_type')} type="radio" value={val} className="accent-[color:var(--color-teal)]" />
-                    <span className="text-sm capitalize" style={{ color: 'var(--color-ink-secondary)' }}>{val}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
+            <Field label={deliveryType === 'delivery' ? 'Delivery Time' : 'Pickup Time'} error={errors.pickup_time?.message}>
+              <Input {...register('pickup_time')} type="time" />
+            </Field>
             {deliveryType === 'delivery' && (
               <div className="col-span-2 pt-3 border-t grid grid-cols-2 gap-3" style={{ borderColor: 'var(--color-border)' }}>
-                <div className="col-span-2">
-                  <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--color-ink-muted)' }}>Governorate</label>
-                  <select {...register('address_governorate')} className={ic} style={is}>
+                <Field label="Governorate" className="col-span-2">
+                  <Select {...register('address_governorate')}>
                     <option value="">Select</option>
                     {Object.entries(GOVERNORATE_LABELS).map(([val, label]) => (
                       <option key={val} value={val}>{label}</option>
                     ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--color-ink-muted)' }}>Area</label>
-                  <input {...register('address_area')} placeholder="Salmiya" className={ic} style={is} />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--color-ink-muted)' }}>Block</label>
-                  <input {...register('address_block')} placeholder="4" className={ic} style={is} />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--color-ink-muted)' }}>Street</label>
-                  <input {...register('address_street')} placeholder="Street 10" className={ic} style={is} />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--color-ink-muted)' }}>House No.</label>
-                  <input {...register('address_house_no')} placeholder="Villa 15" className={ic} style={is} />
-                </div>
-                <div className="col-span-2">
-                  <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--color-ink-muted)' }}>Extra Notes</label>
-                  <input {...register('address_extra_notes')} placeholder="Ring bell twice" className={ic} style={is} />
-                </div>
+                  </Select>
+                </Field>
+                <Field label="Area">
+                  <Input {...register('address_area')} placeholder="Salmiya" />
+                </Field>
+                <Field label="Block">
+                  <Input {...register('address_block')} placeholder="4" />
+                </Field>
+                <Field label="Street">
+                  <Input {...register('address_street')} placeholder="Street 10" />
+                </Field>
+                <Field label="House No.">
+                  <Input {...register('address_house_no')} placeholder="Villa 15" />
+                </Field>
+                <Field label="Extra Notes" className="col-span-2">
+                  <Input {...register('address_extra_notes')} placeholder="Ring bell twice" />
+                </Field>
               </div>
             )}
           </div>
@@ -415,124 +442,129 @@ export default function InquiryDetailForm({
         className="rounded-xl border divide-y"
         style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
       >
-        <div className="p-4">
+        <div className="p-4" style={{ borderColor: 'var(--color-border)' }}>
           <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--color-ink-muted)' }}>
-            Pricing & Admin
+            Pricing & Payment
           </p>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--color-ink-muted)' }}>Price (KD)</label>
-              <input
-                {...register('admin_price', { valueAsNumber: true })}
-                type="number"
-                step="0.001"
-                min="0"
-                placeholder="12.500"
-                className={ic}
-                style={{ ...is, fontFamily: 'var(--font-mono)' }}
+          <div className="flex flex-col gap-3">
+            <Field label="Payment Method" error={errors.payment_method?.message}>
+              <RadioGroup
+                value={paymentMethod ?? ''}
+                onChange={(v) => setValue('payment_method', v, { shouldDirty: true })}
+                options={[
+                  { value: '', label: 'Not set' },
+                  { value: 'cash', label: 'Cash' },
+                  { value: 'wamd', label: 'WAMD' },
+                ]}
+                aria-label="Payment method"
               />
-              {(suggestedBase !== undefined || suggestedRush !== undefined) && (
-                <div className="flex gap-2 mt-1 flex-wrap">
-                  {suggestedBase !== undefined && (
-                    <button
-                      type="button"
-                      onClick={() => setValue('admin_price', suggestedBase)}
-                      className="text-xs px-2.5 py-1 rounded-full font-medium"
-                      style={{ backgroundColor: 'var(--color-teal-light)', color: 'var(--color-teal-deep)' }}
-                    >
-                      Suggested: KD {suggestedBase.toFixed(3)}
-                    </button>
+            </Field>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Price (KD)" error={errors.admin_price?.message}>
+                <Input
+                  {...register('admin_price', { setValueAs: numberOrNull })}
+                  type="number"
+                  step="0.001"
+                  min="0"
+                  placeholder="12.500"
+                  style={{ fontFamily: 'var(--font-mono)' }}
+                  aria-invalid={errors.admin_price ? true : undefined}
+                />
+                {(suggestedBase !== undefined || suggestedRush !== undefined) && (
+                  <div className="flex gap-2 mt-1 flex-wrap">
+                    {suggestedBase !== undefined && (
+                      <button
+                        type="button"
+                        onClick={() => setValue('admin_price', suggestedBase, { shouldDirty: true })}
+                        className="text-xs px-2.5 py-1 rounded-full font-medium"
+                        style={{ backgroundColor: 'var(--color-teal-light)', color: 'var(--color-teal-deep)' }}
+                      >
+                        Suggested: KD {suggestedBase.toFixed(3)}
+                      </button>
+                    )}
+                    {suggestedRush !== undefined && (
+                      <button
+                        type="button"
+                        onClick={() => setValue('admin_price', suggestedRush, { shouldDirty: true })}
+                        className="text-xs px-2.5 py-1 rounded-full font-medium"
+                        style={{ backgroundColor: '#fef3c7', color: '#92400e' }}
+                      >
+                        Rush: KD {suggestedRush.toFixed(3)}
+                      </button>
+                    )}
+                  </div>
+                )}
+                {minPriceGuard !== undefined && priceNum !== null && priceNum > 0 && priceNum < minPriceGuard && (
+                  <p className="mt-1 text-xs" style={{ color: 'var(--color-danger)' }}>
+                    Minimum price is KD {minPriceGuard.toFixed(3)}
+                  </p>
+                )}
+              </Field>
+              <Field label="Deposit Amount (KD)" error={errors.advance_amount?.message} hint="Optional, for security">
+                <Input
+                  {...register('advance_amount', { setValueAs: numberOrNull })}
+                  type="number"
+                  step="0.001"
+                  min="0"
+                  placeholder="5.000"
+                  style={{ fontFamily: 'var(--font-mono)' }}
+                  aria-invalid={errors.advance_amount ? true : undefined}
+                />
+              </Field>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              {depositAmount > 0 && (
+                <Checkbox {...register('advance_paid')} label="Deposit received" />
+              )}
+              <Checkbox {...register('fully_paid')} label="Fully paid" />
+            </div>
+
+            {/* Live payment status + balance bar */}
+            <div
+              className="rounded-lg border px-3.5 py-2.5"
+              style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface-raised)' }}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium" style={{ color: 'var(--color-ink-muted)' }}>
+                  Payment status
+                </span>
+                <span className="flex items-center gap-2">
+                  {paymentStatus !== 'paid' && priceNum !== null && priceNum > 0 && (
+                    <span className="text-xs" style={{ color: 'var(--color-ink-muted)', fontFamily: 'var(--font-mono)' }}>
+                      KD {remaining.toFixed(3)} owed
+                    </span>
                   )}
-                  {suggestedRush !== undefined && (
-                    <button
-                      type="button"
-                      onClick={() => setValue('admin_price', suggestedRush)}
-                      className="text-xs px-2.5 py-1 rounded-full font-medium"
-                      style={{ backgroundColor: '#fef3c7', color: '#92400e' }}
-                    >
-                      Rush: KD {suggestedRush.toFixed(3)}
-                    </button>
-                  )}
+                  <PaymentBadge status={paymentStatus} />
+                </span>
+              </div>
+              {priceNum !== null && priceNum > 0 && (
+                <div
+                  className="mt-2 h-2 rounded-full overflow-hidden"
+                  style={{ backgroundColor: 'var(--color-border)' }}
+                >
+                  <div
+                    className="h-full rounded-full transition-all duration-300"
+                    style={{
+                      width: `${paymentStatus === 'paid' ? 100 : balanceFill}%`,
+                      backgroundColor: 'var(--color-teal)',
+                    }}
+                  />
                 </div>
               )}
             </div>
-            <div>
-              <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--color-ink-muted)' }}>Advance (KD)</label>
-              <input
-                {...register('advance_amount', { valueAsNumber: true })}
-                type="number"
-                step="0.001"
-                min="0"
-                placeholder="5.000"
-                className={ic}
-                style={{ ...is, fontFamily: 'var(--font-mono)' }}
-              />
-            </div>
-          </div>
-
-          {/* Balance bar */}
-          {priceNum && priceNum > 0 && (
-            <div className="mt-3">
-              <div
-                className="h-2 rounded-full overflow-hidden"
-                style={{ backgroundColor: 'var(--color-surface-raised)' }}
-              >
-                <div
-                  className="h-full rounded-full transition-all duration-300"
-                  style={{
-                    width: `${balanceFill}%`,
-                    backgroundColor: 'var(--color-teal)',
-                  }}
-                />
-              </div>
-              <p className="text-xs mt-1" style={{ color: isSettled ? 'var(--color-success)' : 'var(--color-ink-muted)' }}>
-                {isSettled ? 'Settled' : balanceRemaining !== null ? `KD ${balanceRemaining.toFixed(3)} remaining` : ''}
-              </p>
-            </div>
-          )}
-
-          <div className="mt-3">
-            <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--color-ink-muted)' }}>Payment Method</label>
-            <select {...register('payment_method')} className={ic} style={is}>
-              <option value="">Not set</option>
-              <option value="cash">Cash</option>
-              <option value="wamd">WAMD</option>
-            </select>
           </div>
         </div>
 
-        <div className="p-4">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--color-ink-muted)' }}>Priority</label>
-              <select {...register('priority', { valueAsNumber: true })} className={ic} style={is}>
-                <option value={0}>Normal</option>
-                <option value={1}>High</option>
-                <option value={2}>Urgent</option>
-              </select>
-            </div>
-          </div>
-          <div className="mt-3">
-            <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--color-ink-muted)' }}>Admin Notes</label>
-            <textarea
-              {...register('admin_notes')}
-              rows={3}
-              placeholder="Notes visible only to you…"
-              className={ic + ' resize-none'}
-              style={is}
-            />
-          </div>
+        <div className="p-4" style={{ borderColor: 'var(--color-border)' }}>
+          <Field label="Admin Notes" error={errors.admin_notes?.message}>
+            <Textarea {...register('admin_notes')} rows={3} placeholder="Notes visible only to you…" />
+          </Field>
         </div>
       </div>
 
-      <button
-        type="submit"
-        disabled={pending}
-        className="w-full py-3 rounded-lg text-sm font-medium transition-all active:scale-[0.97] disabled:opacity-60"
-        style={{ backgroundColor: 'var(--color-teal)', color: 'var(--color-cream)' }}
-      >
-        {pending ? 'Saving…' : 'Save Changes'}
-      </button>
+      <Button type="submit" size="lg" loading={pending} className="w-full">
+        Save Changes
+      </Button>
     </form>
   )
 }

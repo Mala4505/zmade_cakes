@@ -1,7 +1,15 @@
 'use client'
 import { useState } from 'react'
+import { useForm, type FieldPath } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
 import { useRouter } from 'next/navigation'
 import PhoneInput from '@/components/PhoneInput'
+import {
+  publicInquirySchema,
+  type PublicInquiryInput,
+  type PublicInquiryData,
+} from '@/lib/validations/publicInquiry'
+import { Button, Checkbox, Field, Input, RadioGroup, Select, Textarea } from '@/components/ui'
 
 interface Option { id: string; name: string }
 interface Blackout { id: string; date_from: string; date_to: string; reason: string }
@@ -9,8 +17,6 @@ interface Props {
   flavors: Option[]
   sizes: Option[]
   occasions: Option[]
-  themes: Option[]
-  decorations: Option[]
   blackouts: Blackout[]
   minLeadDays: number
 }
@@ -36,92 +42,100 @@ const GOVERNORATES = [
   { value: 'mubarak_al_kabeer', label: 'Mubarak Al-Kabeer' },
 ]
 
-export default function OrderForm({ flavors, sizes, occasions, themes, decorations, blackouts, minLeadDays }: Props) {
+// Fields validated before each step may advance.
+const STEP_FIELDS: Record<number, FieldPath<PublicInquiryInput>[]> = {
+  1: ['customer_name', 'customer_phone'],
+  2: ['cake_size', 'flavor', 'occasion', 'cake_type', 'theme', 'message_on_cake', 'special_requirements', 'allergen_other'],
+  3: ['event_date', 'pickup_time', 'delivery_type', 'address_governorate', 'address_area', 'address_block', 'address_street', 'address_house_no', 'address_extra_notes'],
+}
+
+export default function OrderForm({ flavors, sizes, occasions, blackouts, minLeadDays }: Props) {
   const router = useRouter()
   const [step, setStep] = useState(1)
-  const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [form, setForm] = useState({
-    customer_name: '',
-    customer_phone: '',
-    cake_size: '',
-    flavor: '',
-    occasion: '',
-    theme: '',
-    decoration_style: '',
-    message_on_cake: '',
-    special_requirements: '',
-    allergen_nut_free: false,
-    allergen_gluten_free: false,
-    allergen_dairy_free: false,
-    allergen_egg_free: false,
-    allergen_halal: false,
-    allergen_other: '',
-    event_date: '',
-    pickup_time: '',
-    delivery_type: 'pickup' as 'pickup' | 'delivery',
-    address_governorate: 'capital',
-    address_area: '',
-    address_block: '',
-    address_street: '',
-    address_house_no: '',
-    address_extra_notes: '',
+  const [serverError, setServerError] = useState<string | null>(null)
+
+  const {
+    register,
+    handleSubmit,
+    watch,
+    setValue,
+    setError,
+    clearErrors,
+    trigger,
+    formState: { errors, isSubmitting },
+  } = useForm<PublicInquiryInput, unknown, PublicInquiryData>({
+    resolver: zodResolver(publicInquirySchema),
+    mode: 'onTouched',
+    defaultValues: {
+      customer_name: '',
+      customer_phone: '',
+      cake_size: '',
+      flavor: '',
+      occasion: '',
+      cake_type: 'normal',
+      theme: '',
+      message_on_cake: '',
+      special_requirements: '',
+      allergen_nut_free: false,
+      allergen_dairy_free: false,
+      allergen_egg_free: false,
+      allergen_raw_sugar: false,
+      allergen_other: '',
+      event_date: '',
+      pickup_time: '',
+      delivery_type: 'pickup',
+      source: 'public_form',
+      address_governorate: 'capital',
+      address_area: '',
+      address_block: '',
+      address_street: '',
+      address_house_no: '',
+      address_extra_notes: '',
+    },
   })
 
-  const update = (field: string, value: unknown) => setForm(prev => ({ ...prev, [field]: value }))
+  const form = watch()
+  const cakeType = form.cake_type
+  const deliveryType = form.delivery_type
+  const dateBlackedOut = isDateBlackedOut(form.event_date ?? '', blackouts)
 
-  const inputCls = 'w-full rounded-lg border px-3.5 py-2.5 text-sm outline-none transition-all'
-  const inputStyle = { backgroundColor: 'var(--color-cream)', borderColor: 'var(--color-border)', color: 'var(--color-ink)' }
-  const labelCls = 'block text-xs font-medium mb-1.5'
-  const labelStyle = { color: 'var(--color-ink-secondary)' }
-
-  const handleSubmit = async () => {
-    setSubmitting(true)
-    setError(null)
+  const onValid = async (data: PublicInquiryData) => {
+    setServerError(null)
     try {
       const res = await fetch('/api/inquiries', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, source: 'public_form' }),
+        body: JSON.stringify(data),
       })
       const json = await res.json()
-      if (!res.ok) { setError(json.error ?? 'Something went wrong. Please try again.'); return }
+      if (!res.ok) {
+        if (json.fieldErrors) {
+          Object.entries(json.fieldErrors).forEach(([field, msgs]) => {
+            setError(field as FieldPath<PublicInquiryInput>, { message: (msgs as string[])[0] })
+          })
+        }
+        setServerError(json.error ?? 'Something went wrong. Please try again.')
+        return
+      }
       router.push('/order/success')
-    } catch { setError('Network error. Please try again.') }
-    finally { setSubmitting(false) }
+    } catch {
+      setServerError('Network error. Please try again.')
+    }
   }
 
-  const advanceStep = () => {
-    if (step === 1) {
-      if (!form.customer_name.trim() || !form.customer_phone.trim()) {
-        setError('Please fill in your name and phone number.')
-        return
-      }
+  const advanceStep = async () => {
+    setServerError(null)
+    const valid = await trigger(STEP_FIELDS[step])
+    if (!valid) return
+    if (step === 3 && dateBlackedOut) {
+      setError('event_date', { type: 'manual', message: 'This date is not available. Please choose another date.' })
+      return
     }
-    if (step === 2) {
-      if (!form.cake_size || !form.flavor || !form.decoration_style) {
-        setError('Please select size, flavor, and decoration style.')
-        return
-      }
-    }
-    if (step === 3) {
-      if (!form.event_date) {
-        setError('Please select your event date.')
-        return
-      }
-      if (isDateBlackedOut(form.event_date, blackouts)) {
-        setError('This date is not available. Please choose another date.')
-        return
-      }
-    }
-    setError(null)
     setStep(s => s + 1)
   }
 
-  const dateBlackedOut = isDateBlackedOut(form.event_date, blackouts)
-
   return (
-    <div>
+    <form onSubmit={handleSubmit(onValid)} noValidate>
       {/* Progress bar */}
       <div className="mb-8">
         <div className="flex items-center gap-0">
@@ -150,25 +164,22 @@ export default function OrderForm({ flavors, sizes, occasions, themes, decoratio
       {/* Step 1 — Who are you? */}
       {step === 1 && (
         <div className="flex flex-col gap-5">
-          <h2 className="text-lg font-semibold mb-4" style={{ color: 'var(--color-ink)' }}>Let's start with you</h2>
-          <div>
-            <label className={labelCls} style={labelStyle}>Your Name *</label>
-            <input
-              type="text"
-              className={inputCls}
-              style={inputStyle}
-              value={form.customer_name}
-              onChange={e => update('customer_name', e.target.value)}
+          <h2 className="text-lg font-semibold mb-4" style={{ color: 'var(--color-ink)' }}>Let&apos;s start with you</h2>
+          <Field label="Your Name" error={errors.customer_name?.message} required>
+            <Input
+              {...register('customer_name')}
               placeholder="e.g. Sara Al-Qatami"
+              autoComplete="name"
+              required
+              aria-invalid={errors.customer_name ? true : undefined}
             />
-          </div>
-          <div>
-            <label className={labelCls} style={labelStyle}>Phone Number *</label>
+          </Field>
+          <Field label="Phone Number" error={errors.customer_phone?.message} required>
             <PhoneInput
               value={form.customer_phone}
-              onChange={value => setForm(prev => ({ ...prev, customer_phone: value }))}
+              onChange={value => setValue('customer_phone', value, { shouldValidate: true })}
             />
-          </div>
+          </Field>
         </div>
       )}
 
@@ -177,109 +188,81 @@ export default function OrderForm({ flavors, sizes, occasions, themes, decoratio
         <div className="flex flex-col gap-5">
           <h2 className="text-lg font-semibold mb-4" style={{ color: 'var(--color-ink)' }}>Tell us about your cake</h2>
 
-          {/* Size pills */}
-          <div>
-            <label className={labelCls} style={labelStyle}>Cake Size *</label>
-            <div className="flex flex-wrap gap-2">
-              {sizes.map(s => (
-                <button
-                  key={s.id}
-                  type="button"
-                  onClick={() => update('cake_size', s.name)}
-                  className="px-4 py-2 rounded-full border text-sm font-medium cursor-pointer transition-all"
-                  style={{
-                    backgroundColor: form.cake_size === s.name ? 'var(--color-teal)' : 'var(--color-surface)',
-                    borderColor: form.cake_size === s.name ? 'var(--color-teal)' : 'var(--color-border)',
-                    color: form.cake_size === s.name ? 'var(--color-cream)' : 'var(--color-ink-secondary)',
-                  }}
-                >
-                  {s.name}
-                </button>
-              ))}
-            </div>
-          </div>
+          <Field label="Cake Size" error={errors.cake_size?.message} required>
+            <RadioGroup
+              value={form.cake_size || null}
+              onChange={v => setValue('cake_size', v, { shouldValidate: true })}
+              options={sizes.map(s => ({ value: s.name, label: s.name }))}
+              className="flex-wrap"
+              aria-label="Cake size"
+            />
+          </Field>
 
-          {/* Flavor */}
-          <div>
-            <label className={labelCls} style={labelStyle}>Flavor *</label>
-            <select className={inputCls} style={inputStyle} value={form.flavor} onChange={e => update('flavor', e.target.value)}>
+          <Field label="Flavor" error={errors.flavor?.message} required>
+            <Select {...register('flavor')} required aria-invalid={errors.flavor ? true : undefined}>
               <option value="">Select a flavor…</option>
               {flavors.map(f => <option key={f.id} value={f.name}>{f.name}</option>)}
-            </select>
-          </div>
+            </Select>
+          </Field>
 
-          {/* Occasion */}
-          <div>
-            <label className={labelCls} style={labelStyle}>Occasion</label>
-            <select className={inputCls} style={inputStyle} value={form.occasion} onChange={e => update('occasion', e.target.value)}>
+          <Field label="Occasion" error={errors.occasion?.message}>
+            <Select {...register('occasion')}>
               <option value="">Select an occasion…</option>
               {occasions.map(o => <option key={o.id} value={o.name}>{o.name}</option>)}
-            </select>
-          </div>
+            </Select>
+          </Field>
 
-          {/* Theme */}
-          <div>
-            <label className={labelCls} style={labelStyle}>Theme</label>
-            <select className={inputCls} style={inputStyle} value={form.theme} onChange={e => update('theme', e.target.value)}>
-              <option value="">Select a theme…</option>
-              {themes.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
-            </select>
-          </div>
-
-          {/* Decoration Style */}
-          <div>
-            <label className={labelCls} style={labelStyle}>Decoration Style *</label>
-            <select className={inputCls} style={inputStyle} value={form.decoration_style} onChange={e => update('decoration_style', e.target.value)}>
-              <option value="">Select decoration style…</option>
-              {decorations.map(d => <option key={d.id} value={d.name}>{d.name}</option>)}
-            </select>
-          </div>
-
-          {/* Message on Cake */}
-          <div>
-            <label className={labelCls} style={labelStyle}>Message on Cake</label>
-            <input
-              type="text"
-              className={inputCls}
-              style={inputStyle}
-              value={form.message_on_cake}
-              onChange={e => update('message_on_cake', e.target.value)}
-              placeholder="e.g. Happy Birthday Sara!"
+          <Field label="Cake Type" error={errors.cake_type?.message} required>
+            <RadioGroup
+              value={cakeType}
+              onChange={v => {
+                setValue('cake_type', v, { shouldDirty: true })
+                if (v === 'normal') clearErrors('theme')
+              }}
+              options={[
+                { value: 'normal', label: 'Normal cake', description: 'A classic ZMade design' },
+                { value: 'theme', label: 'Theme cake', description: 'Designed around your idea' },
+              ]}
+              aria-label="Cake type"
             />
-          </div>
+          </Field>
 
-          {/* Allergens */}
+          {cakeType === 'theme' && (
+            <Field label="Your Theme" error={errors.theme?.message} required>
+              <Input
+                {...register('theme')}
+                placeholder="e.g. Butterfly garden, football, unicorn…"
+                required
+                aria-invalid={errors.theme ? true : undefined}
+              />
+            </Field>
+          )}
+
+          <Field label="Message on Cake" error={errors.message_on_cake?.message}>
+            <Input {...register('message_on_cake')} placeholder="e.g. Happy Birthday Sara!" />
+          </Field>
+
+          <Field
+            label="Cake Details"
+            error={errors.special_requirements?.message}
+            hint="Colours, tiers, decoration ideas — anything that helps us picture it."
+          >
+            <Textarea {...register('special_requirements')} rows={3} placeholder="e.g. Two tiers, pastel pink, fresh flowers on top…" />
+          </Field>
+
           <div>
-            <label className={labelCls} style={labelStyle}>Dietary Requirements</label>
+            <p className="block text-xs font-medium mb-1.5" style={{ color: 'var(--color-ink-muted)' }}>Dietary Requirements</p>
             <div className="grid grid-cols-2 gap-2">
-              {[
-                { field: 'allergen_nut_free', label: 'Nut-free' },
-                { field: 'allergen_gluten_free', label: 'Gluten-free' },
-                { field: 'allergen_dairy_free', label: 'Dairy-free' },
-                { field: 'allergen_egg_free', label: 'Egg-free' },
-                { field: 'allergen_halal', label: 'Halal-certified' },
-              ].map(({ field, label }) => (
-                <label key={field} className="flex items-center gap-2 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={form[field as keyof typeof form] as boolean}
-                    onChange={e => update(field, e.target.checked)}
-                    className="rounded"
-                    style={{ accentColor: 'var(--color-teal)' }}
-                  />
-                  <span className="text-sm" style={{ color: 'var(--color-ink-secondary)' }}>{label}</span>
-                </label>
-              ))}
+              <Checkbox {...register('allergen_nut_free')} label="Nut-free" />
+              <Checkbox {...register('allergen_dairy_free')} label="Dairy-free" />
+              <Checkbox {...register('allergen_egg_free')} label="Egg-free" />
+              <Checkbox {...register('allergen_raw_sugar')} label="Raw sugar" />
             </div>
             <div className="mt-2">
-              <input
-                type="text"
-                className={inputCls}
-                style={inputStyle}
-                value={form.allergen_other}
-                onChange={e => update('allergen_other', e.target.value)}
-                placeholder="Other dietary notes…"
-              />
+              <Input {...register('allergen_other')} placeholder="Other dietary notes…" aria-label="Other dietary notes" />
+              {errors.allergen_other && (
+                <p className="mt-1 text-xs" style={{ color: 'var(--color-danger)' }}>{errors.allergen_other.message}</p>
+              )}
             </div>
           </div>
         </div>
@@ -290,90 +273,65 @@ export default function OrderForm({ flavors, sizes, occasions, themes, decoratio
         <div className="flex flex-col gap-5">
           <h2 className="text-lg font-semibold mb-4" style={{ color: 'var(--color-ink)' }}>When do you need it?</h2>
 
-          {/* Event Date */}
-          <div>
-            <label className={labelCls} style={labelStyle}>Event Date *</label>
-            <input
+          <Field label="Event Date" error={errors.event_date?.message} required>
+            <Input
+              {...register('event_date', {
+                onChange: () => clearErrors('event_date'),
+              })}
               type="date"
-              className={inputCls}
-              style={inputStyle}
-              value={form.event_date}
               min={getMinDate(minLeadDays)}
-              onChange={e => update('event_date', e.target.value)}
+              required
+              aria-invalid={errors.event_date || dateBlackedOut ? true : undefined}
             />
-            {form.event_date && dateBlackedOut && (
+            {!errors.event_date && form.event_date && dateBlackedOut && (
               <p className="mt-1 text-xs" style={{ color: 'var(--color-danger)' }}>
                 This date is not available. Please choose another date.
               </p>
             )}
-          </div>
+          </Field>
 
-          {/* Pickup Time */}
-          <div>
-            <label className={labelCls} style={labelStyle}>Preferred Pickup / Delivery Time</label>
-            <input
-              type="time"
-              className={inputCls}
-              style={inputStyle}
-              value={form.pickup_time}
-              onChange={e => update('pickup_time', e.target.value)}
+          <Field label="Preferred Pickup / Delivery Time" error={errors.pickup_time?.message}>
+            <Input {...register('pickup_time')} type="time" />
+          </Field>
+
+          <Field label="Collection Method" error={errors.delivery_type?.message} required>
+            <RadioGroup
+              value={deliveryType}
+              onChange={v => setValue('delivery_type', v, { shouldDirty: true })}
+              options={[
+                { value: 'pickup', label: 'Pickup', description: 'Collect from the studio' },
+                { value: 'delivery', label: 'Delivery', description: 'We bring it to you' },
+              ]}
+              aria-label="Collection method"
             />
-          </div>
+          </Field>
 
-          {/* Delivery Type */}
-          <div>
-            <label className={labelCls} style={labelStyle}>Collection Method</label>
-            <div className="grid grid-cols-2 gap-3">
-              {(['pickup', 'delivery'] as const).map(val => (
-                <button
-                  key={val}
-                  type="button"
-                  onClick={() => update('delivery_type', val)}
-                  className="rounded-xl border p-4 text-left transition-all"
-                  style={{
-                    borderColor: form.delivery_type === val ? 'var(--color-teal)' : 'var(--color-border)',
-                    backgroundColor: form.delivery_type === val ? 'var(--color-teal-light)' : 'var(--color-surface)',
-                  }}
-                >
-                  <p className="text-sm font-medium capitalize" style={{ color: 'var(--color-ink)' }}>{val}</p>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Address fields (delivery only) */}
-          {form.delivery_type === 'delivery' && (
+          {deliveryType === 'delivery' && (
             <div className="flex flex-col gap-4 pt-1">
-              <div>
-                <label className={labelCls} style={labelStyle}>Governorate</label>
-                <select className={inputCls} style={inputStyle} value={form.address_governorate} onChange={e => update('address_governorate', e.target.value)}>
+              <Field label="Governorate" error={errors.address_governorate?.message}>
+                <Select {...register('address_governorate')}>
                   {GOVERNORATES.map(g => <option key={g.value} value={g.value}>{g.label}</option>)}
-                </select>
+                </Select>
+              </Field>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Area" error={errors.address_area?.message} required>
+                  <Input {...register('address_area')} placeholder="Area" required aria-invalid={errors.address_area ? true : undefined} />
+                </Field>
+                <Field label="Block" error={errors.address_block?.message} required>
+                  <Input {...register('address_block')} placeholder="Block" required aria-invalid={errors.address_block ? true : undefined} />
+                </Field>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className={labelCls} style={labelStyle}>Area</label>
-                  <input type="text" className={inputCls} style={inputStyle} value={form.address_area} onChange={e => update('address_area', e.target.value)} placeholder="Area" />
-                </div>
-                <div>
-                  <label className={labelCls} style={labelStyle}>Block</label>
-                  <input type="text" className={inputCls} style={inputStyle} value={form.address_block} onChange={e => update('address_block', e.target.value)} placeholder="Block" />
-                </div>
+                <Field label="Street" error={errors.address_street?.message} required>
+                  <Input {...register('address_street')} placeholder="Street" required aria-invalid={errors.address_street ? true : undefined} />
+                </Field>
+                <Field label="House / Apartment No." error={errors.address_house_no?.message} required>
+                  <Input {...register('address_house_no')} placeholder="No." required aria-invalid={errors.address_house_no ? true : undefined} />
+                </Field>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className={labelCls} style={labelStyle}>Street</label>
-                  <input type="text" className={inputCls} style={inputStyle} value={form.address_street} onChange={e => update('address_street', e.target.value)} placeholder="Street" />
-                </div>
-                <div>
-                  <label className={labelCls} style={labelStyle}>House / Apartment No.</label>
-                  <input type="text" className={inputCls} style={inputStyle} value={form.address_house_no} onChange={e => update('address_house_no', e.target.value)} placeholder="No." />
-                </div>
-              </div>
-              <div>
-                <label className={labelCls} style={labelStyle}>Extra Notes</label>
-                <input type="text" className={inputCls} style={inputStyle} value={form.address_extra_notes} onChange={e => update('address_extra_notes', e.target.value)} placeholder="Floor, apartment name, landmark…" />
-              </div>
+              <Field label="Extra Notes" error={errors.address_extra_notes?.message}>
+                <Input {...register('address_extra_notes')} placeholder="Floor, apartment name, landmark…" />
+              </Field>
             </div>
           )}
         </div>
@@ -387,28 +345,27 @@ export default function OrderForm({ flavors, sizes, occasions, themes, decoratio
           {/* Customer summary */}
           <section className="rounded-xl border p-4 flex flex-col gap-2" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
             <p className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: 'var(--color-ink-muted)' }}>Customer</p>
-            <SummaryRow label="Name" value={form.customer_name} />
-            <SummaryRow label="Phone" value={form.customer_phone} />
+            <SummaryRow label="Name" value={form.customer_name ?? ''} />
+            <SummaryRow label="Phone" value={form.customer_phone ?? ''} />
           </section>
 
           {/* Cake summary */}
           <section className="rounded-xl border p-4 flex flex-col gap-2" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
             <p className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: 'var(--color-ink-muted)' }}>Cake</p>
-            <SummaryRow label="Size" value={form.cake_size} />
-            <SummaryRow label="Flavor" value={form.flavor} />
+            <SummaryRow label="Size" value={form.cake_size ?? ''} />
+            <SummaryRow label="Flavor" value={form.flavor ?? ''} />
             {form.occasion && <SummaryRow label="Occasion" value={form.occasion} />}
-            {form.theme && <SummaryRow label="Theme" value={form.theme} />}
-            <SummaryRow label="Decoration" value={form.decoration_style} />
+            <SummaryRow label="Type" value={cakeType === 'theme' ? `Theme cake — ${form.theme || ''}` : 'Normal cake'} />
             {form.message_on_cake && <SummaryRow label="Message" value={form.message_on_cake} />}
-            {(form.allergen_nut_free || form.allergen_gluten_free || form.allergen_dairy_free || form.allergen_egg_free || form.allergen_halal || form.allergen_other) && (
+            {form.special_requirements && <SummaryRow label="Details" value={form.special_requirements} />}
+            {(form.allergen_nut_free || form.allergen_dairy_free || form.allergen_egg_free || form.allergen_raw_sugar || form.allergen_other) && (
               <SummaryRow
                 label="Dietary"
                 value={[
                   form.allergen_nut_free && 'Nut-free',
-                  form.allergen_gluten_free && 'Gluten-free',
                   form.allergen_dairy_free && 'Dairy-free',
                   form.allergen_egg_free && 'Egg-free',
-                  form.allergen_halal && 'Halal',
+                  form.allergen_raw_sugar && 'Raw sugar',
                   form.allergen_other || '',
                 ].filter(Boolean).join(', ')}
               />
@@ -418,10 +375,10 @@ export default function OrderForm({ flavors, sizes, occasions, themes, decoratio
           {/* Delivery summary */}
           <section className="rounded-xl border p-4 flex flex-col gap-2" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
             <p className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: 'var(--color-ink-muted)' }}>Delivery</p>
-            <SummaryRow label="Event Date" value={form.event_date} />
+            <SummaryRow label="Event Date" value={form.event_date ?? ''} />
             {form.pickup_time && <SummaryRow label="Time" value={form.pickup_time} />}
-            <SummaryRow label="Method" value={form.delivery_type === 'delivery' ? 'Delivery' : 'Pickup'} />
-            {form.delivery_type === 'delivery' && (
+            <SummaryRow label="Method" value={deliveryType === 'delivery' ? 'Delivery' : 'Pickup'} />
+            {deliveryType === 'delivery' && (
               <>
                 {form.address_governorate && <SummaryRow label="Governorate" value={GOVERNORATES.find(g => g.value === form.address_governorate)?.label ?? form.address_governorate} />}
                 {form.address_area && <SummaryRow label="Area" value={form.address_area} />}
@@ -433,67 +390,45 @@ export default function OrderForm({ flavors, sizes, occasions, themes, decoratio
             )}
           </section>
 
-          {/* Special requirements */}
-          <div>
-            <label className={labelCls} style={labelStyle}>Any other notes or special requests?</label>
-            <textarea
-              className={inputCls}
-              style={{ ...inputStyle, resize: 'vertical', minHeight: '80px' }}
-              value={form.special_requirements}
-              onChange={e => update('special_requirements', e.target.value)}
-              placeholder="Anything else Zainab should know…"
-            />
-          </div>
-
-          {error && (
+          {serverError && (
             <p className="text-sm rounded-lg px-4 py-3" style={{ backgroundColor: 'var(--color-danger-light)', color: 'var(--color-danger)' }}>
-              {error}
+              {serverError}
             </p>
           )}
         </div>
       )}
 
       {/* Error display (steps 1-3) */}
-      {error && step < 4 && (
+      {serverError && step < 4 && (
         <p className="mt-4 text-sm rounded-lg px-4 py-3" style={{ backgroundColor: 'var(--color-danger-light)', color: 'var(--color-danger)' }}>
-          {error}
+          {serverError}
         </p>
       )}
 
       {/* Navigation buttons */}
       <div className="flex gap-3 mt-8">
         {step > 1 && (
-          <button
-            onClick={() => { setError(null); setStep(s => s - 1) }}
+          <Button
             type="button"
-            className="flex-1 py-3 rounded-xl text-sm font-medium border"
-            style={{ borderColor: 'var(--color-border)', backgroundColor: 'transparent', color: 'var(--color-ink-secondary)' }}
+            variant="secondary"
+            size="lg"
+            className="flex-1 rounded-xl"
+            onClick={() => { setServerError(null); setStep(s => s - 1) }}
           >
             Back
-          </button>
+          </Button>
         )}
         {step < 4 ? (
-          <button
-            onClick={advanceStep}
-            type="button"
-            className="flex-1 py-3 rounded-xl text-sm font-medium"
-            style={{ backgroundColor: 'var(--color-teal)', color: 'var(--color-cream)' }}
-          >
+          <Button type="button" size="lg" className="flex-1 rounded-xl" onClick={advanceStep}>
             Next
-          </button>
+          </Button>
         ) : (
-          <button
-            onClick={handleSubmit}
-            disabled={submitting}
-            type="button"
-            className="flex-1 py-3 rounded-xl text-sm font-medium disabled:opacity-60"
-            style={{ backgroundColor: 'var(--color-teal)', color: 'var(--color-cream)' }}
-          >
-            {submitting ? 'Sending…' : 'Send My Order'}
-          </button>
+          <Button type="submit" size="lg" className="flex-1 rounded-xl" loading={isSubmitting}>
+            {isSubmitting ? 'Sending…' : 'Send My Order'}
+          </Button>
         )}
       </div>
-    </div>
+    </form>
   )
 }
 
