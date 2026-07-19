@@ -34,7 +34,7 @@ export default function ResetPage() {
     const { error: err } = await supabase.auth.updateUser({ password })
     setPending(false)
     if (err) { setError(err.message); return }
-    router.replace('/admin')
+    router.replace('/admin/calendar')
   }
 
   if (!ready) return null
