@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { X } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
+import { EASE_OUT_QUART } from '@/lib/motion'
 
 const SIZE_CLASSES = {
   sm: 'max-w-sm',
@@ -25,8 +26,6 @@ export interface ModalProps {
   className?: string
   children: React.ReactNode
 }
-
-const EASE_OUT_QUART: [number, number, number, number] = [0.25, 1, 0.5, 1]
 
 /**
  * Portal-rendered modal with the system's single floating shadow.

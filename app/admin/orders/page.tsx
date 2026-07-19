@@ -5,6 +5,7 @@ import { PaymentBadge } from '@/components/admin/StatusBadge'
 import { derivePaymentStatus } from '@/lib/payments'
 import OrderStatusActions from './_components/OrderStatusActions'
 import MobileOrderList from './_components/MobileOrderList'
+import AnimatedCardList from './_components/AnimatedCardList'
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import type { OrderStatus } from '@/lib/supabase/types'
@@ -114,14 +115,17 @@ export default async function OrdersPage({
               className="rounded-xl p-2 min-h-32 flex flex-col gap-2"
               style={{ backgroundColor: 'var(--color-surface-raised)' }}
             >
-              {(byStatus[status] ?? []).map((order: any) => (
-                <OrderCard key={order.id} order={order} />
-              ))}
-              {(byStatus[status] ?? []).length === 0 && (
-                <div className="flex-1 flex items-center justify-center py-8">
-                  <p className="text-xs" style={{ color: 'var(--color-ink-muted)' }}>Empty</p>
-                </div>
-              )}
+              <AnimatedCardList
+                items={(byStatus[status] ?? []).map((order: any) => ({
+                  id: order.id,
+                  node: <OrderCard order={order} />,
+                }))}
+                empty={
+                  <div className="flex-1 flex items-center justify-center py-8">
+                    <p className="text-xs" style={{ color: 'var(--color-ink-muted)' }}>Empty</p>
+                  </div>
+                }
+              />
             </div>
           </div>
         ))}

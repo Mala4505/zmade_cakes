@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { formatDate, formatKWD } from '@/lib/utils'
+import AnimatedCardList from './AnimatedCardList'
 import { PaymentBadge } from '@/components/admin/StatusBadge'
 import { derivePaymentStatus } from '@/lib/payments'
 import { hasAllergens, ALLERGEN_LABELS, type AllergenFlags } from '@/lib/supabase/types'
@@ -152,9 +153,12 @@ export default function MobileOrderList({ orders }: { orders: MobileOrder[] }) {
               {STATUS_LABELS[status]} · {group.length}
             </div>
             <div className="flex flex-col gap-3 p-4">
-              {group.map((order) => (
-                <MobileOrderCard key={order.id} order={order} />
-              ))}
+              <AnimatedCardList
+                items={group.map((order) => ({
+                  id: order.id,
+                  node: <MobileOrderCard order={order} />,
+                }))}
+              />
             </div>
           </div>
         )

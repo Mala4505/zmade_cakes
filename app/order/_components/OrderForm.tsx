@@ -3,6 +3,8 @@ import { useState } from 'react'
 import { useForm, type FieldPath } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useRouter } from 'next/navigation'
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
+import { EASE_OUT_QUART } from '@/lib/motion'
 import PhoneInput from '@/components/PhoneInput'
 import {
   publicInquirySchema,
@@ -52,7 +54,16 @@ const STEP_FIELDS: Record<number, FieldPath<PublicInquiryInput>[]> = {
 export default function OrderForm({ flavors, sizes, occasions, blackouts, minLeadDays }: Props) {
   const router = useRouter()
   const [step, setStep] = useState(1)
+  // 1 = forward, -1 = back; drives the slide direction of step transitions.
+  const [direction, setDirection] = useState(1)
   const [serverError, setServerError] = useState<string | null>(null)
+  const reduceMotion = useReducedMotion()
+
+  const stepVariants = {
+    enter: (dir: number) => (reduceMotion ? { opacity: 0 } : { opacity: 0, x: dir * 16 }),
+    center: { opacity: 1, x: 0 },
+    exit: (dir: number) => (reduceMotion ? { opacity: 0 } : { opacity: 0, x: dir * -16 }),
+  }
 
   const {
     register,
@@ -131,6 +142,7 @@ export default function OrderForm({ flavors, sizes, occasions, blackouts, minLea
       setError('event_date', { type: 'manual', message: 'This date is not available. Please choose another date.' })
       return
     }
+    setDirection(1)
     setStep(s => s + 1)
   }
 
@@ -161,6 +173,17 @@ export default function OrderForm({ flavors, sizes, occasions, blackouts, minLea
         </p>
       </div>
 
+      {/* Step content — animated forward/back, matching the Modal's motion system */}
+      <AnimatePresence mode="wait" initial={false} custom={direction}>
+        <motion.div
+          key={step}
+          custom={direction}
+          variants={stepVariants}
+          initial="enter"
+          animate="center"
+          exit="exit"
+          transition={{ duration: reduceMotion ? 0 : 0.16, ease: EASE_OUT_QUART }}
+        >
       {/* Step 1 — Who are you? */}
       {step === 1 && (
         <div className="flex flex-col gap-5">
@@ -397,6 +420,8 @@ export default function OrderForm({ flavors, sizes, occasions, blackouts, minLea
           )}
         </div>
       )}
+        </motion.div>
+      </AnimatePresence>
 
       {/* Error display (steps 1-3) */}
       {serverError && step < 4 && (
@@ -413,7 +438,7 @@ export default function OrderForm({ flavors, sizes, occasions, blackouts, minLea
             variant="secondary"
             size="lg"
             className="flex-1 rounded-xl"
-            onClick={() => { setServerError(null); setStep(s => s - 1) }}
+            onClick={() => { setServerError(null); setDirection(-1); setStep(s => s - 1) }}
           >
             Back
           </Button>
