@@ -65,14 +65,15 @@ async function getInquiries(status: string, payment: string, sort: string, q?: s
   }
 
   const { data, error, count } = await query.limit(200)
-  if (error) return { data: [], count: 0 }
+  if (error) throw new Error(`Inquiries: failed to load inquiries — ${error.message}`)
   return { data: data ?? [], count: count ?? 0 }
 }
 
 async function getCustomerInquiryCounts(customerIds: string[]): Promise<Record<string, number>> {
   if (customerIds.length === 0) return {}
   const supabase = await createClient()
-  const { data } = await supabase.from('inquiries').select('customer_id').in('customer_id', customerIds)
+  const { data, error } = await supabase.from('inquiries').select('customer_id').in('customer_id', customerIds)
+  if (error) throw new Error(`Inquiries: failed to load customer inquiry counts — ${error.message}`)
   const counts: Record<string, number> = {}
   for (const row of data ?? []) {
     if (row.customer_id) counts[row.customer_id] = (counts[row.customer_id] ?? 0) + 1

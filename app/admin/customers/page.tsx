@@ -24,11 +24,13 @@ export default async function CustomersPage({
   const { q = '' } = await searchParams
   const supabase = await createClient()
 
-  const { data: rows } = await supabase
+  const { data: rows, error } = await supabase
     .from('customers')
     .select('*, inquiries(id, event_date)')
     .order('vip', { ascending: false })
     .order('created_at', { ascending: false })
+
+  if (error) throw new Error(`Customers: failed to load customers — ${error.message}`)
 
   const customers = (rows ?? []) as CustomerWithInquiries[]
 

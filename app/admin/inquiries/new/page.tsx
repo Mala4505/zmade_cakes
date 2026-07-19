@@ -15,6 +15,17 @@ export default async function NewInquiryPage() {
     getBlackouts(),
   ])
 
+  const fetchResults = {
+    flavors,
+    sizes,
+    occasions,
+    settings: settingsResult,
+    'blackout dates': blackoutsResult,
+  }
+  for (const [name, res] of Object.entries(fetchResults)) {
+    if (res.error) throw new Error(`New Inquiry: failed to load ${name} — ${res.error}`)
+  }
+
   const minLeadDays = parseInt((settingsResult.data?.min_lead_days as string) ?? '3')
   const pricingMatrix = (settingsResult.data?.pricing_matrix as Record<string, number>) ?? {}
   const minPriceGuard = Number(settingsResult.data?.min_price_guard ?? 3)

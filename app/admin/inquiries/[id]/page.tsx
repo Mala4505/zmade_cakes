@@ -116,6 +116,18 @@ export default async function InquiryDetailPage({ params }: Props) {
       getInquiryImages(id),
     ])
 
+  const fetchResults = {
+    flavors,
+    sizes,
+    occasions,
+    settings: settingsResult,
+    'blackout dates': blackoutsResult,
+    images: imagesResult,
+  }
+  for (const [name, res] of Object.entries(fetchResults)) {
+    if (res.error) throw new Error(`Inquiry: failed to load ${name} — ${res.error}`)
+  }
+
   const confirmLink = confirmationLink(inquiry.confirmation_token)
   const templates = settingsResult.data?.whatsapp_templates as WhatsAppTemplates | undefined
   const minLeadDays = parseInt((settingsResult.data?.min_lead_days as string) ?? '3')

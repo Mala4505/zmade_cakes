@@ -7,6 +7,7 @@ export const metadata: Metadata = { title: 'Blackout Dates' }
 
 export default async function BlackoutDatesPage() {
   const result = await getBlackouts()
+  if (result.error) throw new Error(`Blackout Dates: failed to load — ${result.error}`)
 
   return (
     <div className="px-4 py-6 md:px-8 md:py-8 max-w-xl">

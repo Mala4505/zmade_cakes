@@ -12,6 +12,16 @@ export default async function OrderPage() {
     supabase.from('business_settings').select('value').eq('key', 'min_lead_days').single(),
   ])
 
+  const fetchResults = {
+    flavors: flavorsRes,
+    sizes: sizesRes,
+    occasions: occasionsRes,
+    'blackout dates': blackoutsRes,
+  }
+  for (const [name, res] of Object.entries(fetchResults)) {
+    if (res.error) throw new Error(`Order form: failed to load ${name} — ${res.error.message}`)
+  }
+
   const minLeadDays = parseInt((phoneRow.data?.value as string) ?? '3')
 
   return (

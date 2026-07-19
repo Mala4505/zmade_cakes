@@ -28,7 +28,7 @@ async function getOrders(includeCancelled: boolean) {
   const statuses: OrderStatus[] = includeCancelled
     ? ['confirmed', 'ready', 'delivered', 'cancelled']
     : ['confirmed', 'ready', 'delivered']
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('orders')
     .select(`
       id, status, final_price, delivery_type, created_at, tracking_token,
@@ -42,6 +42,7 @@ async function getOrders(includeCancelled: boolean) {
     `)
     .in('status', statuses)
     .order('created_at', { ascending: false })
+  if (error) throw new Error(`Orders: failed to load orders — ${error.message}`)
   return data ?? []
 }
 

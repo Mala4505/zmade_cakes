@@ -42,11 +42,13 @@ export default async function CustomerDetailPage({ params }: Props) {
 
   if (error || !customer) notFound()
 
-  const { data: inquiries } = await supabase
+  const { data: inquiries, error: inquiriesError } = await supabase
     .from('inquiries')
     .select('id, cake_size, flavor, occasion, event_date, status, admin_price, created_at')
     .eq('customer_id', id)
     .order('event_date', { ascending: false })
+
+  if (inquiriesError) throw new Error(`Customer: failed to load order history — ${inquiriesError.message}`)
 
   const inquiryList = (inquiries ?? []) as InquiryRow[]
 

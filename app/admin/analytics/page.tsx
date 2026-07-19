@@ -39,6 +39,16 @@ async function getAnalyticsData() {
       .select('status'),
   ])
 
+  const queryResults = {
+    revenue: revenueRes,
+    flavors: flavorRes,
+    sizes: sizeRes,
+    statuses: allStatusRes,
+  }
+  for (const [name, res] of Object.entries(queryResults)) {
+    if (res.error) throw new Error(`Analytics: failed to load ${name} — ${res.error.message}`)
+  }
+
   // Build 12-month revenue array
   const monthMap: Record<string, number> = {}
   for (const row of (revenueRes.data ?? [])) {

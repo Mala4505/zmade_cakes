@@ -19,6 +19,7 @@ export default async function OptionsPage({
   const activeType = OPTION_TYPES.find((t) => t.type === type)?.type ?? 'occasion_options'
 
   const result = await getAllOptions(activeType)
+  if (result.error) throw new Error(`Options: failed to load ${activeType} — ${result.error}`)
   const options = result.data ?? []
 
   return (

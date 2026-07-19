@@ -53,9 +53,17 @@ export default async function TrackPage({ params }: Props) {
   const currentStep = STATUS_ORDER[o.status as OrderStatus] ?? -1
   const isCancelled = o.status === 'cancelled'
 
-  const finishedImages = (o.status === 'ready' || o.status === 'delivered') && inq?.id
-    ? (await supabase.from('inquiry_images').select('*').eq('inquiry_id', inq.id).eq('image_type', 'finished').order('created_at', { ascending: true })).data ?? []
-    : []
+  let finishedImages: any[] = []
+  if ((o.status === 'ready' || o.status === 'delivered') && inq?.id) {
+    const { data: images, error: imagesError } = await supabase
+      .from('inquiry_images')
+      .select('*')
+      .eq('inquiry_id', inq.id)
+      .eq('image_type', 'finished')
+      .order('created_at', { ascending: true })
+    if (imagesError) throw new Error(`Track: failed to load finished cake photos — ${imagesError.message}`)
+    finishedImages = images ?? []
+  }
 
   return (
     <main
