@@ -37,9 +37,21 @@ interface PhoneInputProps {
   placeholder?: string
   disabled?: boolean
   className?: string
+  id?: string
+  'aria-invalid'?: boolean
+  'aria-describedby'?: string
 }
 
-export default function PhoneInput({ value, onChange, placeholder = 'XXXX XXXX', disabled, className }: PhoneInputProps) {
+export default function PhoneInput({
+  value,
+  onChange,
+  placeholder = 'XXXX XXXX',
+  disabled,
+  className,
+  id,
+  'aria-invalid': ariaInvalid,
+  'aria-describedby': ariaDescribedBy,
+}: PhoneInputProps) {
   const parsed = parseValue(value ?? '')
   const [country, setCountry] = useState(parsed.country)
   const [local, setLocal] = useState(parsed.local)
@@ -74,7 +86,7 @@ export default function PhoneInput({ value, onChange, placeholder = 'XXXX XXXX',
     onChange(country.code + val)
   }
 
-  const borderColor = 'var(--color-border)'
+  const borderColor = ariaInvalid ? 'var(--color-danger)' : 'var(--color-border)'
   const bg = 'var(--color-surface)'
   const ink = 'var(--color-ink)'
   const inkMuted = 'var(--color-ink-muted)'
@@ -103,11 +115,14 @@ export default function PhoneInput({ value, onChange, placeholder = 'XXXX XXXX',
       </button>
 
       <input
+        id={id}
         type="tel"
         value={local}
         onChange={handleLocalChange}
         placeholder={placeholder}
         disabled={disabled}
+        aria-invalid={ariaInvalid || undefined}
+        aria-describedby={ariaDescribedBy}
         className="flex-1 border rounded-r-lg px-3.5 py-2.5 text-sm outline-none transition-all"
         style={{
           borderColor,
@@ -129,7 +144,7 @@ export default function PhoneInput({ value, onChange, placeholder = 'XXXX XXXX',
           role="listbox"
           className="absolute top-full left-0 z-50 mt-1 rounded-lg border shadow-lg overflow-auto"
           style={{
-            borderColor,
+            borderColor: 'var(--color-border)',
             backgroundColor: bg,
             minWidth: '200px',
             maxHeight: '240px',
