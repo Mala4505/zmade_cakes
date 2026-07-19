@@ -11,9 +11,8 @@ const STATUS_OPTIONS: { value: InquiryStatus; label: string }[] = [
   { value: 'pending', label: 'Pending' },
   { value: 'awaiting_confirmation', label: 'Awaiting' },
   { value: 'confirmed', label: 'Confirmed' },
-  { value: 'in_progress', label: 'Making' },
   { value: 'ready', label: 'Ready' },
-  { value: 'delivered', label: 'Delivered' },
+  { value: 'delivered', label: 'Dispatched' },
   { value: 'cancelled', label: 'Cancelled' },
 ]
 
@@ -21,7 +20,6 @@ const STATUS_STYLE: Record<InquiryStatus, { bg: string; color: string }> = {
   pending: { bg: 'var(--color-surface-raised)', color: 'var(--color-ink-muted)' },
   awaiting_confirmation: { bg: 'var(--color-warning-light)', color: 'var(--color-warning)' },
   confirmed: { bg: 'var(--color-teal-light)', color: 'var(--color-teal-deep)' },
-  in_progress: { bg: 'var(--color-info-light)', color: 'var(--color-info)' },
   ready: { bg: '#f0e6ff', color: '#6b21a8' },
   delivered: { bg: 'var(--color-success-light)', color: 'var(--color-success)' },
   cancelled: { bg: 'var(--color-danger-light)', color: 'var(--color-danger)' },

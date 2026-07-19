@@ -4,6 +4,8 @@ import Link from 'next/link'
 import { useSearchParams, useRouter } from 'next/navigation'
 import PhoneInput from '@/components/PhoneInput'
 import { appUrl } from '@/lib/links'
+import { StatusBadge } from '@/components/admin/StatusBadge'
+import type { InquiryStatus, OrderStatus } from '@/lib/supabase/types'
 
 interface OrderResult {
   id: string
@@ -36,54 +38,6 @@ function formatEventDate(dateStr: string): string {
   } catch {
     return dateStr
   }
-}
-
-function StatusBadge({ status }: { status: string }) {
-  let bg = ''
-  let color = ''
-  let label = status.replace(/_/g, ' ')
-
-  switch (status) {
-    case 'pending':
-    case 'awaiting_confirmation':
-      bg = '#fef3c7'
-      color = '#92400e'
-      label = status === 'awaiting_confirmation' ? 'Awaiting Confirmation' : 'Pending'
-      break
-    case 'confirmed':
-    case 'in_progress':
-    case 'ready':
-      bg = 'var(--color-teal-light)'
-      color = 'var(--color-teal-deep)'
-      label =
-        status === 'in_progress'
-          ? 'In Progress'
-          : status.charAt(0).toUpperCase() + status.slice(1)
-      break
-    case 'delivered':
-      bg = '#dcfce7'
-      color = '#166534'
-      label = 'Delivered'
-      break
-    case 'cancelled':
-      bg = '#f3f4f6'
-      color = '#6b7280'
-      label = 'Cancelled'
-      break
-    default:
-      bg = '#f3f4f6'
-      color = '#6b7280'
-      label = status.replace(/_/g, ' ')
-  }
-
-  return (
-    <span
-      className="text-xs font-medium px-2 py-0.5 rounded-full capitalize"
-      style={{ backgroundColor: bg, color }}
-    >
-      {label}
-    </span>
-  )
 }
 
 function MyOrdersContent({ businessPhone, businessInstagram }: Props) {
@@ -353,7 +307,10 @@ function MyOrdersContent({ businessPhone, businessInstagram }: Props) {
                   <p className="text-sm font-semibold" style={{ color: 'var(--color-ink)' }}>
                     {item.cake_size} · {item.flavor}
                   </p>
-                  <StatusBadge status={item.order?.status ?? item.status} />
+                  <StatusBadge
+                    status={(item.order?.status ?? item.status) as OrderStatus | InquiryStatus}
+                    context="customer"
+                  />
                 </div>
 
                 {/* Meta */}
