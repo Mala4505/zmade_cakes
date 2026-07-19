@@ -2,6 +2,7 @@
 
 import { useState, useRef } from 'react'
 import { updateCustomerNotes, updateCustomerVip } from '@/lib/actions/customers'
+import { toast } from 'sonner'
 
 interface Props {
   customerId: string
@@ -24,12 +25,21 @@ export default function CustomerDetail({ customerId, initialNotes, initialVip }:
   async function handleVipToggle(e: React.ChangeEvent<HTMLInputElement>) {
     const next = e.target.checked
     setVip(next)
-    await updateCustomerVip(customerId, next)
+    const result = await updateCustomerVip(customerId, next)
+    if (result.error) {
+      setVip(!next)
+      toast.error(result.error)
+      return
+    }
     showSaved()
   }
 
   async function handleNotesBlur() {
-    await updateCustomerNotes(customerId, notes)
+    const result = await updateCustomerNotes(customerId, notes)
+    if (result.error) {
+      toast.error(result.error)
+      return
+    }
     showSaved()
   }
 

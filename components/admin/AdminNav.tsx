@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import Link from 'next/link'
+import Link, { useLinkStatus } from 'next/link'
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import {
@@ -15,6 +15,7 @@ import {
 } from '@phosphor-icons/react'
 import { LogOut, Layers } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { Spinner } from '@/components/ui/Spinner'
 import { signOut } from '@/lib/actions/auth'
 import type { User } from '@supabase/supabase-js'
 import type React from 'react'
@@ -41,6 +42,37 @@ function getBadge(href: string, pendingCount: number, readyCount: number): numbe
   if (href === '/admin/inquiries') return pendingCount
   if (href === '/admin/orders') return readyCount
   return 0
+}
+
+/**
+ * Rendered as a child of <Link> so useLinkStatus can read that link's
+ * in-flight navigation (the hook only works in a descendant of Link).
+ * Fixed footprint: the icon stays mounted and the shared Spinner is
+ * overlaid on top, so nothing shifts. The 150ms transition delay means
+ * fast or prefetched navigations never flash the indicator.
+ */
+function NavLinkStatus({ Icon, active, size }: { Icon: AnyIcon; active: boolean; size: number }) {
+  const { pending } = useLinkStatus()
+  return (
+    <span className="relative inline-flex" aria-hidden="true">
+      <span
+        className={cn(
+          'inline-flex transition-opacity duration-200',
+          pending ? 'opacity-25 delay-150' : 'opacity-100'
+        )}
+      >
+        <Icon size={size} weight={active ? 'fill' : 'regular'} aria-hidden="true" />
+      </span>
+      <span
+        className={cn(
+          'absolute inset-0 flex items-center justify-center transition-opacity duration-200',
+          pending ? 'opacity-100 delay-150' : 'opacity-0'
+        )}
+      >
+        <Spinner size={size - 4} />
+      </span>
+    </span>
+  )
 }
 
 function LogoutButton() {
@@ -109,7 +141,7 @@ export function AdminSidebar({
               )}
               style={active ? { backgroundColor: 'var(--color-teal-light)' } : undefined}
             >
-              <Icon size={18} weight={active ? 'fill' : 'regular'} aria-hidden="true" />
+              <NavLinkStatus Icon={Icon} active={active} size={18} />
               <span>{label}</span>
               {badge > 0 && (
                 <span
@@ -177,7 +209,7 @@ export function AdminBottomNav({
             style={{ color: active ? 'var(--color-teal)' : 'var(--color-ink-muted)' }}
           >
             <div className="relative">
-              <Icon size={22} weight={active ? 'fill' : 'regular'} aria-hidden="true" />
+              <NavLinkStatus Icon={Icon} active={active} size={22} />
               {badge > 0 && (
                 <span
                   className="absolute -top-1 -right-1 text-[9px] font-bold min-w-[14px] h-[14px] rounded-full flex items-center justify-center px-0.5"
