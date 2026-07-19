@@ -8,8 +8,6 @@ export const metadata: Metadata = { title: 'Options' }
 
 const OPTION_TYPES: { type: OptionTable; label: string }[] = [
   { type: 'occasion_options', label: 'Occasions' },
-  { type: 'theme_options', label: 'Themes' },
-  { type: 'decoration_style_options', label: 'Decoration Styles' },
 ]
 
 export default async function OptionsPage({
@@ -25,7 +23,7 @@ export default async function OptionsPage({
 
   return (
     <div className="px-4 py-6 md:px-8 md:py-8 max-w-2xl mx-auto">
-      <PageHeader title="Options Manager" subtitle="Manage occasions, themes, and decoration styles" />
+      <PageHeader title="Options Manager" subtitle="Manage the occasions offered on inquiry forms" />
 
       <OptionsManager
         optionTypes={OPTION_TYPES}

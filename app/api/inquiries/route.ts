@@ -34,11 +34,11 @@ export async function POST(req: NextRequest) {
       .select('id').single()
     if (customerError) console.error('[inquiries] customer upsert failed:', customerError.message)
 
-    // allergen_gluten_free / allergen_halal are validated by the public form schema but are no
-    // longer settable columns (Row-only, see lib/supabase/types.ts) — strip before insert.
+    // cake_type is a UI-only convenience field (not a DB column) — strip before insert,
+    // along with the address fields that live in their own table.
     const {
       address_governorate, address_area, address_block, address_street, address_house_no, address_extra_notes,
-      allergen_gluten_free: _allergenGlutenFree, allergen_halal: _allergenHalal,
+      cake_type: _cakeType,
       ...inquiryFields
     } = data
 
