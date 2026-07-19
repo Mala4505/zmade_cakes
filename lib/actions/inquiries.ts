@@ -311,21 +311,3 @@ export async function updateInquiryStatus(
   if (error) return { data: null, error: error.message, fieldErrors: null }
   return { data: undefined, error: null, fieldErrors: null }
 }
-
-export async function updatePaymentStatus(
-  id: string,
-  paymentStatus: 'unpaid' | 'partial' | 'paid'
-): Promise<ActionResult<void>> {
-  if (!tokenSchema.safeParse(id).success) {
-    return { data: null, error: 'Invalid inquiry ID', fieldErrors: null }
-  }
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { data: null, error: 'Unauthorized', fieldErrors: null }
-  const { error } = await supabase
-    .from('inquiries')
-    .update({ payment_status: paymentStatus })
-    .eq('id', id)
-  if (error) return { data: null, error: error.message, fieldErrors: null }
-  return { data: undefined, error: null, fieldErrors: null }
-}

@@ -29,18 +29,16 @@ const TIMELINE_STEPS: { status: InquiryStatus; label: string }[] = [
   { status: 'pending', label: 'Pending' },
   { status: 'awaiting_confirmation', label: 'Awaiting' },
   { status: 'confirmed', label: 'Confirmed' },
-  { status: 'in_progress', label: 'Making' },
   { status: 'ready', label: 'Ready' },
-  { status: 'delivered', label: 'Delivered' },
+  { status: 'delivered', label: 'Dispatched' },
 ]
 
 const STATUS_ORDER: Record<string, number> = {
   pending: 0,
   awaiting_confirmation: 1,
   confirmed: 2,
-  in_progress: 3,
-  ready: 4,
-  delivered: 5,
+  ready: 3,
+  delivered: 4,
   cancelled: -1,
 }
 
@@ -139,7 +137,7 @@ export default async function InquiryDetailPage({ params }: Props) {
     .select('id, inquiry:inquiries!inner(customer_phone)', { count: 'exact', head: true })
     .eq('inquiry.customer_phone', inquiry.customer_phone)
     .neq('inquiry.id', inquiry.id)
-    .in('status', ['confirmed', 'in_progress', 'ready', 'delivered'])
+    .in('status', ['confirmed', 'ready', 'delivered'])
 
   const isCancelled = inquiry.status === 'cancelled'
 

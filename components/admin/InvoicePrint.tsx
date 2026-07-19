@@ -1,5 +1,6 @@
 import { formatDate, formatTime, formatKWD, GOVERNORATE_LABELS } from '@/lib/utils'
 import { hasAllergens, ALLERGEN_LABELS } from '@/lib/supabase/types'
+import { derivePaymentStatus, balanceOwed } from '@/lib/payments'
 
 interface Props {
   order: {
@@ -18,7 +19,6 @@ interface Props {
     cake_size: string
     flavor: string
     theme?: string
-    decoration_style: string
     occasion?: string
     message_on_cake?: string
     quantity: number
@@ -27,14 +27,13 @@ interface Props {
     admin_price: string | null
     advance_amount: string | null
     advance_paid: boolean
-    balance_paid: boolean
+    fully_paid: boolean
     payment_method: string
     special_requirements?: string
     allergen_nut_free: boolean
-    allergen_gluten_free: boolean
     allergen_dairy_free: boolean
     allergen_egg_free: boolean
-    allergen_halal: boolean
+    allergen_raw_sugar: boolean
     allergen_other: string
     delivery_address?: {
       governorate: string
@@ -66,9 +65,9 @@ export default function InvoicePrint({ order, inquiry, businessPhone, businessIn
     .map(([, label]) => label)
   if (inquiry.allergen_other) allergenList.push(inquiry.allergen_other)
 
-  const total = parseFloat(order.final_price) || 0
   const advance = inquiry.advance_amount ? parseFloat(inquiry.advance_amount) : null
-  const balance = advance !== null ? total - advance : null
+  const balance = balanceOwed(order.final_price, inquiry.advance_amount, inquiry.advance_paid, inquiry.fully_paid)
+  const paymentStatus = derivePaymentStatus(inquiry.fully_paid, inquiry.advance_paid, inquiry.advance_amount)
 
   return (
     <div id="invoice" className="print-only">
@@ -174,10 +173,6 @@ export default function InvoicePrint({ order, inquiry, businessPhone, businessIn
           <span>{inquiry.theme}</span>
         </div>
       )}
-      <div className="inv-row">
-        <span className="inv-label">Decoration:</span>
-        <span>{inquiry.decoration_style}</span>
-      </div>
       {inquiry.occasion && (
         <div className="inv-row">
           <span className="inv-label">Occasion:</span>
@@ -226,18 +221,16 @@ export default function InvoicePrint({ order, inquiry, businessPhone, businessIn
           <span className="inv-mono">{formatKWD(String(advance))}</span>
         </div>
       )}
-      {balance !== null && (
-        inquiry.balance_paid ? (
-          <div className="inv-total-row">
-            <span className="inv-label">Balance</span>
-            <span className="inv-paid">✓ Fully Paid</span>
-          </div>
-        ) : (
-          <div className="inv-total-row">
-            <span className="inv-label">Balance Due</span>
-            <span className="inv-mono">{formatKWD(String(balance))}</span>
-          </div>
-        )
+      {paymentStatus === 'paid' ? (
+        <div className="inv-total-row">
+          <span className="inv-label">Balance</span>
+          <span className="inv-paid">✓ Fully Paid</span>
+        </div>
+      ) : (
+        <div className="inv-total-row">
+          <span className="inv-label">Balance Due</span>
+          <span className="inv-mono">{formatKWD(String(balance))}</span>
+        </div>
       )}
       {inquiry.payment_method && (
         <div className="inv-row">

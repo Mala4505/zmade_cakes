@@ -1,7 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { formatDate, formatKWD } from '@/lib/utils'
 import { PageHeader } from '@/components/admin/PageHeader'
-import { StatusBadge, PriorityBadge } from '@/components/admin/StatusBadge'
+import { PaymentBadge } from '@/components/admin/StatusBadge'
+import { derivePaymentStatus } from '@/lib/payments'
 import OrderStatusActions from './_components/OrderStatusActions'
 import MobileOrderList from './_components/MobileOrderList'
 import Link from 'next/link'
@@ -11,36 +12,50 @@ import { hasAllergens, ALLERGEN_LABELS } from '@/lib/supabase/types'
 
 export const metadata: Metadata = { title: 'Orders' }
 
-const COLUMNS: { status: OrderStatus; label: string }[] = [
+const BASE_COLUMNS: { status: OrderStatus; label: string }[] = [
   { status: 'confirmed', label: 'Confirmed' },
-  { status: 'in_progress', label: 'Making' },
   { status: 'ready', label: 'Ready' },
-  { status: 'delivered', label: 'Delivered' },
+  { status: 'delivered', label: 'Dispatched' },
 ]
 
-async function getOrders() {
+const CANCELLED_COLUMN: { status: OrderStatus; label: string } = {
+  status: 'cancelled',
+  label: 'Cancelled',
+}
+
+async function getOrders(includeCancelled: boolean) {
   const supabase = await createClient()
+  const statuses: OrderStatus[] = includeCancelled
+    ? ['confirmed', 'ready', 'delivered', 'cancelled']
+    : ['confirmed', 'ready', 'delivered']
   const { data } = await supabase
     .from('orders')
     .select(`
       id, status, final_price, delivery_type, created_at, tracking_token,
       inquiry:inquiries (
         id, customer_name, customer_phone, cake_size, flavor, event_date,
-        pickup_time, priority, occasion, theme, message_on_cake,
+        pickup_time, occasion, theme, message_on_cake,
         allergen_nut_free, allergen_gluten_free, allergen_dairy_free, allergen_egg_free,
-        allergen_halal, allergen_other,
-        admin_price, advance_amount, advance_paid, balance_paid
+        allergen_halal, allergen_raw_sugar, allergen_other,
+        admin_price, advance_amount, advance_paid, fully_paid
       )
     `)
-    .in('status', ['confirmed', 'in_progress', 'ready', 'delivered'])
+    .in('status', statuses)
     .order('created_at', { ascending: false })
   return data ?? []
 }
 
-export default async function OrdersPage() {
-  const orders = await getOrders()
+export default async function OrdersPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ cancelled?: string }>
+}) {
+  const { cancelled } = await searchParams
+  const showCancelled = cancelled === '1'
+  const orders = await getOrders(showCancelled)
+  const columns = showCancelled ? [...BASE_COLUMNS, CANCELLED_COLUMN] : BASE_COLUMNS
 
-  const byStatus = COLUMNS.reduce(
+  const byStatus = columns.reduce(
     (acc, col) => {
       acc[col.status] = orders.filter((o: any) => o.status === col.status)
       return acc
@@ -50,7 +65,23 @@ export default async function OrdersPage() {
 
   return (
     <div className="px-4 py-6 md:px-8 md:py-8">
-      <PageHeader title="Orders" subtitle={`${orders.length} active`} />
+      <PageHeader
+        title="Orders"
+        subtitle={`${orders.length} ${showCancelled ? 'total' : 'active'}`}
+        action={
+          <Link
+            href={showCancelled ? '/admin/orders' : '/admin/orders?cancelled=1'}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors"
+            style={
+              showCancelled
+                ? { backgroundColor: 'var(--color-teal-light)', color: 'var(--color-teal-deep)', borderColor: 'transparent' }
+                : { borderColor: 'var(--color-border)', color: 'var(--color-ink-muted)' }
+            }
+          >
+            {showCancelled ? 'Hide cancelled' : 'Show cancelled'}
+          </Link>
+        }
+      />
 
       {/* Mobile list — shown below md breakpoint */}
       <div className="block md:hidden -mx-4">
@@ -59,7 +90,7 @@ export default async function OrdersPage() {
 
       {/* Kanban — hidden on mobile, shown md and up */}
       <div className="hidden md:flex gap-4 overflow-x-auto pb-4">
-        {COLUMNS.map(({ status, label }) => (
+        {columns.map(({ status, label }) => (
           <div key={status} className="flex-none w-72 md:flex-1 min-w-0">
             {/* Column header */}
             <div className="flex items-center justify-between mb-3 px-1">
@@ -109,12 +140,8 @@ function daysUntil(dateStr: string): number {
 
 function OrderCard({ order }: { order: any }) {
   const inq = order.inquiry
-  const priority = inq?.priority ?? 0
   const days = inq?.event_date ? daysUntil(inq.event_date) : null
-  const balanceOwed =
-    inq?.admin_price && inq?.advance_amount && !inq?.balance_paid
-      ? (parseFloat(inq.admin_price) - parseFloat(inq.advance_amount)).toFixed(3)
-      : null
+  const paymentStatus = inq ? derivePaymentStatus(inq.fully_paid, inq.advance_paid, inq.advance_amount) : null
 
   return (
     <div
@@ -122,11 +149,6 @@ function OrderCard({ order }: { order: any }) {
       style={{
         backgroundColor: 'var(--color-surface)',
         borderColor: 'var(--color-border)',
-        borderTop: priority === 2
-          ? '2px solid var(--color-danger)'
-          : priority === 1
-          ? '2px solid var(--color-warning)'
-          : '1px solid var(--color-border)',
       }}
     >
       {/* Header */}
@@ -143,7 +165,7 @@ function OrderCard({ order }: { order: any }) {
             {inq?.cake_size} · {inq?.flavor}
           </p>
         </div>
-        {priority > 0 && <PriorityBadge priority={priority as 0 | 1 | 2} />}
+        {paymentStatus && <PaymentBadge status={paymentStatus} />}
       </div>
 
       <div className="flex items-center gap-3 flex-wrap">
@@ -201,16 +223,7 @@ function OrderCard({ order }: { order: any }) {
         </div>
       )}
 
-      {balanceOwed && (
-        <div
-          className="flex items-center gap-1.5 text-[11px] rounded px-2 py-1"
-          style={{ backgroundColor: 'var(--color-warning-light)', color: 'var(--color-warning)' }}
-        >
-          <span>Balance: KD {balanceOwed}</span>
-        </div>
-      )}
-
-      <OrderStatusActions orderId={order.id} currentStatus={order.status} />
+      {order.status !== 'cancelled' && <OrderStatusActions orderId={order.id} currentStatus={order.status} />}
     </div>
   )
 }

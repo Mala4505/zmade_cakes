@@ -9,8 +9,7 @@ type ActionResult<T> =
   | { data: null; error: string }
 
 const VALID_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
-  confirmed: ['in_progress', 'cancelled'],
-  in_progress: ['ready', 'cancelled'],
+  confirmed: ['ready', 'cancelled'],
   ready: ['delivered', 'cancelled'],
   delivered: [],
   cancelled: [],
@@ -49,11 +48,11 @@ export async function updateOrderStatus(id: string, status: OrderStatus): Promis
   if (status === 'ready' || status === 'delivered') {
     await supabase.from('notifications').insert({
       type: 'order_update',
-      title: status === 'ready' ? 'Order Ready for Pickup' : 'Order Delivered',
+      title: status === 'ready' ? 'Order Ready for Pickup' : 'Order Dispatched',
       body:
         status === 'ready'
           ? `Order for ${current.inquiry_id.slice(0, 8)} is ready!`
-          : `Order for ${current.inquiry_id.slice(0, 8)} has been delivered`,
+          : `Order for ${current.inquiry_id.slice(0, 8)} has been dispatched`,
       inquiry_id: current.inquiry_id,
       order_id: id,
       is_read: false,

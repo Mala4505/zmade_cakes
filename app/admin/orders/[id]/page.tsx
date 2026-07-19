@@ -82,9 +82,9 @@ export default async function OrderDetailPage({ params }: Props) {
           {inq?.message_on_cake && <Detail label="Message" value={inq.message_on_cake} />}
           <Detail label="Quantity" value={String(inq?.quantity ?? 1)} mono />
           <Detail label="Final Price" value={formatKWD(order.final_price?.toString())} mono />
-          <Detail label="Advance" value={inq?.advance_amount ? formatKWD(inq.advance_amount) : '—'} mono />
+          <Detail label="Deposit amount (KD)" value={inq?.advance_amount ? formatKWD(inq.advance_amount) : '—'} mono />
           <Detail
-            label="Advance Status"
+            label="Deposit Status"
             value={inq?.advance_paid ? 'Paid' : 'Unpaid'}
           />
           <Detail label="Payment" value={inq?.payment_method || '—'} />

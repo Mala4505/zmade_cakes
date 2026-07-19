@@ -77,7 +77,7 @@ async function getAnalyticsData() {
 
   // Conversion & avg order value
   const all = allStatusRes.data ?? []
-  const confirmedStatuses = ['confirmed', 'in_progress', 'ready', 'delivered']
+  const confirmedStatuses = ['confirmed', 'ready', 'delivered']
   const confirmedCount = all.filter((r) => confirmedStatuses.includes(r.status)).length
   const conversionRate = all.length > 0 ? Math.round((confirmedCount / all.length) * 100) : 0
 

@@ -7,9 +7,8 @@ import { ArrowRight } from '@phosphor-icons/react'
 import type { OrderStatus } from '@/lib/supabase/types'
 
 const NEXT_STATUS: Partial<Record<OrderStatus, { status: OrderStatus; label: string }>> = {
-  confirmed: { status: 'in_progress', label: 'Start Making' },
-  in_progress: { status: 'ready', label: 'Mark Ready' },
-  ready: { status: 'delivered', label: 'Mark Delivered' },
+  confirmed: { status: 'ready', label: 'Mark Ready' },
+  ready: { status: 'delivered', label: 'Mark Dispatched' },
 }
 
 export default function OrderStatusActions({

@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { formatDate, formatKWD } from '@/lib/utils'
-import { PriorityBadge } from '@/components/admin/StatusBadge'
+import { PaymentBadge } from '@/components/admin/StatusBadge'
+import { derivePaymentStatus } from '@/lib/payments'
 import { hasAllergens, ALLERGEN_LABELS, type AllergenFlags } from '@/lib/supabase/types'
 
 interface OrderInquiry {
@@ -8,15 +9,14 @@ interface OrderInquiry {
   cake_size?: string | null
   flavor?: string | null
   event_date?: string | null
-  priority?: number | null
   admin_price?: string | number | null
   advance_amount?: string | number | null
-  balance_paid?: boolean | null
+  advance_paid?: boolean | null
+  fully_paid?: boolean | null
   allergen_nut_free?: boolean | null
-  allergen_gluten_free?: boolean | null
   allergen_dairy_free?: boolean | null
   allergen_egg_free?: boolean | null
-  allergen_halal?: boolean | null
+  allergen_raw_sugar?: boolean | null
   allergen_other?: string | null
 }
 
@@ -29,12 +29,12 @@ interface MobileOrder {
 
 const STATUS_LABELS: Record<string, string> = {
   confirmed: 'Confirmed',
-  in_progress: 'Making',
   ready: 'Ready',
-  delivered: 'Delivered',
+  delivered: 'Dispatched',
+  cancelled: 'Cancelled',
 }
 
-const STATUS_ORDER = ['confirmed', 'in_progress', 'ready', 'delivered']
+const STATUS_ORDER = ['confirmed', 'ready', 'delivered', 'cancelled']
 
 function daysUntil(dateStr: string): number {
   const today = new Date()
@@ -46,12 +46,10 @@ function daysUntil(dateStr: string): number {
 
 function MobileOrderCard({ order }: { order: MobileOrder }) {
   const inq = order.inquiry
-  const priority = inq?.priority ?? 0
   const days = inq?.event_date ? daysUntil(inq.event_date) : null
-  const balanceOwed =
-    inq?.admin_price && inq?.advance_amount && !inq?.balance_paid
-      ? (parseFloat(String(inq.admin_price)) - parseFloat(String(inq.advance_amount))).toFixed(3)
-      : null
+  const paymentStatus = inq
+    ? derivePaymentStatus(inq.fully_paid ?? false, inq.advance_paid ?? false, inq.advance_amount ?? null)
+    : null
 
   return (
     <Link
@@ -59,7 +57,7 @@ function MobileOrderCard({ order }: { order: MobileOrder }) {
       className="block rounded-xl border p-4 flex flex-col gap-2"
       style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)', textDecoration: 'none' }}
     >
-      {/* Name + priority */}
+      {/* Name + payment status */}
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="text-sm font-semibold truncate" style={{ color: 'var(--color-ink)' }}>
@@ -69,7 +67,7 @@ function MobileOrderCard({ order }: { order: MobileOrder }) {
             {[inq?.cake_size, inq?.flavor].filter(Boolean).join(' · ') || '—'}
           </p>
         </div>
-        {priority > 0 && <PriorityBadge priority={priority as 1 | 2} />}
+        {paymentStatus && <PaymentBadge status={paymentStatus} />}
       </div>
 
       {/* Date + countdown + price */}
@@ -124,16 +122,6 @@ function MobileOrderCard({ order }: { order: MobileOrder }) {
               {inq.allergen_other.slice(0, 20)}
             </span>
           )}
-        </div>
-      )}
-
-      {/* Balance owed */}
-      {balanceOwed && (
-        <div
-          className="flex items-center gap-1.5 text-[11px] rounded px-2 py-1"
-          style={{ backgroundColor: 'var(--color-warning-light)', color: 'var(--color-warning)' }}
-        >
-          <span>Balance: KD {balanceOwed}</span>
         </div>
       )}
     </Link>

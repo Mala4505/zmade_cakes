@@ -2,7 +2,8 @@ import { createClient } from '@/lib/supabase/server'
 import { formatDate, formatKWD } from '@/lib/utils'
 import { PageHeader } from '@/components/admin/PageHeader'
 import { InquiryStatusSelect } from '@/components/admin/InquiryStatusSelect'
-import { InquiryPaymentSelect } from '@/components/admin/InquiryPaymentSelect'
+import { PaymentBadge } from '@/components/admin/StatusBadge'
+import { derivePaymentStatus, balanceOwed } from '@/lib/payments'
 import Link from 'next/link'
 import { Plus } from '@phosphor-icons/react/dist/ssr'
 import type { Metadata } from 'next'
@@ -17,9 +18,8 @@ const STATUS_OPTIONS: { value: InquiryStatus | 'all'; label: string }[] = [
   { value: 'pending', label: 'Pending' },
   { value: 'awaiting_confirmation', label: 'Awaiting' },
   { value: 'confirmed', label: 'Confirmed' },
-  { value: 'in_progress', label: 'Making' },
   { value: 'ready', label: 'Ready' },
-  { value: 'delivered', label: 'Delivered' },
+  { value: 'delivered', label: 'Dispatched' },
   { value: 'cancelled', label: 'Cancelled' },
 ]
 
@@ -42,7 +42,7 @@ async function getInquiries(status: string, payment: string, sort: string, q?: s
   let query = supabase
     .from('inquiries')
     .select(
-      'id, customer_name, customer_phone, cake_size, flavor, occasion, event_date, status, priority, admin_price, advance_amount, balance_paid, payment_status, created_at, customer_id',
+      'id, customer_name, customer_phone, cake_size, flavor, occasion, event_date, status, admin_price, advance_amount, advance_paid, fully_paid, payment_status, created_at, customer_id',
       { count: 'exact' }
     )
 
@@ -51,7 +51,7 @@ async function getInquiries(status: string, payment: string, sort: string, q?: s
   } else if (sort === 'price') {
     query = query.order('admin_price', { ascending: false, nullsFirst: false })
   } else {
-    query = query.order('priority', { ascending: false }).order('event_date', { ascending: true })
+    query = query.order('event_date', { ascending: true })
   }
 
   if (status && status !== 'all') {
@@ -89,12 +89,6 @@ function isUrgent(eventDate: string): { label: string } | null {
   if (diffHours <= 24) return { label: 'Today' }
   if (diffHours <= 48) return { label: 'Tomorrow' }
   return null
-}
-
-function priorityDot(priority: number) {
-  if (priority === 2) return 'var(--color-danger)'
-  if (priority === 1) return '#f59e0b'
-  return 'var(--color-border)'
 }
 
 const selectStyle: React.CSSProperties = {
@@ -205,7 +199,6 @@ export default async function InquiriesPage({
         ) : (
           <table className="w-full text-sm border-collapse">
             <colgroup>
-              <col style={{ width: 20 }} />
               <col />
               <col style={{ width: 110 }} />
               <col style={{ width: 90 }} />
@@ -218,11 +211,11 @@ export default async function InquiriesPage({
                 const hasNoPrice = inq.admin_price === null || inq.admin_price === undefined
                 const urgent = isUrgent(inq.event_date)
                 const isReturning = inq.customer_id && (customerInquiryCounts[inq.customer_id] ?? 0) > 1
-                const balance =
-                  inq.admin_price && inq.advance_amount
-                    ? parseFloat(inq.admin_price) - parseFloat(inq.advance_amount)
-                    : null
-                const isSettled = inq.balance_paid || (balance !== null && balance <= 0)
+                const balance = inq.admin_price
+                  ? balanceOwed(inq.admin_price, inq.advance_amount, inq.advance_paid, inq.fully_paid)
+                  : null
+                const isSettled = balance !== null && balance <= 0
+                const paymentStatus = derivePaymentStatus(inq.fully_paid, inq.advance_paid, inq.advance_amount)
 
                 return (
                   <tr
@@ -235,14 +228,6 @@ export default async function InquiriesPage({
                     className="border-b last:border-0 hover:bg-[var(--color-surface-raised)] transition-colors"
                     data-has-no-price={hasNoPrice ? 'true' : undefined}
                   >
-                    {/* Priority dot */}
-                    <td className="pl-4 pr-1 py-3 align-middle">
-                      <span
-                        className="block w-2 h-2 rounded-full"
-                        style={{ backgroundColor: priorityDot(inq.priority) }}
-                      />
-                    </td>
-
                     {/* Customer */}
                     <td className="px-3 py-3 align-middle">
                       <Link href={`/admin/inquiries/${inq.id}`} className="block">
@@ -328,12 +313,9 @@ export default async function InquiriesPage({
                       <InquiryStatusSelect inquiryId={inq.id} value={inq.status as InquiryStatus} />
                     </td>
 
-                    {/* Payment inline select */}
+                    {/* Payment status (read-only, computed) */}
                     <td className="px-3 py-3 align-middle pr-4">
-                      <InquiryPaymentSelect
-                        inquiryId={inq.id}
-                        value={(inq.payment_status as PaymentStatus) ?? 'unpaid'}
-                      />
+                      <PaymentBadge status={paymentStatus} />
                     </td>
                   </tr>
                 )

@@ -130,9 +130,6 @@ export default async function ConfirmPage({ params }: Props) {
             {inquiry.theme && inquiry.theme !== '' && (
               <SummaryRow label="Theme" value={inquiry.theme} />
             )}
-            {inquiry.decoration_style && (
-              <SummaryRow label="Decoration" value={inquiry.decoration_style} />
-            )}
             <SummaryRow label="Quantity" value={String(inquiry.quantity)} mono />
             <SummaryRow label="Event Date" value={formatDate(inquiry.event_date)} mono />
             {inquiry.pickup_time && (
@@ -179,7 +176,7 @@ export default async function ConfirmPage({ params }: Props) {
         </section>
 
         {/* Allergen Requirements */}
-        {(inquiry.allergen_nut_free || inquiry.allergen_gluten_free || inquiry.allergen_dairy_free || inquiry.allergen_egg_free || inquiry.allergen_halal || inquiry.allergen_other) && (
+        {(inquiry.allergen_nut_free || inquiry.allergen_dairy_free || inquiry.allergen_egg_free || inquiry.allergen_raw_sugar || inquiry.allergen_other) && (
           <section
             className="rounded-2xl border p-4"
             style={{ borderColor: 'var(--color-danger)', backgroundColor: 'var(--color-danger-light)' }}
@@ -189,10 +186,9 @@ export default async function ConfirmPage({ params }: Props) {
             </p>
             <div className="flex flex-wrap gap-2">
               {inquiry.allergen_nut_free && <AllergenPill label="Nut-free" />}
-              {inquiry.allergen_gluten_free && <AllergenPill label="Gluten-free" />}
               {inquiry.allergen_dairy_free && <AllergenPill label="Dairy-free" />}
               {inquiry.allergen_egg_free && <AllergenPill label="Egg-free" />}
-              {inquiry.allergen_halal && <AllergenPill label="Halal-certified" />}
+              {inquiry.allergen_raw_sugar && <AllergenPill label="Raw sugar" />}
               {inquiry.allergen_other && (
                 <span
                   className="text-xs font-medium px-3 py-1.5 rounded-full"

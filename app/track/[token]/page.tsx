@@ -12,16 +12,14 @@ export const metadata: Metadata = { title: 'Track Your Order — ZMade Cakes' }
 
 const STEPS: { status: OrderStatus; label: string; sublabel: string }[] = [
   { status: 'confirmed', label: 'Order Confirmed', sublabel: 'Your order is in Zainab\'s hands' },
-  { status: 'in_progress', label: 'Being Made', sublabel: 'Zainab is in her kitchen creating something special for you' },
   { status: 'ready', label: 'Ready', sublabel: 'Your cake is ready — please arrange pickup or await delivery' },
   { status: 'delivered', label: 'Delivered', sublabel: 'Enjoy every bite. Thank you for choosing ZMade' },
 ]
 
 const STATUS_ORDER: Record<OrderStatus, number> = {
   confirmed: 0,
-  in_progress: 1,
-  ready: 2,
-  delivered: 3,
+  ready: 1,
+  delivered: 2,
   cancelled: -1,
 }
 

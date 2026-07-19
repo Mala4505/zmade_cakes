@@ -34,7 +34,13 @@ export async function POST(req: NextRequest) {
       .select('id').single()
     if (customerError) console.error('[inquiries] customer upsert failed:', customerError.message)
 
-    const { address_governorate, address_area, address_block, address_street, address_house_no, address_extra_notes, ...inquiryFields } = data
+    // allergen_gluten_free / allergen_halal are validated by the public form schema but are no
+    // longer settable columns (Row-only, see lib/supabase/types.ts) — strip before insert.
+    const {
+      address_governorate, address_area, address_block, address_street, address_house_no, address_extra_notes,
+      allergen_gluten_free: _allergenGlutenFree, allergen_halal: _allergenHalal,
+      ...inquiryFields
+    } = data
 
     const { data: inquiry, error: inquiryError } = await supabase
       .from('inquiries')
@@ -44,10 +50,8 @@ export async function POST(req: NextRequest) {
         admin_price: null,
         advance_amount: null,
         advance_paid: false,
-        balance_paid: false,
         payment_method: '',
         admin_notes: '',
-        priority: 0,
         customer_id: customer?.id ?? null,
         status: 'pending',
       })
