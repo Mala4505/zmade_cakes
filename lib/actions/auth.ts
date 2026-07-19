@@ -17,7 +17,7 @@ export async function signIn(
 
   if (error) return 'Invalid email or password.'
 
-  redirect('/admin')
+  redirect('/admin/calendar')
 
 }
 

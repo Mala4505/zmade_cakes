@@ -12,7 +12,7 @@ export default async function LoginPage() {
     data: { user },
   } = await supabase.auth.getUser()
 
-  if (user) redirect('/admin')
+  if (user) redirect('/admin/calendar')
 
   return (
     <main className="min-h-svh flex items-center justify-center px-4 py-16"
