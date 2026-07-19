@@ -3,8 +3,10 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { confirmInquiry } from '@/lib/actions/inquiries'
+import { customerConfirmSchema } from '@/lib/validations/confirm'
 import { CheckCircle, ArrowClockwise, WarningCircle } from '@phosphor-icons/react'
 import { GOVERNORATE_LABELS } from '@/lib/utils'
+import { Field, Input, Textarea, Select } from '@/components/ui'
 
 type Address = {
   governorate: string
@@ -27,12 +29,7 @@ interface Props {
 
 const GOVERNORATES = Object.entries(GOVERNORATE_LABELS) as [string, string][]
 
-const inputClass = 'w-full rounded-lg border px-3 py-2.5 text-sm outline-none transition-colors focus:ring-2'
-const inputStyle = {
-  borderColor: 'var(--color-border)',
-  backgroundColor: 'var(--color-surface)',
-  color: 'var(--color-ink-secondary)',
-}
+type ConfirmAction = 'confirm' | 'request_changes'
 
 export default function ConfirmForm({
   token,
@@ -45,6 +42,7 @@ export default function ConfirmForm({
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [requestSent, setRequestSent] = useState(false)
 
   const [pickupTime, setPickupTime] = useState(currentPickupTime ?? '')
@@ -59,7 +57,16 @@ export default function ConfirmForm({
   const [houseNo, setHouseNo] = useState(existingAddress?.house_no ?? '')
   const [extraNotes, setExtraNotes] = useState(existingAddress?.extra_notes ?? '')
 
-  function buildPayload(action: 'confirm' | 'request_changes') {
+  function clearFieldError(key: string) {
+    setFieldErrors((prev) => {
+      if (!(key in prev)) return prev
+      const next = { ...prev }
+      delete next[key]
+      return next
+    })
+  }
+
+  function buildPayload(action: ConfirmAction) {
     const base = {
       pickup_time: pickupTime || null,
       message_on_cake: messageOnCake,
@@ -67,29 +74,62 @@ export default function ConfirmForm({
       customer_comments: customerComments,
       action,
     }
-    if (deliveryType === 'delivery' && governorate) {
-      return { ...base, delivery_address: { governorate, area, block, street, house_no: houseNo, extra_notes: extraNotes } }
+    const addressStarted = [governorate, area, block, street, houseNo].some(
+      (v) => v.trim() !== ''
+    )
+    // Confirming a delivery order requires a complete address; a change
+    // request only validates the address if the customer started filling it.
+    if (deliveryType === 'delivery' && (action === 'confirm' || addressStarted)) {
+      return {
+        ...base,
+        delivery_address: {
+          governorate,
+          area,
+          block,
+          street,
+          house_no: houseNo,
+          extra_notes: extraNotes,
+        },
+      }
     }
     return base
   }
 
-  function handleConfirm() {
+  function submit(action: ConfirmAction) {
     setError(null)
+
+    const parsed = customerConfirmSchema.safeParse(buildPayload(action))
+    if (!parsed.success) {
+      const next: Record<string, string> = {}
+      for (const issue of parsed.error.issues) {
+        const key = issue.path.join('.')
+        if (!next[key]) next[key] = issue.message
+      }
+      setFieldErrors(next)
+      requestAnimationFrame(() => {
+        document.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()
+      })
+      return
+    }
+
+    setFieldErrors({})
     startTransition(async () => {
-      const result = await confirmInquiry(token, buildPayload('confirm'))
-      if (result.error) { setError(result.error); return }
+      const result = await confirmInquiry(token, parsed.data)
+      if (result.error) {
+        setError(result.error)
+        return
+      }
+      if (result.fieldErrors) {
+        setError('Please check your details and try again.')
+        return
+      }
+      if (action === 'request_changes') {
+        setRequestSent(true)
+        return
+      }
       if (result.data?.order?.tracking_token) {
         router.push(`/track/${result.data.order.tracking_token}`)
       }
-    })
-  }
-
-  function handleRequestChanges() {
-    setError(null)
-    startTransition(async () => {
-      const result = await confirmInquiry(token, buildPayload('request_changes'))
-      if (result.error) { setError(result.error); return }
-      setRequestSent(true)
     })
   }
 
@@ -125,39 +165,62 @@ export default function ConfirmForm({
         </h2>
 
         {/* Pickup time */}
-        <Field label="Pickup / Delivery Time">
-          <input
+        <Field
+          label="Pickup / Delivery Time"
+          htmlFor="confirm-pickup-time"
+          error={fieldErrors['pickup_time']}
+        >
+          <Input
+            id="confirm-pickup-time"
             type="time"
             value={pickupTime}
-            onChange={(e) => setPickupTime(e.target.value)}
-            className={inputClass}
-            style={inputStyle}
+            onChange={(e) => {
+              setPickupTime(e.target.value)
+              clearFieldError('pickup_time')
+            }}
+            aria-invalid={fieldErrors['pickup_time'] ? true : undefined}
           />
         </Field>
 
         {/* Message on cake */}
-        <Field label="Message on Cake" hint="Max 255 characters">
-          <input
+        <Field
+          label="Message on Cake"
+          htmlFor="confirm-message-on-cake"
+          hint="Max 255 characters"
+          error={fieldErrors['message_on_cake']}
+        >
+          <Input
+            id="confirm-message-on-cake"
             type="text"
             value={messageOnCake}
-            onChange={(e) => setMessageOnCake(e.target.value)}
+            onChange={(e) => {
+              setMessageOnCake(e.target.value)
+              clearFieldError('message_on_cake')
+            }}
             maxLength={255}
             placeholder="e.g. Happy Birthday Sarah!"
-            className={inputClass}
-            style={inputStyle}
+            aria-invalid={fieldErrors['message_on_cake'] ? true : undefined}
           />
         </Field>
 
         {/* Special requirements */}
-        <Field label="Special Requirements" hint="Allergies, extra details, etc.">
-          <textarea
+        <Field
+          label="Special Requirements"
+          htmlFor="confirm-special-requirements"
+          hint="Allergies, extra details, etc."
+          error={fieldErrors['special_requirements']}
+        >
+          <Textarea
+            id="confirm-special-requirements"
             value={specialRequirements}
-            onChange={(e) => setSpecialRequirements(e.target.value)}
+            onChange={(e) => {
+              setSpecialRequirements(e.target.value)
+              clearFieldError('special_requirements')
+            }}
             maxLength={1000}
             rows={3}
             placeholder="Any dietary requirements or special requests?"
-            className={inputClass}
-            style={{ ...inputStyle, resize: 'vertical' }}
+            aria-invalid={fieldErrors['special_requirements'] ? true : undefined}
           />
         </Field>
 
@@ -167,59 +230,111 @@ export default function ConfirmForm({
             <p className="text-xs font-medium" style={{ color: 'var(--color-ink-muted)' }}>
               Delivery Address
             </p>
-            <select
-              value={governorate}
-              onChange={(e) => setGovernorate(e.target.value)}
-              className={inputClass}
-              style={inputStyle}
+            <Field
+              label="Governorate"
+              htmlFor="confirm-governorate"
+              error={fieldErrors['delivery_address.governorate']}
             >
-              <option value="">Select Governorate</option>
-              {GOVERNORATES.map(([val, label]) => (
-                <option key={val} value={val}>{label}</option>
-              ))}
-            </select>
-            <input
-              type="text"
-              value={area}
-              onChange={(e) => setArea(e.target.value)}
-              placeholder="Area"
-              className={inputClass}
-              style={inputStyle}
-            />
+              <Select
+                id="confirm-governorate"
+                value={governorate}
+                onChange={(e) => {
+                  setGovernorate(e.target.value)
+                  clearFieldError('delivery_address.governorate')
+                }}
+                aria-invalid={fieldErrors['delivery_address.governorate'] ? true : undefined}
+              >
+                <option value="">Select governorate</option>
+                {GOVERNORATES.map(([val, label]) => (
+                  <option key={val} value={val}>{label}</option>
+                ))}
+              </Select>
+            </Field>
+            <Field
+              label="Area"
+              htmlFor="confirm-area"
+              error={fieldErrors['delivery_address.area']}
+            >
+              <Input
+                id="confirm-area"
+                type="text"
+                value={area}
+                onChange={(e) => {
+                  setArea(e.target.value)
+                  clearFieldError('delivery_address.area')
+                }}
+                placeholder="e.g. Salmiya"
+                aria-invalid={fieldErrors['delivery_address.area'] ? true : undefined}
+              />
+            </Field>
             <div className="grid grid-cols-2 gap-3">
-              <input
-                type="text"
-                value={block}
-                onChange={(e) => setBlock(e.target.value)}
-                placeholder="Block"
-                className={inputClass}
-                style={inputStyle}
-              />
-              <input
-                type="text"
-                value={street}
-                onChange={(e) => setStreet(e.target.value)}
-                placeholder="Street"
-                className={inputClass}
-                style={inputStyle}
-              />
+              <Field
+                label="Block"
+                htmlFor="confirm-block"
+                error={fieldErrors['delivery_address.block']}
+              >
+                <Input
+                  id="confirm-block"
+                  type="text"
+                  value={block}
+                  onChange={(e) => {
+                    setBlock(e.target.value)
+                    clearFieldError('delivery_address.block')
+                  }}
+                  aria-invalid={fieldErrors['delivery_address.block'] ? true : undefined}
+                />
+              </Field>
+              <Field
+                label="Street"
+                htmlFor="confirm-street"
+                error={fieldErrors['delivery_address.street']}
+              >
+                <Input
+                  id="confirm-street"
+                  type="text"
+                  value={street}
+                  onChange={(e) => {
+                    setStreet(e.target.value)
+                    clearFieldError('delivery_address.street')
+                  }}
+                  aria-invalid={fieldErrors['delivery_address.street'] ? true : undefined}
+                />
+              </Field>
             </div>
-            <input
-              type="text"
-              value={houseNo}
-              onChange={(e) => setHouseNo(e.target.value)}
-              placeholder="House / Flat number"
-              className={inputClass}
-              style={inputStyle}
-            />
-            <input
-              type="text"
-              value={extraNotes}
-              onChange={(e) => setExtraNotes(e.target.value)}
-              placeholder="Delivery notes (optional)"
-              className={inputClass}
-              style={inputStyle}
-            />
+            <Field
+              label="House / Flat Number"
+              htmlFor="confirm-house-no"
+              error={fieldErrors['delivery_address.house_no']}
+            >
+              <Input
+                id="confirm-house-no"
+                type="text"
+                value={houseNo}
+                onChange={(e) => {
+                  setHouseNo(e.target.value)
+                  clearFieldError('delivery_address.house_no')
+                }}
+                aria-invalid={fieldErrors['delivery_address.house_no'] ? true : undefined}
+              />
+            </Field>
+            <Field
+              label="Delivery Notes"
+              htmlFor="confirm-extra-notes"
+              hint="Optional"
+              error={fieldErrors['delivery_address.extra_notes']}
+            >
+              <Input
+                id="confirm-extra-notes"
+                type="text"
+                value={extraNotes}
+                onChange={(e) => {
+                  setExtraNotes(e.target.value)
+                  clearFieldError('delivery_address.extra_notes')
+                }}
+                placeholder="Landmark, gate colour, etc."
+                aria-invalid={fieldErrors['delivery_address.extra_notes'] ? true : undefined}
+              />
+            </Field>
           </div>
         )}
       </section>
@@ -230,20 +345,29 @@ export default function ConfirmForm({
         style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
       >
         <h2
+          id="confirm-comments-label"
           className="text-xs font-semibold uppercase tracking-widest mb-3"
           style={{ color: 'var(--color-ink-muted)' }}
         >
           Message for Zainab
         </h2>
-        <textarea
+        <Textarea
           value={customerComments}
-          onChange={(e) => setCustomerComments(e.target.value)}
+          onChange={(e) => {
+            setCustomerComments(e.target.value)
+            clearFieldError('customer_comments')
+          }}
           maxLength={2000}
           rows={4}
           placeholder="Any questions or changes you'd like to discuss?"
-          className={inputClass}
-          style={{ ...inputStyle, resize: 'vertical' }}
+          aria-labelledby="confirm-comments-label"
+          aria-invalid={fieldErrors['customer_comments'] ? true : undefined}
         />
+        {fieldErrors['customer_comments'] && (
+          <p className="mt-1 text-xs text-[var(--color-danger)]">
+            {fieldErrors['customer_comments']}
+          </p>
+        )}
       </section>
 
       {/* Error */}
@@ -261,7 +385,7 @@ export default function ConfirmForm({
       <div className="flex flex-col gap-3">
         <button
           type="button"
-          onClick={handleConfirm}
+          onClick={() => submit('confirm')}
           disabled={pending}
           className="flex items-center justify-center gap-2 py-3.5 rounded-xl text-sm font-semibold transition-colors disabled:opacity-60"
           style={{ backgroundColor: 'var(--color-teal)', color: 'var(--color-cream)' }}
@@ -281,7 +405,7 @@ export default function ConfirmForm({
 
         <button
           type="button"
-          onClick={handleRequestChanges}
+          onClick={() => submit('request_changes')}
           disabled={pending}
           className="flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-medium border transition-colors disabled:opacity-60"
           style={{
@@ -293,32 +417,6 @@ export default function ConfirmForm({
           Request Changes
         </button>
       </div>
-    </div>
-  )
-}
-
-function Field({
-  label,
-  hint,
-  children,
-}: {
-  label: string
-  hint?: string
-  children: React.ReactNode
-}) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <div className="flex items-baseline gap-2">
-        <label className="text-sm font-medium" style={{ color: 'var(--color-ink)' }}>
-          {label}
-        </label>
-        {hint && (
-          <span className="text-xs" style={{ color: 'var(--color-ink-muted)' }}>
-            {hint}
-          </span>
-        )}
-      </div>
-      {children}
     </div>
   )
 }

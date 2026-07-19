@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useSearchParams, useRouter } from 'next/navigation'
 import PhoneInput from '@/components/PhoneInput'
 import { appUrl } from '@/lib/links'
+import { KUWAIT_PHONE_REGEX } from '@/lib/validations/inquiry'
 import { StatusBadge } from '@/components/admin/StatusBadge'
 import type { InquiryStatus, OrderStatus } from '@/lib/supabase/types'
 
@@ -50,6 +51,7 @@ function MyOrdersContent({ businessPhone, businessInstagram }: Props) {
   const [loading, setLoading] = useState(false)
   const [searched, setSearched] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [fieldErrors, setFieldErrors] = useState<{ name?: string; phone?: string }>({})
   const [portalToken, setPortalToken] = useState<string | null>(null)
   const [tokenMode, setTokenMode] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -94,14 +96,19 @@ function MyOrdersContent({ businessPhone, businessInstagram }: Props) {
 
   async function handleSearch() {
     if (loading) return
+
+    const nextFieldErrors: { name?: string; phone?: string } = {}
     if (!name.trim() || name.trim().length < 2) {
-      setError('Please enter your full name (at least 2 characters).')
+      nextFieldErrors.name = 'Please enter your full name (at least 2 characters).'
+    }
+    if (!KUWAIT_PHONE_REGEX.test(phone.trim())) {
+      nextFieldErrors.phone = 'Enter a valid phone number (e.g. +965 6685 7560).'
+    }
+    if (nextFieldErrors.name || nextFieldErrors.phone) {
+      setFieldErrors(nextFieldErrors)
       return
     }
-    if (!phone.trim() || phone.trim().length < 6) {
-      setError('Please enter a valid phone number.')
-      return
-    }
+    setFieldErrors({})
 
     setLoading(true)
     setError(null)
@@ -199,11 +206,16 @@ function MyOrdersContent({ businessPhone, businessInstagram }: Props) {
                 id="customer-name"
                 type="text"
                 value={name}
-                onChange={(e) => setName(e.target.value)}
+                onChange={(e) => {
+                  setName(e.target.value)
+                  setFieldErrors((prev) => (prev.name ? { ...prev, name: undefined } : prev))
+                }}
                 placeholder="As you gave when ordering"
+                aria-invalid={fieldErrors.name ? true : undefined}
+                aria-describedby={fieldErrors.name ? 'customer-name-error' : undefined}
                 className="rounded-lg border px-3 py-2 text-sm w-full outline-none transition-all"
                 style={{
-                  borderColor: 'var(--color-border)',
+                  borderColor: fieldErrors.name ? 'var(--color-danger)' : 'var(--color-border)',
                   backgroundColor: 'var(--color-surface)',
                   color: 'var(--color-ink)',
                 }}
@@ -213,36 +225,56 @@ function MyOrdersContent({ businessPhone, businessInstagram }: Props) {
                 }}
                 onBlur={(e) => {
                   e.currentTarget.style.boxShadow = ''
-                  e.currentTarget.style.borderColor = 'var(--color-border)'
+                  e.currentTarget.style.borderColor = fieldErrors.name
+                    ? 'var(--color-danger)'
+                    : 'var(--color-border)'
                 }}
               />
+              {fieldErrors.name && (
+                <p id="customer-name-error" className="text-xs" style={{ color: 'var(--color-danger)' }}>
+                  {fieldErrors.name}
+                </p>
+              )}
             </div>
 
             {/* Phone input + submit */}
-            <div className="flex gap-2">
-              <PhoneInput
-                value={phone}
-                onChange={(value) => setPhone(value)}
-                className="flex-1"
-              />
-              <button
-                type="submit"
-                disabled={loading}
-                className="px-4 py-2 rounded-lg text-sm font-medium shrink-0 transition-opacity disabled:opacity-60"
-                style={{
-                  backgroundColor: 'var(--color-teal)',
-                  color: 'var(--color-cream)',
-                }}
-              >
-                {loading ? 'Searching…' : 'Search'}
-              </button>
+            <div className="flex flex-col gap-1">
+              <div className="flex gap-2">
+                <PhoneInput
+                  id="customer-phone"
+                  value={phone}
+                  onChange={(value) => {
+                    setPhone(value)
+                    setFieldErrors((prev) => (prev.phone ? { ...prev, phone: undefined } : prev))
+                  }}
+                  className="flex-1"
+                  aria-invalid={fieldErrors.phone ? true : undefined}
+                  aria-describedby={fieldErrors.phone ? 'customer-phone-error' : undefined}
+                />
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="px-4 py-2 rounded-lg text-sm font-medium shrink-0 transition-opacity disabled:opacity-60"
+                  style={{
+                    backgroundColor: 'var(--color-teal)',
+                    color: 'var(--color-cream)',
+                  }}
+                >
+                  {loading ? 'Searching…' : 'Search'}
+                </button>
+              </div>
+              {fieldErrors.phone && (
+                <p id="customer-phone-error" className="text-xs" style={{ color: 'var(--color-danger)' }}>
+                  {fieldErrors.phone}
+                </p>
+              )}
             </div>
           </form>
         )}
 
         {/* Error */}
         {error && (
-          <p className="text-sm" style={{ color: '#dc2626' }}>
+          <p className="text-sm" style={{ color: 'var(--color-danger)' }}>
             {error}
           </p>
         )}

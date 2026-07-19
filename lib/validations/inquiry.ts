@@ -87,14 +87,10 @@ export const inquiryUpdateSchema = z
   .transform(clearThemeWhenNormal)
 
 export const deliveryAddressSchema = z.object({
-  governorate: z.enum([
-    'capital',
-    'hawalli',
-    'farwaniyah',
-    'ahmadi',
-    'jahra',
-    'mubarak_al_kabeer',
-  ]),
+  governorate: z.enum(
+    ['capital', 'hawalli', 'farwaniyah', 'ahmadi', 'jahra', 'mubarak_al_kabeer'],
+    { error: 'Select a governorate' }
+  ),
   area: z.string().min(1, 'Area is required').max(100).trim(),
   block: z.string().min(1, 'Block is required').max(20).trim(),
   street: z.string().min(1, 'Street is required').max(100).trim(),
