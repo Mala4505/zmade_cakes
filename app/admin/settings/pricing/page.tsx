@@ -18,6 +18,9 @@ export default async function PricingPage() {
     getSettings(['pricing_matrix', 'min_price_guard', 'rush_multiplier']),
   ])
 
+  if (sizesRes.error) throw new Error(`Pricing: failed to load sizes — ${sizesRes.error.message}`)
+  if (settingsRes.error) throw new Error(`Pricing: failed to load settings — ${settingsRes.error}`)
+
   const pricingMatrix = (settingsRes.data?.pricing_matrix as Record<string, number>) ?? {}
   const minPriceGuard = Number(settingsRes.data?.min_price_guard ?? 3)
   const rushMultiplier = Number(settingsRes.data?.rush_multiplier ?? 1.3)

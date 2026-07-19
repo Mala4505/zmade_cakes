@@ -9,5 +9,6 @@ export default async function ProductsPage() {
     getFlavorsWithPrices(),
     getAllOptions('size_options'),
   ])
+  if (sizesResult.error) throw new Error(`Products: failed to load sizes — ${sizesResult.error}`)
   return <ProductsClient initialFlavors={flavors} sizes={sizesResult.data ?? []} />
 }

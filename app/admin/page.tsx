@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { formatDate, formatKWD } from '@/lib/utils'
-import { INQUIRY_STATUS_LABELS } from '@/lib/utils'
+import { derivePaymentStatus, balanceOwed } from '@/lib/payments'
+import { StatusBadge } from '@/components/admin/StatusBadge'
 import Link from 'next/link'
 import { ClipboardText, Package, Bell, ArrowRight, Plus, Warning, CalendarBlank, Wallet, TrendUp } from '@phosphor-icons/react/dist/ssr'
 import type { Metadata } from 'next'
@@ -35,8 +36,8 @@ async function getDashboardData() {
 
     supabase
       .from('orders')
-      .select('id, status, final_price, inquiry:inquiries(customer_name, cake_size, flavor, event_date, advance_amount, admin_price, balance_paid)')
-      .in('status', ['confirmed', 'in_progress', 'ready'])
+      .select('id, status, final_price, inquiry:inquiries(customer_name, cake_size, flavor, event_date, advance_amount, advance_paid, admin_price, fully_paid)')
+      .in('status', ['confirmed', 'ready'])
       .order('created_at', { ascending: false })
       .limit(5),
 
@@ -49,13 +50,13 @@ async function getDashboardData() {
     supabase
       .from('inquiries')
       .select('admin_price')
-      .in('status', ['confirmed', 'in_progress', 'ready', 'delivered'])
+      .in('status', ['confirmed', 'ready', 'delivered'])
       .gte('created_at', thisMonthStart),
 
     supabase
       .from('inquiries')
       .select('admin_price')
-      .in('status', ['confirmed', 'in_progress', 'ready', 'delivered'])
+      .in('status', ['confirmed', 'ready', 'delivered'])
       .gte('created_at', lastMonthStart)
       .lt('created_at', lastMonthEnd),
 
@@ -73,8 +74,23 @@ async function getDashboardData() {
     supabase
       .from('orders')
       .select('id, status, inquiry:inquiries(id, customer_name, cake_size, flavor, event_date)')
-      .in('status', ['confirmed', 'in_progress']),
+      .in('status', ['confirmed']),
   ])
+
+  const queryResults = {
+    'pending count': pendingRes,
+    "today's events": todayRes,
+    'active orders': activeOrdersRes,
+    notifications: notificationsRes,
+    "this month's revenue": thisMonthRes,
+    "last month's revenue": lastMonthRes,
+    'new customers': newCustomersRes,
+    "last month's customers": lastMonthCustomersRes,
+    'urgent orders': urgentOrdersRes,
+  }
+  for (const [name, res] of Object.entries(queryResults)) {
+    if (res.error) throw new Error(`Dashboard: failed to load ${name} — ${res.error.message}`)
+  }
 
   const activeOrders = activeOrdersRes.data ?? []
 
@@ -85,7 +101,8 @@ async function getDashboardData() {
 
   const pendingPayments = activeOrders.filter((o: any) => {
     const inq = o.inquiry
-    return inq?.admin_price && inq?.advance_amount && !inq?.balance_paid
+    if (!inq?.admin_price) return false
+    return derivePaymentStatus(inq.fully_paid, inq.advance_paid, inq.advance_amount) !== 'paid'
   })
 
   const thisMonthData = thisMonthRes.data ?? []
@@ -262,7 +279,7 @@ export default async function DashboardPage() {
                 </p>
               </div>
               <div className="ml-4 text-right shrink-0">
-                <StatusBadge status={inq.status} />
+                <StatusBadge status={inq.status} context="admin" />
                 {inq.pickup_time && (
                   <p
                     className="text-xs mt-1 font-mono"
@@ -303,7 +320,7 @@ export default async function DashboardPage() {
                 </p>
               </div>
               <div className="ml-4 shrink-0 text-right">
-                <OrderStatusBadge status={order.status} />
+                <StatusBadge status={order.status} context="admin" />
                 <p
                   className="text-xs mt-1 font-mono"
                   style={{ color: 'var(--color-ink)', fontFamily: 'var(--font-mono)' }}
@@ -327,9 +344,9 @@ export default async function DashboardPage() {
             >
               {pendingPayments.map((order: any) => {
                 const inq = order.inquiry
-                const balance = inq?.admin_price && inq?.advance_amount
-                  ? (parseFloat(inq.admin_price) - parseFloat(inq.advance_amount)).toFixed(3)
-                  : null
+                const balance = inq
+                  ? balanceOwed(inq.admin_price, inq.advance_amount, inq.advance_paid, inq.fully_paid)
+                  : 0
                 return (
                   <Link
                     key={order.id}
@@ -343,12 +360,12 @@ export default async function DashboardPage() {
                       </p>
                     </div>
                     <div className="ml-4 shrink-0 text-right">
-                      {balance && (
+                      {balance > 0 && (
                         <p
                           className="text-sm font-semibold font-mono"
                           style={{ color: 'var(--color-warning)', fontFamily: 'var(--font-mono)' }}
                         >
-                          KD {balance}
+                          {formatKWD(balance.toFixed(3))}
                         </p>
                       )}
                       <p className="text-xs" style={{ color: 'var(--color-ink-muted)' }}>balance due</p>
@@ -591,53 +608,6 @@ function Section({
         )}
       </div>
     </div>
-  )
-}
-
-function StatusBadge({ status }: { status: string }) {
-  const styles: Record<string, { bg: string; color: string }> = {
-    pending: { bg: 'var(--color-surface-raised)', color: 'var(--color-ink-muted)' },
-    awaiting_confirmation: { bg: 'var(--color-warning-light)', color: 'var(--color-warning)' },
-    confirmed: { bg: 'var(--color-teal-light)', color: 'var(--color-teal-deep)' },
-    in_progress: { bg: 'var(--color-info-light)', color: 'var(--color-info)' },
-    ready: { bg: 'var(--color-success-light)', color: 'var(--color-success)' },
-    delivered: { bg: 'var(--color-surface-raised)', color: 'var(--color-ink-muted)' },
-    cancelled: { bg: 'var(--color-danger-light)', color: 'var(--color-danger)' },
-  }
-  const s = styles[status] ?? styles.pending
-  return (
-    <span
-      className="inline-block px-2.5 py-0.5 rounded-full text-[11px] font-medium whitespace-nowrap"
-      style={{ backgroundColor: s.bg, color: s.color }}
-    >
-      {INQUIRY_STATUS_LABELS[status as keyof typeof INQUIRY_STATUS_LABELS] ?? status}
-    </span>
-  )
-}
-
-function OrderStatusBadge({ status }: { status: string }) {
-  const styles: Record<string, { bg: string; color: string }> = {
-    confirmed: { bg: 'var(--color-teal-light)', color: 'var(--color-teal-deep)' },
-    in_progress: { bg: 'var(--color-info-light)', color: 'var(--color-info)' },
-    ready: { bg: 'var(--color-success-light)', color: 'var(--color-success)' },
-    delivered: { bg: 'var(--color-surface-raised)', color: 'var(--color-ink-muted)' },
-    cancelled: { bg: 'var(--color-danger-light)', color: 'var(--color-danger)' },
-  }
-  const labels: Record<string, string> = {
-    confirmed: 'Confirmed',
-    in_progress: 'Making',
-    ready: 'Ready',
-    delivered: 'Delivered',
-    cancelled: 'Cancelled',
-  }
-  const s = styles[status] ?? styles.confirmed
-  return (
-    <span
-      className="inline-block px-2.5 py-0.5 rounded-full text-[11px] font-medium"
-      style={{ backgroundColor: s.bg, color: s.color }}
-    >
-      {labels[status] ?? status}
-    </span>
   )
 }
 

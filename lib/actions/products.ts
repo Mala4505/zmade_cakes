@@ -7,12 +7,13 @@ type ActionResult<T> = { data: T; error: null } | { data: null; error: string }
 
 export async function getFlavorsWithPrices(): Promise<FlavorWithPrices[]> {
   const supabase = await createClient()
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('flavor_options')
     .select('*, prices:flavor_size_prices(*)')
     .eq('is_active', true)
     .order('sort_order', { ascending: true })
     .order('name', { ascending: true })
+  if (error) throw new Error(`Products: failed to load flavors — ${error.message}`)
   return (data as FlavorWithPrices[] | null) ?? []
 }
 

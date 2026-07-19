@@ -53,7 +53,8 @@ export default async function OrderDetailPage({ params }: Props) {
   const businessInstagram = (igRow?.value as string) ?? ''
   const templates: string[] = Array.isArray(templateSetting?.value) ? (templateSetting.value as string[]) : []
 
-  const imagesResult = inq?.id ? await getInquiryImages(inq.id) : { data: [] }
+  const imagesResult = inq?.id ? await getInquiryImages(inq.id) : { data: [], error: null }
+  if (imagesResult.error) throw new Error(`Order: failed to load images — ${imagesResult.error}`)
 
   return (
     <div className="px-4 py-6 md:px-8 md:py-8 max-w-2xl mx-auto">
