@@ -1,5 +1,5 @@
 import { format, parseISO } from 'date-fns'
-import type { Governorate, InquiryStatus, OrderStatus, Priority } from './supabase/types'
+import type { Governorate, InquiryStatus, OrderStatus } from './supabase/types'
 
 export function formatDate(date: string): string {
   return format(parseISO(date), 'dd MMM yyyy')
@@ -32,26 +32,23 @@ export const GOVERNORATE_LABELS: Record<Governorate, string> = {
   mubarak_al_kabeer: 'Mubarak Al-Kabeer',
 }
 
+// Admin-facing labels. 'delivered' reads as "Dispatched" here — the DB value is unchanged,
+// this is a UI-only relabel for the admin flow (Confirmed -> Ready -> Dispatched).
+// Customer-facing copy (e.g. app/track, app/my-orders) keeps its own separate "Delivered"
+// wording and does not import this map — do not repoint those pages at this constant without
+// checking that first.
 export const INQUIRY_STATUS_LABELS: Record<InquiryStatus, string> = {
   pending: 'Pending',
   awaiting_confirmation: 'Awaiting Confirmation',
   confirmed: 'Confirmed',
-  in_progress: 'In Progress',
   ready: 'Ready',
-  delivered: 'Delivered',
+  delivered: 'Dispatched',
   cancelled: 'Cancelled',
 }
 
 export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
   confirmed: 'Order Confirmed',
-  in_progress: 'Being Made',
   ready: 'Ready for Pickup',
-  delivered: 'Delivered',
+  delivered: 'Dispatched',
   cancelled: 'Cancelled',
-}
-
-export const PRIORITY_LABELS: Record<Priority, string> = {
-  0: 'Normal',
-  1: 'High',
-  2: 'Urgent',
 }

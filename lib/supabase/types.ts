@@ -7,12 +7,11 @@ export type InquiryStatus =
   | 'pending'
   | 'awaiting_confirmation'
   | 'confirmed'
-  | 'in_progress'
   | 'ready'
   | 'delivered'
   | 'cancelled'
 export type PaymentStatus = 'unpaid' | 'partial' | 'paid'
-export type OrderStatus = 'confirmed' | 'in_progress' | 'ready' | 'delivered' | 'cancelled'
+export type OrderStatus = 'confirmed' | 'ready' | 'delivered' | 'cancelled'
 export type NotificationType = 'inquiry_created' | 'customer_confirmed' | 'order_update' | 'general'
 export type Governorate =
   | 'capital'
@@ -60,9 +59,9 @@ export interface Inquiry {
   allergen_dairy_free: boolean
   allergen_egg_free: boolean
   allergen_halal: boolean
+  allergen_raw_sugar: boolean
   allergen_other: string
-  balance_paid: boolean
-  balance_paid_at: string | null
+  fully_paid: boolean
   event_date: string
   pickup_time: string | null
   delivery_type: DeliveryType
@@ -71,8 +70,12 @@ export interface Inquiry {
   advance_amount: string | null
   advance_paid: boolean
   payment_method: PaymentMethod
+  // Generated column (see supabase/migrations/015_unified_payment_model.sql) — Row-only,
+  // never settable on Insert/Update. Derive client-side via lib/payments.ts#derivePaymentStatus.
   payment_status: PaymentStatus
   admin_notes: string
+  // DB column stays (untouched, unused) — Priority/priority is removed from all UI/validation
+  // per the plan, but the Row type still mirrors the live DB column.
   priority: Priority
   confirmation_token: string
   confirmation_sent_at: string | null
@@ -112,25 +115,26 @@ export interface Notification {
   created_at: string
 }
 
+// Halal + Gluten-free are dropped from the UI/validation set (owner-requested change); the
+// underlying allergen_gluten_free / allergen_halal DB columns stay in place, untouched, just
+// no longer surfaced here. Raw sugar is the new UI-facing flag.
 export type AllergenFlags = Pick<Inquiry,
   | 'allergen_nut_free'
-  | 'allergen_gluten_free'
   | 'allergen_dairy_free'
   | 'allergen_egg_free'
-  | 'allergen_halal'
+  | 'allergen_raw_sugar'
   | 'allergen_other'
 >
 
 export function hasAllergens(inq: AllergenFlags): boolean {
-  return inq.allergen_nut_free || inq.allergen_gluten_free || inq.allergen_dairy_free || inq.allergen_egg_free || inq.allergen_halal || inq.allergen_other.length > 0
+  return inq.allergen_nut_free || inq.allergen_dairy_free || inq.allergen_egg_free || inq.allergen_raw_sugar || inq.allergen_other.length > 0
 }
 
 export const ALLERGEN_LABELS: Record<keyof Omit<AllergenFlags, 'allergen_other'>, string> = {
   allergen_nut_free: 'Nut-free',
-  allergen_gluten_free: 'GF',
   allergen_dairy_free: 'Dairy-free',
   allergen_egg_free: 'Egg-free',
-  allergen_halal: 'Halal',
+  allergen_raw_sugar: 'Raw sugar',
 }
 
 export interface Customer {
@@ -257,9 +261,14 @@ export type Database = {
         ]
       }
       inquiries: {
-        Row: { admin_notes: string; admin_price: number | null; advance_amount: number | null; advance_paid: boolean; allergen_dairy_free: boolean; allergen_egg_free: boolean; allergen_gluten_free: boolean; allergen_halal: boolean; allergen_nut_free: boolean; allergen_other: string; balance_paid: boolean; balance_paid_at: string | null; cake_size: string; confirmation_token: string; confirmation_sent_at: string | null; created_at: string; customer_comments: string; customer_confirmed: boolean; customer_confirmed_at: string | null; customer_id: string | null; customer_name: string; customer_phone: string; decoration_style: string; delivery_type: string; event_date: string; flavor: string; id: string; message_on_cake: string; occasion: string; payment_method: string; payment_status: string; pickup_time: string | null; priority: number; quantity: number; source: string; special_requirements: string; status: string; theme: string; updated_at: string }
-        Insert: { admin_notes?: string; admin_price?: number | null; advance_amount?: number | null; advance_paid?: boolean; allergen_dairy_free?: boolean; allergen_egg_free?: boolean; allergen_gluten_free?: boolean; allergen_halal?: boolean; allergen_nut_free?: boolean; allergen_other?: string; balance_paid?: boolean; balance_paid_at?: string | null; cake_size: string; confirmation_token?: string; confirmation_sent_at?: string | null; created_at?: string; customer_comments?: string; customer_confirmed?: boolean; customer_confirmed_at?: string | null; customer_id?: string | null; customer_name: string; customer_phone: string; decoration_style: string; delivery_type?: string; event_date: string; flavor: string; id?: string; message_on_cake?: string; occasion?: string; payment_method?: string; payment_status?: string | null; pickup_time?: string | null; priority?: number; quantity?: number; source?: string; special_requirements?: string; status?: string; theme?: string; updated_at?: string }
-        Update: { admin_notes?: string; admin_price?: number | null; advance_amount?: number | null; advance_paid?: boolean; allergen_dairy_free?: boolean; allergen_egg_free?: boolean; allergen_gluten_free?: boolean; allergen_halal?: boolean; allergen_nut_free?: boolean; allergen_other?: string; balance_paid?: boolean; balance_paid_at?: string | null; cake_size?: string; confirmation_token?: string; confirmation_sent_at?: string | null; created_at?: string; customer_comments?: string; customer_confirmed?: boolean; customer_confirmed_at?: string | null; customer_id?: string | null; customer_name?: string; customer_phone?: string; decoration_style?: string; delivery_type?: string; event_date?: string; flavor?: string; id?: string; message_on_cake?: string; occasion?: string; payment_method?: string; payment_status?: string | null; pickup_time?: string | null; priority?: number; quantity?: number; source?: string; special_requirements?: string; status?: string; theme?: string; updated_at?: string }
+        // Row mirrors the live DB exactly: allergen_gluten_free/allergen_halal and priority
+        // stay as real, populated columns (untouched by the Phase B migrations) even though
+        // they're no longer settable via Insert/Update or surfaced in UI/validation.
+        // payment_status is a STORED generated column (015_unified_payment_model.sql) — Row
+        // only, never on Insert/Update.
+        Row: { admin_notes: string; admin_price: number | null; advance_amount: number | null; advance_paid: boolean; allergen_dairy_free: boolean; allergen_egg_free: boolean; allergen_gluten_free: boolean; allergen_halal: boolean; allergen_nut_free: boolean; allergen_other: string; allergen_raw_sugar: boolean; fully_paid: boolean; cake_size: string; confirmation_token: string; confirmation_sent_at: string | null; created_at: string; customer_comments: string; customer_confirmed: boolean; customer_confirmed_at: string | null; customer_id: string | null; customer_name: string; customer_phone: string; decoration_style: string; delivery_type: string; event_date: string; flavor: string; id: string; message_on_cake: string; occasion: string; payment_method: string; payment_status: string; pickup_time: string | null; priority: number; quantity: number; source: string; special_requirements: string; status: string; theme: string; updated_at: string }
+        Insert: { admin_notes?: string; admin_price?: number | null; advance_amount?: number | null; advance_paid?: boolean; allergen_dairy_free?: boolean; allergen_egg_free?: boolean; allergen_nut_free?: boolean; allergen_other?: string; allergen_raw_sugar?: boolean; fully_paid?: boolean; cake_size: string; confirmation_token?: string; confirmation_sent_at?: string | null; created_at?: string; customer_comments?: string; customer_confirmed?: boolean; customer_confirmed_at?: string | null; customer_id?: string | null; customer_name: string; customer_phone: string; decoration_style?: string; delivery_type?: string; event_date: string; flavor: string; id?: string; message_on_cake?: string; occasion?: string; payment_method?: string; pickup_time?: string | null; quantity?: number; source?: string; special_requirements?: string; status?: string; theme?: string; updated_at?: string }
+        Update: { admin_notes?: string; admin_price?: number | null; advance_amount?: number | null; advance_paid?: boolean; allergen_dairy_free?: boolean; allergen_egg_free?: boolean; allergen_nut_free?: boolean; allergen_other?: string; allergen_raw_sugar?: boolean; fully_paid?: boolean; cake_size?: string; confirmation_token?: string; confirmation_sent_at?: string | null; created_at?: string; customer_comments?: string; customer_confirmed?: boolean; customer_confirmed_at?: string | null; customer_id?: string | null; customer_name?: string; customer_phone?: string; decoration_style?: string; delivery_type?: string; event_date?: string; flavor?: string; id?: string; message_on_cake?: string; occasion?: string; payment_method?: string; pickup_time?: string | null; quantity?: number; source?: string; special_requirements?: string; status?: string; theme?: string; updated_at?: string }
         Relationships: [{ foreignKeyName: 'inquiries_customer_id_fkey'; columns: ['customer_id']; isOneToOne: false; referencedRelation: 'customers'; referencedColumns: ['id'] }]
       }
       inquiry_images: {
