@@ -38,7 +38,9 @@ export async function POST(req: NextRequest) {
     // along with the address fields that live in their own table.
     const {
       address_governorate, address_area, address_block, address_street, address_house_no, address_extra_notes,
+      address_location_link,
       cake_type: _cakeType,
+      reference_images,
       ...inquiryFields
     } = data
 
@@ -62,6 +64,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: inquiryError?.message ?? 'Failed to create inquiry' }, { status: 500 })
     }
 
+    if (reference_images.length > 0) {
+      await supabase.from('inquiry_images').insert(
+        reference_images.map(img => ({
+          inquiry_id: inquiry.id,
+          uploaded_by: 'customer' as const,
+          image_type: 'reference' as const,
+          url_original: img.url_original,
+          url_medium: img.url_medium,
+          url_thumb: img.url_thumb,
+          caption: '',
+        }))
+      )
+    }
+
     if (data.delivery_type === 'delivery' && address_area) {
       await supabase.from('delivery_addresses').insert({
         inquiry_id: inquiry.id,
@@ -71,6 +87,7 @@ export async function POST(req: NextRequest) {
         street: address_street,
         house_no: address_house_no,
         extra_notes: address_extra_notes,
+        location_link: address_location_link,
       })
     }
 

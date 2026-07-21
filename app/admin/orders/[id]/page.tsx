@@ -100,6 +100,17 @@ export default async function OrderDetailPage({ params }: Props) {
                 {' '}{inq.delivery_address.street},
                 {' '}{inq.delivery_address.house_no}
               </p>
+              {inq.delivery_address.location_link && (
+                <a
+                  href={inq.delivery_address.location_link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs font-semibold"
+                  style={{ color: 'var(--color-teal)' }}
+                >
+                  View map pin →
+                </a>
+              )}
             </div>
           )}
           {inq?.special_requirements && (

@@ -304,6 +304,48 @@ export async function updateInquiryStatus(
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { data: null, error: 'Unauthorized', fieldErrors: null }
+
+  // Orders are the source of truth from 'confirmed' onward — sync_order_status mirrors
+  // ready/delivered/cancelled back onto the inquiry. Without this, admins progressing an
+  // inquiry through the status dropdown/next-step button (rather than the customer
+  // confirmation link) would set inquiries.status with no matching orders row, making the
+  // order invisible everywhere that reads from `orders` (e.g. the calendar).
+  const { data: existingOrder, error: orderLookupError } = await supabase
+    .from('orders')
+    .select('id')
+    .eq('inquiry_id', id)
+    .maybeSingle()
+  if (orderLookupError) return { data: null, error: orderLookupError.message, fieldErrors: null }
+
+  if (existingOrder && (status === 'ready' || status === 'delivered' || status === 'cancelled')) {
+    const { error } = await supabase.rpc('sync_order_status', {
+      p_order_id: existingOrder.id,
+      p_new_status: status,
+    })
+    if (error) return { data: null, error: error.message, fieldErrors: null }
+    return { data: undefined, error: null, fieldErrors: null }
+  }
+
+  if (!existingOrder && status === 'confirmed') {
+    const { data: inquiry, error: fetchError } = await supabase
+      .from('inquiries')
+      .select('admin_price, delivery_type')
+      .eq('id', id)
+      .single()
+    if (fetchError || !inquiry) return { data: null, error: fetchError?.message ?? 'Inquiry not found', fieldErrors: null }
+    if (!inquiry.admin_price) {
+      return { data: null, error: 'Set a price before confirming this order', fieldErrors: null }
+    }
+
+    const { error: orderError } = await supabase.from('orders').insert({
+      inquiry_id: id,
+      status: 'confirmed',
+      final_price: inquiry.admin_price,
+      delivery_type: inquiry.delivery_type,
+    })
+    if (orderError) return { data: null, error: orderError.message, fieldErrors: null }
+  }
+
   const { error } = await supabase
     .from('inquiries')
     .update({ status })

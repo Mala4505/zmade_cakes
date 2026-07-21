@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react'
 import { Loader2, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { updateOption, deleteOption } from '@/lib/actions/options'
-import { upsertFlavorPrices } from '@/lib/actions/products'
+import { upsertFlavorPrices, updateFlavorThemeAvailable } from '@/lib/actions/products'
 import { PricingTable } from './PricingTable'
 import { FlavorImageUpload } from './FlavorImageUpload'
 import type { FlavorWithPrices, OptionRow, FlavorSizePrice } from '@/lib/supabase/types'
@@ -25,6 +25,7 @@ function buildPriceMap(prices: FlavorSizePrice[]): Record<string, string> {
 export function FlavorDetail({ flavor, sizes, onSaved, onDeleted }: Props) {
   const [name, setName] = useState(flavor.name)
   const [isActive, setIsActive] = useState(flavor.is_active)
+  const [themeAvailable, setThemeAvailable] = useState(flavor.theme_available)
   const [imageUrl, setImageUrl] = useState(flavor.image_url)
   const [priceMap, setPriceMap] = useState<Record<string, string>>(() => buildPriceMap(flavor.prices))
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
@@ -38,7 +39,7 @@ export function FlavorDetail({ flavor, sizes, onSaved, onDeleted }: Props) {
 
   const handleImageChanged = (newUrl: string | null) => {
     setImageUrl(newUrl)
-    onSaved({ ...flavor, name, is_active: isActive, image_url: newUrl, prices: flavor.prices })
+    onSaved({ ...flavor, name, is_active: isActive, theme_available: themeAvailable, image_url: newUrl, prices: flavor.prices })
   }
 
   const handleSave = () => {
@@ -49,6 +50,12 @@ export function FlavorDetail({ flavor, sizes, onSaved, onDeleted }: Props) {
       })
       if (nameResult.error) {
         toast.error('Failed to save', { description: nameResult.error })
+        return
+      }
+
+      const themeResult = await updateFlavorThemeAvailable(flavor.id, themeAvailable)
+      if (themeResult.error) {
+        toast.error('Failed to save', { description: themeResult.error })
         return
       }
 
@@ -72,6 +79,7 @@ export function FlavorDetail({ flavor, sizes, onSaved, onDeleted }: Props) {
         ...flavor,
         name: name.trim(),
         is_active: isActive,
+        theme_available: themeAvailable,
         image_url: imageUrl,
         prices: newPrices,
       })
@@ -197,11 +205,35 @@ export function FlavorDetail({ flavor, sizes, onSaved, onDeleted }: Props) {
 
           <section>
             <label
+              className="flex items-center gap-2.5 text-sm cursor-pointer select-none w-fit"
+              style={{ color: 'var(--color-ink)' }}
+            >
+              <input
+                type="checkbox"
+                checked={themeAvailable}
+                onChange={(e) => setThemeAvailable(e.target.checked)}
+                className="w-4 h-4 rounded"
+                style={{ accentColor: 'var(--color-teal)' }}
+              />
+              <span>
+                <span className="font-medium">Theme cakes available</span>
+                <span className="block text-xs mt-0.5" style={{ color: 'var(--color-ink-muted)' }}>
+                  When off, customers can&apos;t select &quot;Theme cake&quot; for this flavor on the order form.
+                </span>
+              </span>
+            </label>
+          </section>
+
+          <section>
+            <label
               className="block text-xs font-semibold mb-1.5"
               style={{ color: 'var(--color-ink-secondary)' }}
             >
               Pricing
             </label>
+            <p className="text-xs mb-2" style={{ color: 'var(--color-ink-muted)' }}>
+              Leave a size blank if this flavor doesn&apos;t come in it — only priced sizes are offered on the order form.
+            </p>
             <PricingTable
               sizes={sizes}
               prices={flavor.prices}

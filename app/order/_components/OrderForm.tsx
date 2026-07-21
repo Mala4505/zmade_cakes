@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { EASE_OUT_QUART } from '@/lib/motion'
 import PhoneInput from '@/components/PhoneInput'
+import ReferencePhotoUpload, { type ReferenceImage } from './ReferencePhotoUpload'
 import {
   publicInquirySchema,
   type PublicInquiryInput,
@@ -14,9 +15,13 @@ import {
 import { Button, Checkbox, Field, Input, RadioGroup, Select, Textarea } from '@/components/ui'
 
 interface Option { id: string; name: string }
+interface FlavorOption extends Option {
+  theme_available: boolean
+  prices: { size_id: string }[]
+}
 interface Blackout { id: string; date_from: string; date_to: string; reason: string }
 interface Props {
-  flavors: Option[]
+  flavors: FlavorOption[]
   sizes: Option[]
   occasions: Option[]
   blackouts: Blackout[]
@@ -57,6 +62,7 @@ export default function OrderForm({ flavors, sizes, occasions, blackouts, minLea
   // 1 = forward, -1 = back; drives the slide direction of step transitions.
   const [direction, setDirection] = useState(1)
   const [serverError, setServerError] = useState<string | null>(null)
+  const [referenceImages, setReferenceImages] = useState<ReferenceImage[]>([])
   const reduceMotion = useReducedMotion()
 
   const stepVariants = {
@@ -102,6 +108,7 @@ export default function OrderForm({ flavors, sizes, occasions, blackouts, minLea
       address_street: '',
       address_house_no: '',
       address_extra_notes: '',
+      address_location_link: '',
     },
   })
 
@@ -110,13 +117,37 @@ export default function OrderForm({ flavors, sizes, occasions, blackouts, minLea
   const deliveryType = form.delivery_type
   const dateBlackedOut = isDateBlackedOut(form.event_date ?? '', blackouts)
 
+  const selectedFlavor = flavors.find(f => f.name === form.flavor) ?? null
+  // A flavor with no priced sizes hasn't been restricted yet — offer every size.
+  const availableSizes = selectedFlavor && selectedFlavor.prices.length > 0
+    ? sizes.filter(s => selectedFlavor.prices.some(p => p.size_id === s.id))
+    : sizes
+  const themeDisabled = selectedFlavor !== null && !selectedFlavor.theme_available
+
+  const handleFlavorChange = (flavorName: string) => {
+    const nextFlavor = flavors.find(f => f.name === flavorName) ?? null
+
+    if (nextFlavor && !nextFlavor.theme_available && cakeType === 'theme') {
+      setValue('cake_type', 'normal', { shouldDirty: true })
+      setValue('theme', '')
+      clearErrors('theme')
+    }
+
+    const nextSizes = nextFlavor && nextFlavor.prices.length > 0
+      ? sizes.filter(s => nextFlavor.prices.some(p => p.size_id === s.id))
+      : sizes
+    if (form.cake_size && !nextSizes.some(s => s.name === form.cake_size)) {
+      setValue('cake_size', '', { shouldValidate: true })
+    }
+  }
+
   const onValid = async (data: PublicInquiryData) => {
     setServerError(null)
     try {
       const res = await fetch('/api/inquiries', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
+        body: JSON.stringify({ ...data, reference_images: referenceImages }),
       })
       const json = await res.json()
       if (!res.ok) {
@@ -211,21 +242,30 @@ export default function OrderForm({ flavors, sizes, occasions, blackouts, minLea
         <div className="flex flex-col gap-5">
           <h2 className="text-lg font-semibold mb-4" style={{ color: 'var(--color-ink)' }}>Tell us about your cake</h2>
 
-          <Field label="Cake Size" error={errors.cake_size?.message} required>
-            <RadioGroup
-              value={form.cake_size || null}
-              onChange={v => setValue('cake_size', v, { shouldValidate: true })}
-              options={sizes.map(s => ({ value: s.name, label: s.name }))}
-              className="flex-wrap"
-              aria-label="Cake size"
-            />
-          </Field>
-
           <Field label="Flavor" error={errors.flavor?.message} required>
-            <Select {...register('flavor')} required aria-invalid={errors.flavor ? true : undefined}>
+            <Select
+              {...register('flavor', { onChange: e => handleFlavorChange(e.target.value) })}
+              required
+              aria-invalid={errors.flavor ? true : undefined}
+            >
               <option value="">Select a flavor…</option>
               {flavors.map(f => <option key={f.id} value={f.name}>{f.name}</option>)}
             </Select>
+          </Field>
+
+          <Field
+            label="Cake Size"
+            error={errors.cake_size?.message}
+            required
+            hint={selectedFlavor && availableSizes.length < sizes.length ? 'Available sizes for this flavor' : undefined}
+          >
+            <RadioGroup
+              value={form.cake_size || null}
+              onChange={v => setValue('cake_size', v, { shouldValidate: true })}
+              options={availableSizes.map(s => ({ value: s.name, label: s.name }))}
+              className="flex-wrap"
+              aria-label="Cake size"
+            />
           </Field>
 
           <Field label="Occasion" error={errors.occasion?.message}>
@@ -235,7 +275,12 @@ export default function OrderForm({ flavors, sizes, occasions, blackouts, minLea
             </Select>
           </Field>
 
-          <Field label="Cake Type" error={errors.cake_type?.message} required>
+          <Field
+            label="Cake Type"
+            error={errors.cake_type?.message}
+            required
+            hint={themeDisabled ? 'Theme cakes aren’t available for this flavor' : undefined}
+          >
             <RadioGroup
               value={cakeType}
               onChange={v => {
@@ -244,7 +289,7 @@ export default function OrderForm({ flavors, sizes, occasions, blackouts, minLea
               }}
               options={[
                 { value: 'normal', label: 'Normal cake', description: 'A classic ZMade design' },
-                { value: 'theme', label: 'Theme cake', description: 'Designed around your idea' },
+                { value: 'theme', label: 'Theme cake', description: 'Designed around your idea', disabled: themeDisabled },
               ]}
               aria-label="Cake type"
             />
@@ -272,6 +317,13 @@ export default function OrderForm({ flavors, sizes, occasions, blackouts, minLea
           >
             <Textarea {...register('special_requirements')} rows={3} placeholder="e.g. Two tiers, pastel pink, fresh flowers on top…" />
           </Field>
+
+          <div>
+            <p className="block text-xs font-medium mb-1.5" style={{ color: 'var(--color-ink-muted)' }}>
+              Reference Photos <span style={{ fontWeight: 400 }}>(optional)</span>
+            </p>
+            <ReferencePhotoUpload images={referenceImages} onChange={setReferenceImages} />
+          </div>
 
           <div>
             <p className="block text-xs font-medium mb-1.5" style={{ color: 'var(--color-ink-muted)' }}>Dietary Requirements</p>
@@ -355,6 +407,13 @@ export default function OrderForm({ flavors, sizes, occasions, blackouts, minLea
               <Field label="Extra Notes" error={errors.address_extra_notes?.message}>
                 <Input {...register('address_extra_notes')} placeholder="Floor, apartment name, landmark…" />
               </Field>
+              <Field
+                label="Google Maps Pin"
+                error={errors.address_location_link?.message}
+                hint="Open Google Maps, drop a pin on your location, tap Share, and paste the link here."
+              >
+                <Input {...register('address_location_link')} placeholder="https://maps.app.goo.gl/…" />
+              </Field>
             </div>
           )}
         </div>
@@ -381,6 +440,9 @@ export default function OrderForm({ flavors, sizes, occasions, blackouts, minLea
             <SummaryRow label="Type" value={cakeType === 'theme' ? `Theme cake — ${form.theme || ''}` : 'Normal cake'} />
             {form.message_on_cake && <SummaryRow label="Message" value={form.message_on_cake} />}
             {form.special_requirements && <SummaryRow label="Details" value={form.special_requirements} />}
+            {referenceImages.length > 0 && (
+              <SummaryRow label="Reference Photos" value={`${referenceImages.length} attached`} />
+            )}
             {(form.allergen_nut_free || form.allergen_dairy_free || form.allergen_egg_free || form.allergen_raw_sugar || form.allergen_other) && (
               <SummaryRow
                 label="Dietary"
@@ -409,6 +471,7 @@ export default function OrderForm({ flavors, sizes, occasions, blackouts, minLea
                 {form.address_street && <SummaryRow label="Street" value={form.address_street} />}
                 {form.address_house_no && <SummaryRow label="House No." value={form.address_house_no} />}
                 {form.address_extra_notes && <SummaryRow label="Notes" value={form.address_extra_notes} />}
+                {form.address_location_link && <SummaryRow label="Maps Pin" value={form.address_location_link} />}
               </>
             )}
           </section>

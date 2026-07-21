@@ -291,6 +291,22 @@ function DateCellWrapper({
   )
 }
 
+// Custom event content — flavor leads so it survives the single-line ellipsis
+// truncation react-big-calendar applies to month-view event pills.
+function EventContent({ event }: { event: CalendarEvent }) {
+  if (event.kind === 'blackout' || event.kind === 'inquiry-made') {
+    return <>{event.title}</>
+  }
+  const r = event.resource
+  return (
+    <>
+      {event.kind === 'inquiry-delivery' && '? '}
+      <strong className="font-semibold">{r.flavor}</strong>
+      <span className="opacity-80"> · {r.cakeSize} · {r.customerName}</span>
+    </>
+  )
+}
+
 const LEGEND: { label: string; style: React.CSSProperties }[] = [
   { label: 'Order', style: { backgroundColor: 'var(--color-teal)' } },
   { label: 'Dispatched', style: { backgroundColor: 'var(--color-success)' } },
@@ -346,7 +362,7 @@ export default function CalendarView({ orders, inquiries, blackouts, deliveryCou
         return {
           id: order.id,
           kind: 'order' as const,
-          title: `${inq.customer_name} · ${inq.cake_size}`,
+          title: `${inq.flavor} · ${inq.cake_size} · ${inq.customer_name}`,
           start: eventDate,
           end: eventDate,
           allDay: true as const,
@@ -368,7 +384,7 @@ export default function CalendarView({ orders, inquiries, blackouts, deliveryCou
       return {
         id: `inquiry-delivery-${inq.id}`,
         kind: 'inquiry-delivery' as const,
-        title: `? ${inq.customer_name} · ${inq.cake_size}`,
+        title: `? ${inq.flavor} · ${inq.cake_size} · ${inq.customer_name}`,
         start: eventDate,
         end: eventDate,
         allDay: true as const,
@@ -420,7 +436,14 @@ export default function CalendarView({ orders, inquiries, blackouts, deliveryCou
   }, [orders, inquiries, blackouts])
 
   function eventPropGetter(event: CalendarEvent) {
-    const base: React.CSSProperties = { border: 'none', borderRadius: '4px', cursor: 'pointer' }
+    const base: React.CSSProperties = {
+      border: 'none',
+      borderRadius: '6px',
+      cursor: 'pointer',
+      padding: '3px 7px',
+      fontSize: '12px',
+      fontWeight: 500,
+    }
     switch (event.kind) {
       case 'blackout':
         return {
@@ -489,8 +512,9 @@ export default function CalendarView({ orders, inquiries, blackouts, deliveryCou
           }}
           view={view}
         />
-        <div className="flex-1">
+        <div className="flex-1 min-h-0 flex flex-col">
           <Calendar
+            className="flex-1 min-h-0"
             localizer={localizer}
             events={events}
             view={view}
@@ -509,9 +533,9 @@ export default function CalendarView({ orders, inquiries, blackouts, deliveryCou
               dateCellWrapper: ({ children, value }: any) => (
                 <DateCellWrapper value={value} deliveryCountByDate={deliveryCountByDate} children={children} />
               ),
+              event: ({ event }: { event: CalendarEvent }) => <EventContent event={event} />,
             }}
             popup
-            style={{ height: '100%' }}
             toolbar={false}
           />
         </div>

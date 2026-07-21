@@ -81,7 +81,7 @@ export function FlavorList({
         is_active: true,
       })
       if (result.data) {
-        onFlavorCreated({ ...result.data, prices: [] })
+        onFlavorCreated({ ...result.data, theme_available: true, prices: [] })
       }
       setNewName('')
       setAdding(false)

@@ -41,7 +41,9 @@ const inquiryShape = {
       tomorrow.setHours(0, 0, 0, 0)
       return date >= tomorrow
     }, 'Event date must be at least tomorrow'),
-  pickup_time: z.string().optional().nullable(),
+  // Empty string (an untouched <input type="time">) isn't valid for the
+  // Postgres `time` column — normalize it to null before it reaches the DB.
+  pickup_time: z.string().optional().nullable().transform((v) => (v ? v : null)),
   delivery_type: z.enum(['pickup', 'delivery']),
   admin_price: z
     .number({ error: 'Price must be a number' })
@@ -96,6 +98,9 @@ export const deliveryAddressSchema = z.object({
   street: z.string().min(1, 'Street is required').max(100).trim(),
   house_no: z.string().min(1, 'House number is required').max(50).trim(),
   extra_notes: z.string().max(500).optional().default(''),
+  // Pasted Google Maps share link (Maps app → drop pin → Share → copy link) —
+  // no maps API/key needed, just stored as free text.
+  location_link: z.string().max(500).optional().default(''),
 })
 
 export const tokenSchema = z

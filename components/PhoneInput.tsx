@@ -123,7 +123,7 @@ export default function PhoneInput({
         disabled={disabled}
         aria-invalid={ariaInvalid || undefined}
         aria-describedby={ariaDescribedBy}
-        className="flex-1 border rounded-r-lg px-3.5 py-2.5 text-sm outline-none transition-all"
+        className="flex-1 min-w-0 border rounded-r-lg px-3.5 py-2.5 text-sm outline-none transition-all"
         style={{
           borderColor,
           backgroundColor: bg,

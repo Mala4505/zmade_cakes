@@ -26,7 +26,9 @@ export const publicInquirySchema = z
     allergen_raw_sugar: z.boolean().default(false),
     allergen_other: z.string().max(500).optional().default(''),
     event_date: z.string().min(1, 'Please choose your event date'),
-    pickup_time: z.string().optional().nullable(),
+    // Empty string (an untouched <input type="time">) isn't valid for the
+    // Postgres `time` column — normalize it to null before it reaches the DB.
+    pickup_time: z.string().optional().nullable().transform((v) => (v ? v : null)),
     delivery_type: z.enum(['pickup', 'delivery']),
     source: z.literal('public_form'),
     address_governorate: z.string().optional().default('capital'),
@@ -35,6 +37,16 @@ export const publicInquirySchema = z
     address_street: z.string().optional().default(''),
     address_house_no: z.string().optional().default(''),
     address_extra_notes: z.string().optional().default(''),
+    // Pasted Google Maps share link (Maps app → drop pin → Share → copy link).
+    address_location_link: z.string().max(500).optional().default(''),
+    // Uploaded ahead of submission via /api/upload/order — not a DB column on
+    // inquiries; turned into inquiry_images rows after the inquiry is created
+    // (see app/api/inquiries/route.ts).
+    reference_images: z
+      .array(z.object({ url_original: z.string(), url_medium: z.string(), url_thumb: z.string() }))
+      .max(6, 'Up to 6 reference photos')
+      .optional()
+      .default([]),
   })
   .superRefine((data, ctx) => {
     if (data.cake_type === 'theme' && !data.theme?.trim()) {

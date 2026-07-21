@@ -24,6 +24,7 @@ const fullSchema = inquirySchema.and(
     address_street: z.string().optional(),
     address_house_no: z.string().optional(),
     address_extra_notes: z.string().optional(),
+    address_location_link: z.string().optional(),
   })
 )
 
@@ -31,7 +32,7 @@ type FormInput = z.input<typeof fullSchema>
 type FormOutput = z.output<typeof fullSchema>
 
 interface Props {
-  inquiry: Inquiry & { delivery_address?: { governorate: string; area: string; block: string; street: string; house_no: string; extra_notes?: string } | null }
+  inquiry: Inquiry & { delivery_address?: { governorate: string; area: string; block: string; street: string; house_no: string; extra_notes?: string; location_link?: string } | null }
   options: {
     flavors: OptionRow[]
     sizes: OptionRow[]
@@ -106,6 +107,7 @@ export default function InquiryDetailForm({
       address_street: inquiry.delivery_address?.street ?? '',
       address_house_no: inquiry.delivery_address?.house_no ?? '',
       address_extra_notes: inquiry.delivery_address?.extra_notes ?? '',
+      address_location_link: inquiry.delivery_address?.location_link ?? '',
     },
   })
 
@@ -119,6 +121,7 @@ export default function InquiryDetailForm({
   const watchedAdvance = watch('advance_amount')
   const advancePaid = watch('advance_paid')
   const fullyPaid = watch('fully_paid')
+  const locationLink = watch('address_location_link')
 
   const isWithinLeadTime = (date: string): boolean => {
     if (!date || !minLeadDays) return false
@@ -172,7 +175,7 @@ export default function InquiryDetailForm({
     startTransition(async () => {
       const {
         address_governorate, address_area, address_block, address_street,
-        address_house_no, address_extra_notes, ...inquiryData
+        address_house_no, address_extra_notes, address_location_link, ...inquiryData
       } = data
 
       const addressData =
@@ -184,6 +187,7 @@ export default function InquiryDetailForm({
               street: address_street,
               house_no: address_house_no,
               extra_notes: address_extra_notes,
+              location_link: address_location_link,
             }
           : undefined
 
@@ -431,6 +435,22 @@ export default function InquiryDetailForm({
                 <Field label="Extra Notes" className="col-span-2">
                   <Input {...register('address_extra_notes')} placeholder="Ring bell twice" />
                 </Field>
+                <Field label="Google Maps Pin" className="col-span-2">
+                  <div className="flex items-center gap-2">
+                    <Input {...register('address_location_link')} placeholder="https://maps.app.goo.gl/…" className="flex-1" />
+                    {locationLink && (
+                      <a
+                        href={locationLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs font-semibold shrink-0"
+                        style={{ color: 'var(--color-teal)' }}
+                      >
+                        Open
+                      </a>
+                    )}
+                  </div>
+                </Field>
               </div>
             )}
           </div>
@@ -452,7 +472,6 @@ export default function InquiryDetailForm({
                 value={paymentMethod ?? ''}
                 onChange={(v) => setValue('payment_method', v, { shouldDirty: true })}
                 options={[
-                  { value: '', label: 'Not set' },
                   { value: 'cash', label: 'Cash' },
                   { value: 'wamd', label: 'WAMD' },
                 ]}

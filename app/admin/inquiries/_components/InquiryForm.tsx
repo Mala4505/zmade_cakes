@@ -25,6 +25,7 @@ const fullSchema = inquirySchema.and(
     address_street: z.string().optional(),
     address_house_no: z.string().optional(),
     address_extra_notes: z.string().optional(),
+    address_location_link: z.string().optional(),
   })
 )
 
@@ -166,7 +167,7 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
 
   const onSubmit = (data: FormOutput) => {
     startTransition(async () => {
-      const { address_governorate, address_area, address_block, address_street, address_house_no, address_extra_notes, ...inquiryData } = data
+      const { address_governorate, address_area, address_block, address_street, address_house_no, address_extra_notes, address_location_link, ...inquiryData } = data
 
       const addressData = deliveryType === 'delivery' && address_area
         ? {
@@ -176,6 +177,7 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
             street: address_street,
             house_no: address_house_no,
             extra_notes: address_extra_notes,
+            location_link: address_location_link,
           }
         : undefined
 
@@ -385,6 +387,9 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
             <Field label="Extra Notes" className="col-span-2">
               <Input {...register('address_extra_notes')} placeholder="Ring bell twice" />
             </Field>
+            <Field label="Google Maps Pin" className="col-span-2">
+              <Input {...register('address_location_link')} placeholder="https://maps.app.goo.gl/…" />
+            </Field>
           </div>
         )}
       </Section>
@@ -397,7 +402,6 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
               value={paymentMethod ?? ''}
               onChange={(v) => setValue('payment_method', v, { shouldDirty: true })}
               options={[
-                { value: '', label: 'Not set' },
                 { value: 'cash', label: 'Cash' },
                 { value: 'wamd', label: 'WAMD' },
               ]}

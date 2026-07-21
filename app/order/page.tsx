@@ -5,7 +5,11 @@ export default async function OrderPage() {
   const supabase = createServiceClient()
 
   const [flavorsRes, sizesRes, occasionsRes, blackoutsRes, phoneRow] = await Promise.all([
-    supabase.from('flavor_options').select('id, name').eq('is_active', true).order('sort_order'),
+    supabase
+      .from('flavor_options')
+      .select('id, name, theme_available, prices:flavor_size_prices(size_id)')
+      .eq('is_active', true)
+      .order('sort_order'),
     supabase.from('size_options').select('id, name').eq('is_active', true).order('sort_order'),
     supabase.from('occasion_options').select('id, name').eq('is_active', true).order('sort_order'),
     supabase.from('blackout_dates').select('id, date_from, date_to, reason').order('date_from'),

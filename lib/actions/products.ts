@@ -44,6 +44,24 @@ export async function upsertFlavorPrices(
   return { data: (data as FlavorSizePrice[]) ?? [], error: null }
 }
 
+export async function updateFlavorThemeAvailable(
+  flavorId: string,
+  themeAvailable: boolean
+): Promise<ActionResult<void>> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { data: null, error: 'Unauthorized' }
+
+  const { error } = await supabase
+    .from('flavor_options')
+    .update({ theme_available: themeAvailable })
+    .eq('id', flavorId)
+  if (error) return { data: null, error: error.message }
+  return { data: undefined, error: null }
+}
+
 // Uploads file to flavor-images bucket and updates flavor_options.image_url.
 export async function uploadFlavorImage(
   flavorId: string,

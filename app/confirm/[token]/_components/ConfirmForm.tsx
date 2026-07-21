@@ -15,6 +15,7 @@ type Address = {
   street: string
   house_no: string
   extra_notes?: string
+  location_link?: string
 }
 
 interface Props {
@@ -56,6 +57,7 @@ export default function ConfirmForm({
   const [street, setStreet] = useState(existingAddress?.street ?? '')
   const [houseNo, setHouseNo] = useState(existingAddress?.house_no ?? '')
   const [extraNotes, setExtraNotes] = useState(existingAddress?.extra_notes ?? '')
+  const [locationLink, setLocationLink] = useState(existingAddress?.location_link ?? '')
 
   function clearFieldError(key: string) {
     setFieldErrors((prev) => {
@@ -89,6 +91,7 @@ export default function ConfirmForm({
           street,
           house_no: houseNo,
           extra_notes: extraNotes,
+          location_link: locationLink,
         },
       }
     }
@@ -333,6 +336,24 @@ export default function ConfirmForm({
                 }}
                 placeholder="Landmark, gate colour, etc."
                 aria-invalid={fieldErrors['delivery_address.extra_notes'] ? true : undefined}
+              />
+            </Field>
+            <Field
+              label="Google Maps Pin"
+              htmlFor="confirm-location-link"
+              hint="Open Google Maps, drop a pin on your location, tap Share, and paste the link here."
+              error={fieldErrors['delivery_address.location_link']}
+            >
+              <Input
+                id="confirm-location-link"
+                type="text"
+                value={locationLink}
+                onChange={(e) => {
+                  setLocationLink(e.target.value)
+                  clearFieldError('delivery_address.location_link')
+                }}
+                placeholder="https://maps.app.goo.gl/…"
+                aria-invalid={fieldErrors['delivery_address.location_link'] ? true : undefined}
               />
             </Field>
           </div>

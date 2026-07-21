@@ -39,6 +39,7 @@ export interface DeliveryAddress {
   street: string
   house_no: string
   extra_notes: string
+  location_link: string
   created_at: string
 }
 
@@ -206,6 +207,7 @@ export interface FlavorSizePrice {
 }
 
 export interface FlavorWithPrices extends OptionRow {
+  theme_available: boolean
   prices: FlavorSizePrice[]
 }
 
@@ -240,15 +242,15 @@ export type Database = {
         Relationships: []
       }
       delivery_addresses: {
-        Row: { area: string; block: string; created_at: string; extra_notes: string; governorate: string; house_no: string; id: string; inquiry_id: string; street: string }
-        Insert: { area: string; block: string; created_at?: string; extra_notes?: string; governorate: string; house_no: string; id?: string; inquiry_id: string; street: string }
-        Update: { area?: string; block?: string; created_at?: string; extra_notes?: string; governorate?: string; house_no?: string; id?: string; inquiry_id?: string; street?: string }
+        Row: { area: string; block: string; created_at: string; extra_notes: string; governorate: string; house_no: string; id: string; inquiry_id: string; location_link: string; street: string }
+        Insert: { area: string; block: string; created_at?: string; extra_notes?: string; governorate: string; house_no: string; id?: string; inquiry_id: string; location_link?: string; street: string }
+        Update: { area?: string; block?: string; created_at?: string; extra_notes?: string; governorate?: string; house_no?: string; id?: string; inquiry_id?: string; location_link?: string; street?: string }
         Relationships: [{ foreignKeyName: 'delivery_addresses_inquiry_id_fkey'; columns: ['inquiry_id']; isOneToOne: true; referencedRelation: 'inquiries'; referencedColumns: ['id'] }]
       }
       flavor_options: {
-        Row: { created_at: string; id: string; image_url: string | null; is_active: boolean; name: string; sort_order: number }
-        Insert: { created_at?: string; id?: string; image_url?: string | null; is_active?: boolean; name: string; sort_order?: number }
-        Update: { created_at?: string; id?: string; image_url?: string | null; is_active?: boolean; name?: string; sort_order?: number }
+        Row: { created_at: string; id: string; image_url: string | null; is_active: boolean; name: string; sort_order: number; theme_available: boolean }
+        Insert: { created_at?: string; id?: string; image_url?: string | null; is_active?: boolean; name: string; sort_order?: number; theme_available?: boolean }
+        Update: { created_at?: string; id?: string; image_url?: string | null; is_active?: boolean; name?: string; sort_order?: number; theme_available?: boolean }
         Relationships: []
       }
       flavor_size_prices: {
