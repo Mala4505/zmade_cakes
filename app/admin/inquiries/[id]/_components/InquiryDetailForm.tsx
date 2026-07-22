@@ -37,6 +37,7 @@ interface Props {
     flavors: OptionRow[]
     sizes: OptionRow[]
     occasions: OptionRow[]
+    items: OptionRow[]
   }
   minLeadDays?: number
   blackouts?: BlackoutDate[]
@@ -52,6 +53,9 @@ function whatsappUrl(phone: string): string {
 }
 
 const numberOrNull = (v: unknown) => (v === '' || v == null ? null : Number(v))
+// discount is never nullable in the schema (defaults to 0) — mirrors numberOrNull but
+// resolves blank -> 0 instead of null.
+const numberOrZero = (v: unknown) => (v === '' || v == null ? 0 : Number(v))
 
 export default function InquiryDetailForm({
   inquiry,
@@ -85,6 +89,8 @@ export default function InquiryDetailForm({
       cake_type: inquiry.theme ? 'theme' : 'normal',
       theme: inquiry.theme,
       message_on_cake: inquiry.message_on_cake,
+      order_type: inquiry.order_type ?? 'cake',
+      item_name: inquiry.item_name ?? '',
       quantity: inquiry.quantity,
       special_requirements: inquiry.special_requirements,
       allergen_nut_free: inquiry.allergen_nut_free,
@@ -96,8 +102,8 @@ export default function InquiryDetailForm({
       pickup_time: inquiry.pickup_time ?? undefined,
       delivery_type: inquiry.delivery_type,
       admin_price: inquiry.admin_price ? Number(inquiry.admin_price) : undefined,
-      advance_amount: inquiry.advance_amount ? Number(inquiry.advance_amount) : undefined,
-      advance_paid: inquiry.advance_paid,
+      discount: inquiry.discount ? Number(inquiry.discount) : 0,
+      deposit_amount: inquiry.deposit_amount ? Number(inquiry.deposit_amount) : undefined,
       fully_paid: inquiry.fully_paid,
       payment_method: inquiry.payment_method,
       admin_notes: inquiry.admin_notes,
@@ -113,13 +119,14 @@ export default function InquiryDetailForm({
 
   const deliveryType = watch('delivery_type')
   const cakeType = watch('cake_type')
+  const orderType = watch('order_type')
   const paymentMethod = watch('payment_method')
   const watchedPhone = watch('customer_phone')
   const watchedEventDate = watch('event_date')
   const watchedCakeSize = watch('cake_size')
   const watchedPrice = watch('admin_price')
-  const watchedAdvance = watch('advance_amount')
-  const advancePaid = watch('advance_paid')
+  const watchedDiscount = watch('discount')
+  const watchedDeposit = watch('deposit_amount')
   const fullyPaid = watch('fully_paid')
   const locationLink = watch('address_location_link')
 
@@ -163,13 +170,16 @@ export default function InquiryDetailForm({
 
   // Live payment preview — same derivation as the DB's generated payment_status column.
   const depositAmount =
-    typeof watchedAdvance === 'number' && !Number.isNaN(watchedAdvance) ? watchedAdvance : 0
-  const paymentStatus = derivePaymentStatus(!!fullyPaid, !!advancePaid, depositAmount)
+    typeof watchedDeposit === 'number' && !Number.isNaN(watchedDeposit) ? watchedDeposit : 0
+  const paymentStatus = derivePaymentStatus(!!fullyPaid, depositAmount)
   const priceNum =
     typeof watchedPrice === 'number' && !Number.isNaN(watchedPrice) ? watchedPrice : null
-  const remaining = balanceOwed(priceNum, depositAmount, !!advancePaid, !!fullyPaid)
+  const discountNum =
+    typeof watchedDiscount === 'number' && !Number.isNaN(watchedDiscount) ? watchedDiscount : 0
+  const discountedPrice = priceNum !== null ? Math.max(0, priceNum - discountNum) : null
+  const remaining = balanceOwed(discountedPrice, depositAmount, !!fullyPaid)
   const balanceFill =
-    priceNum && priceNum > 0 ? Math.min(((priceNum - remaining) / priceNum) * 100, 100) : 0
+    discountedPrice && discountedPrice > 0 ? Math.min(((discountedPrice - remaining) / discountedPrice) * 100, 100) : 0
 
   const onSubmit = (data: FormOutput) => {
     startTransition(async () => {
@@ -291,39 +301,69 @@ export default function InquiryDetailForm({
             Cake
           </p>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Size" error={errors.cake_size?.message} required>
-              <Select {...register('cake_size')} required aria-invalid={errors.cake_size ? true : undefined}>
-                <option value="">Select size</option>
-                {options.sizes.map(o => <option key={o.id} value={o.name}>{o.name}</option>)}
-              </Select>
-            </Field>
-            <Field label="Flavor" error={errors.flavor?.message} required>
-              <Select {...register('flavor')} required aria-invalid={errors.flavor ? true : undefined}>
-                <option value="">Select flavor</option>
-                {options.flavors.map(o => <option key={o.id} value={o.name}>{o.name}</option>)}
-              </Select>
-            </Field>
-            <Field label="Occasion" error={errors.occasion?.message} className="col-span-2">
-              <Select {...register('occasion')}>
-                <option value="">— Optional —</option>
-                {options.occasions.map(o => <option key={o.id} value={o.name}>{o.name}</option>)}
-              </Select>
-            </Field>
-            <Field label="Cake Type" error={errors.cake_type?.message} required className="col-span-2">
+            <Field label="Order Type" error={errors.order_type?.message} required className="col-span-2">
               <RadioGroup
-                value={cakeType}
-                onChange={(v) => {
-                  setValue('cake_type', v, { shouldDirty: true })
-                  if (v === 'normal') clearErrors('theme')
-                }}
+                value={orderType}
+                onChange={(v) => setValue('order_type', v, { shouldDirty: true, shouldValidate: true })}
                 options={[
-                  { value: 'normal', label: 'Normal cake' },
-                  { value: 'theme', label: 'Theme cake' },
+                  { value: 'cake', label: 'Cake' },
+                  { value: 'other_item', label: 'Other Item' },
                 ]}
-                aria-label="Cake type"
+                aria-label="Order type"
               />
             </Field>
-            {cakeType === 'theme' && (
+            {orderType === 'other_item' ? (
+              <Field label="Size" error={errors.cake_size?.message} hint="Optional — free text">
+                <Input {...register('cake_size')} placeholder="500ml, 1kg, small jar…" aria-invalid={errors.cake_size ? true : undefined} />
+              </Field>
+            ) : (
+              <Field label="Size" error={errors.cake_size?.message} required>
+                <Select {...register('cake_size')} required aria-invalid={errors.cake_size ? true : undefined}>
+                  <option value="">Select size</option>
+                  {options.sizes.map(o => <option key={o.id} value={o.name}>{o.name}</option>)}
+                </Select>
+              </Field>
+            )}
+            {orderType === 'other_item' ? (
+              <Field label="Item" error={errors.item_name?.message} required>
+                <Select {...register('item_name')} required aria-invalid={errors.item_name ? true : undefined}>
+                  <option value="">Select item</option>
+                  {options.items.map(o => <option key={o.id} value={o.name}>{o.name}</option>)}
+                </Select>
+              </Field>
+            ) : (
+              <Field label="Flavor" error={errors.flavor?.message} required>
+                <Select {...register('flavor')} required aria-invalid={errors.flavor ? true : undefined}>
+                  <option value="">Select flavor</option>
+                  {options.flavors.map(o => <option key={o.id} value={o.name}>{o.name}</option>)}
+                </Select>
+              </Field>
+            )}
+            {orderType === 'cake' && (
+              <Field label="Occasion" error={errors.occasion?.message} className="col-span-2">
+                <Select {...register('occasion')}>
+                  <option value="">— Optional —</option>
+                  {options.occasions.map(o => <option key={o.id} value={o.name}>{o.name}</option>)}
+                </Select>
+              </Field>
+            )}
+            {orderType === 'cake' && (
+              <Field label="Cake Type" error={errors.cake_type?.message} required className="col-span-2">
+                <RadioGroup
+                  value={cakeType}
+                  onChange={(v) => {
+                    setValue('cake_type', v, { shouldDirty: true })
+                    if (v === 'normal') clearErrors('theme')
+                  }}
+                  options={[
+                    { value: 'normal', label: 'Normal cake' },
+                    { value: 'theme', label: 'Theme cake' },
+                  ]}
+                  aria-label="Cake type"
+                />
+              </Field>
+            )}
+            {orderType === 'cake' && cakeType === 'theme' && (
               <Field label="Theme" error={errors.theme?.message} required className="col-span-2">
                 <Input
                   {...register('theme')}
@@ -333,9 +373,11 @@ export default function InquiryDetailForm({
                 />
               </Field>
             )}
-            <Field label="Message on Cake" error={errors.message_on_cake?.message} className="col-span-2">
-              <Input {...register('message_on_cake')} placeholder="Happy Birthday…" />
-            </Field>
+            {orderType === 'cake' && (
+              <Field label="Message on Cake" error={errors.message_on_cake?.message} className="col-span-2">
+                <Input {...register('message_on_cake')} placeholder="Happy Birthday…" />
+              </Field>
+            )}
             <Field
               label="Cake Details"
               error={errors.special_requirements?.message}
@@ -519,22 +561,45 @@ export default function InquiryDetailForm({
                   </p>
                 )}
               </Field>
-              <Field label="Deposit Amount (KD)" error={errors.advance_amount?.message} hint="Optional, for security">
+              <Field label="Deposit Amount (KD)" error={errors.deposit_amount?.message} hint="Optional, for security">
                 <Input
-                  {...register('advance_amount', { setValueAs: numberOrNull })}
+                  {...register('deposit_amount', { setValueAs: numberOrNull })}
                   type="number"
                   step="0.001"
                   min="0"
                   placeholder="5.000"
                   style={{ fontFamily: 'var(--font-mono)' }}
-                  aria-invalid={errors.advance_amount ? true : undefined}
+                  aria-invalid={errors.deposit_amount ? true : undefined}
                 />
               </Field>
             </div>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Discount (KD)" error={errors.discount?.message} hint="Flat amount off the price">
+                <Input
+                  {...register('discount', { setValueAs: numberOrZero })}
+                  type="number"
+                  step="0.001"
+                  min="0"
+                  placeholder="0.000"
+                  style={{ fontFamily: 'var(--font-mono)' }}
+                  aria-invalid={errors.discount ? true : undefined}
+                />
+              </Field>
+              <Field label="Total after discount">
+                <div
+                  className="w-full rounded-lg border px-3.5 py-2.5 text-sm"
+                  style={{
+                    borderColor: 'var(--color-border)',
+                    backgroundColor: 'var(--color-surface-raised)',
+                    fontFamily: 'var(--font-mono)',
+                    color: 'var(--color-ink)',
+                  }}
+                >
+                  {discountedPrice !== null ? `KD ${discountedPrice.toFixed(3)}` : '—'}
+                </div>
+              </Field>
+            </div>
             <div className="grid grid-cols-2 gap-2">
-              {depositAmount > 0 && (
-                <Checkbox {...register('advance_paid')} label="Deposit received" />
-              )}
               <Checkbox {...register('fully_paid')} label="Fully paid" />
             </div>
 
@@ -548,7 +613,7 @@ export default function InquiryDetailForm({
                   Payment status
                 </span>
                 <span className="flex items-center gap-2">
-                  {paymentStatus !== 'paid' && priceNum !== null && priceNum > 0 && (
+                  {paymentStatus !== 'paid' && discountedPrice !== null && discountedPrice > 0 && (
                     <span className="text-xs" style={{ color: 'var(--color-ink-muted)', fontFamily: 'var(--font-mono)' }}>
                       KD {remaining.toFixed(3)} owed
                     </span>
@@ -556,7 +621,7 @@ export default function InquiryDetailForm({
                   <PaymentBadge status={paymentStatus} />
                 </span>
               </div>
-              {priceNum !== null && priceNum > 0 && (
+              {discountedPrice !== null && discountedPrice > 0 && (
                 <div
                   className="mt-2 h-2 rounded-full overflow-hidden"
                   style={{ backgroundColor: 'var(--color-border)' }}

@@ -4,8 +4,8 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { confirmInquiry } from '@/lib/actions/inquiries'
 import { customerConfirmSchema } from '@/lib/validations/confirm'
-import { CheckCircle, ArrowClockwise, WarningCircle } from '@phosphor-icons/react'
-import { GOVERNORATE_LABELS } from '@/lib/utils'
+import { CheckCircle, ArrowClockwise, WarningCircle, PencilSimple, X } from '@phosphor-icons/react'
+import { GOVERNORATE_LABELS, formatTime, formatAddress } from '@/lib/utils'
 import { Field, Input, Textarea, Select } from '@/components/ui'
 
 type Address = {
@@ -45,6 +45,7 @@ export default function ConfirmForm({
   const [error, setError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [requestSent, setRequestSent] = useState(false)
+  const [editing, setEditing] = useState(false)
 
   const [pickupTime, setPickupTime] = useState(currentPickupTime ?? '')
   const [messageOnCake, setMessageOnCake] = useState(currentMessageOnCake)
@@ -66,6 +67,21 @@ export default function ConfirmForm({
       delete next[key]
       return next
     })
+  }
+
+  function cancelEdit() {
+    setPickupTime(currentPickupTime ?? '')
+    setMessageOnCake(currentMessageOnCake)
+    setSpecialRequirements(currentSpecialRequirements)
+    setGovernorate(existingAddress?.governorate ?? '')
+    setArea(existingAddress?.area ?? '')
+    setBlock(existingAddress?.block ?? '')
+    setStreet(existingAddress?.street ?? '')
+    setHouseNo(existingAddress?.house_no ?? '')
+    setExtraNotes(existingAddress?.extra_notes ?? '')
+    setLocationLink(existingAddress?.location_link ?? '')
+    setFieldErrors({})
+    setEditing(false)
   }
 
   function buildPayload(action: ConfirmAction) {
@@ -147,7 +163,7 @@ export default function ConfirmForm({
           Request Sent
         </p>
         <p className="text-sm" style={{ color: 'var(--color-ink-muted)' }}>
-          Zainab has been notified of your request. She'll get back to you shortly on WhatsApp.
+          We've been notified of your request and will get back to you shortly on WhatsApp.
         </p>
       </div>
     )
@@ -160,13 +176,58 @@ export default function ConfirmForm({
         className="rounded-2xl border p-5 flex flex-col gap-4"
         style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
       >
-        <h2
-          className="text-xs font-semibold uppercase tracking-widest"
-          style={{ color: 'var(--color-ink-muted)' }}
-        >
-          Your Preferences
-        </h2>
+        <div className="flex items-center justify-between">
+          <h2
+            className="text-xs font-semibold uppercase tracking-widest"
+            style={{ color: 'var(--color-ink-muted)' }}
+          >
+            Your Preferences
+          </h2>
+          <button
+            type="button"
+            onClick={() => (editing ? cancelEdit() : setEditing(true))}
+            className="inline-flex items-center gap-1 text-xs font-medium shrink-0"
+            style={{ color: 'var(--color-teal)' }}
+          >
+            {editing ? (
+              <>
+                <X size={13} weight="bold" />
+                Cancel
+              </>
+            ) : (
+              <>
+                <PencilSimple size={13} weight="bold" />
+                Edit
+              </>
+            )}
+          </button>
+        </div>
 
+        {/* Read-only view — the default. Editing is opt-in so nothing looks half-open
+            or ambiguous about what's actually set vs. just rendered in an input. */}
+        {!editing && (
+          <div className="flex flex-col gap-3">
+            <PreferenceRow
+              label="Pickup / Delivery Time"
+              value={pickupTime ? formatTime(pickupTime) : 'Not set'}
+            />
+            <PreferenceRow label="Message on Cake" value={messageOnCake || 'Not set'} />
+            <PreferenceRow label="Special Requirements" value={specialRequirements || 'Not set'} />
+            {deliveryType === 'delivery' && (
+              <PreferenceRow
+                label="Delivery Address"
+                value={
+                  governorate
+                    ? formatAddress({ governorate, area, block, street, house_no: houseNo })
+                    : 'Not provided yet'
+                }
+              />
+            )}
+          </div>
+        )}
+
+        {editing && (
+        <>
         {/* Pickup time */}
         <Field
           label="Pickup / Delivery Time"
@@ -358,9 +419,11 @@ export default function ConfirmForm({
             </Field>
           </div>
         )}
+        </>
+        )}
       </section>
 
-      {/* Comments for Zainab */}
+      {/* Message for the team */}
       <section
         className="rounded-2xl border p-5"
         style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
@@ -370,7 +433,7 @@ export default function ConfirmForm({
           className="text-xs font-semibold uppercase tracking-widest mb-3"
           style={{ color: 'var(--color-ink-muted)' }}
         >
-          Message for Zainab
+          Your Message
         </h2>
         <Textarea
           value={customerComments}
@@ -438,6 +501,17 @@ export default function ConfirmForm({
           Request Changes
         </button>
       </div>
+    </div>
+  )
+}
+
+function PreferenceRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <p className="text-xs" style={{ color: 'var(--color-ink-muted)' }}>{label}</p>
+      <p className="text-sm mt-0.5 whitespace-pre-wrap" style={{ color: 'var(--color-ink-secondary)' }}>
+        {value}
+      </p>
     </div>
   )
 }

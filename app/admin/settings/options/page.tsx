@@ -8,6 +8,7 @@ export const metadata: Metadata = { title: 'Options' }
 
 const OPTION_TYPES: { type: OptionTable; label: string }[] = [
   { type: 'occasion_options', label: 'Occasions' },
+  { type: 'item_options', label: 'Items' },
 ]
 
 export default async function OptionsPage({

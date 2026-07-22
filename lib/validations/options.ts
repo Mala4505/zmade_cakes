@@ -7,6 +7,7 @@ export const OPTION_TABLES = [
   'flavor_options',
   'size_options',
   'occasion_options',
+  'item_options',
 ] as const
 
 export type OptionTable = (typeof OPTION_TABLES)[number]

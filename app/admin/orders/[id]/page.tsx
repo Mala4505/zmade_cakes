@@ -1,16 +1,18 @@
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getInquiryImages } from '@/lib/actions/images'
-import { formatDate, formatTime, formatKWD, trackingLink, GOVERNORATE_LABELS } from '@/lib/utils'
+import { getSettings } from '@/lib/actions/settings'
+import { formatDate, formatTime, formatKWD, trackingLink, myOrdersLink, orderSummary, GOVERNORATE_LABELS } from '@/lib/utils'
+import { generatePortalToken } from '@/lib/portal'
 import { PageHeader } from '@/components/admin/PageHeader'
 import { StatusBadge } from '@/components/admin/StatusBadge'
 import OrderDetailActions from './_components/OrderDetailActions'
 import OrderEtaSection from './_components/OrderEtaSection'
 import OrderImageSection from './_components/OrderImageSection'
-import WhatsAppCopy from './_components/WhatsAppCopy'
+import OrderWhatsAppActions from './_components/OrderWhatsAppActions'
 import InvoicePrint from '@/components/admin/InvoicePrint'
 import type { Metadata } from 'next'
-import type { OrderStatus } from '@/lib/supabase/types'
+import type { OrderStatus, WhatsAppTemplates } from '@/lib/supabase/types'
 
 interface Props { params: Promise<{ id: string }> }
 
@@ -19,18 +21,19 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const supabase = await createClient()
   const { data } = await supabase
     .from('orders')
-    .select('inquiry:inquiries(customer_name)')
+    .select('inquiry:inquiries(customer_name, order_type, item_name, cake_size, flavor)')
     .eq('id', id)
     .single()
-  const name = (data?.inquiry as any)?.customer_name
-  return { title: name ? `${name} — Order` : 'Order' }
+  const inq = data?.inquiry as any
+  const name = inq?.customer_name
+  return { title: name ? `${name} — Order (${orderSummary(inq)})` : 'Order' }
 }
 
 export default async function OrderDetailPage({ params }: Props) {
   const { id } = await params
   const supabase = await createClient()
 
-  const [{ data: order, error }, { data: phoneRow }, { data: igRow }, { data: templateSetting }] = await Promise.all([
+  const [{ data: order, error }, settingsResult] = await Promise.all([
     supabase
       .from('orders')
       .select(`
@@ -40,18 +43,18 @@ export default async function OrderDetailPage({ params }: Props) {
       `)
       .eq('id', id)
       .single(),
-    supabase.from('business_settings').select('value').eq('key', 'business_phone').single(),
-    supabase.from('business_settings').select('value').eq('key', 'business_instagram').single(),
-    supabase.from('business_settings').select('value').eq('key', 'whatsapp_templates').single(),
+    getSettings(['business_phone', 'business_instagram', 'whatsapp_templates']),
   ])
 
   if (error || !order) notFound()
+  if (settingsResult.error) throw new Error(`Order: failed to load settings — ${settingsResult.error}`)
 
   const inq = (order as any).inquiry
   const trackLink = trackingLink(order.tracking_token)
-  const businessPhone = (phoneRow?.value as string) ?? ''
-  const businessInstagram = (igRow?.value as string) ?? ''
-  const templates: string[] = Array.isArray(templateSetting?.value) ? (templateSetting.value as string[]) : []
+  const myOrdersUrl = inq?.customer_id ? myOrdersLink(generatePortalToken(inq.customer_id)) : null
+  const businessPhone = (settingsResult.data?.business_phone as string) ?? ''
+  const businessInstagram = (settingsResult.data?.business_instagram as string) ?? ''
+  const templates = settingsResult.data?.whatsapp_templates as WhatsAppTemplates | undefined
 
   const imagesResult = inq?.id ? await getInquiryImages(inq.id) : { data: [], error: null }
   if (imagesResult.error) throw new Error(`Order: failed to load images — ${imagesResult.error}`)
@@ -61,7 +64,7 @@ export default async function OrderDetailPage({ params }: Props) {
       <div className="no-print">
         <PageHeader
           title={inq?.customer_name ?? 'Order'}
-          subtitle={`${inq?.cake_size} · ${inq?.flavor} · ${inq?.event_date ? formatDate(inq.event_date) : '—'}`}
+          subtitle={`${inq ? orderSummary(inq) : '—'} · ${inq?.event_date ? formatDate(inq.event_date) : '—'}`}
           backHref="/admin/orders"
           backLabel="Orders"
           action={<StatusBadge status={order.status as OrderStatus} />}
@@ -76,18 +79,14 @@ export default async function OrderDetailPage({ params }: Props) {
           <Detail label="Phone" value={inq?.customer_phone} mono />
           <Detail label="Event Date" value={inq?.event_date ? formatDate(inq.event_date) : '—'} mono />
           <Detail label="Pickup Time" value={formatTime(inq?.pickup_time)} mono />
-          <Detail label="Cake" value={`${inq?.cake_size} · ${inq?.flavor}`} />
+          <Detail label="Cake" value={inq ? orderSummary(inq) : undefined} />
           {inq?.occasion && <Detail label="Occasion" value={inq.occasion} />}
           {inq?.theme && <Detail label="Theme" value={inq.theme} />}
           {inq?.decoration_style && <Detail label="Decoration" value={inq.decoration_style} />}
           {inq?.message_on_cake && <Detail label="Message" value={inq.message_on_cake} />}
           <Detail label="Quantity" value={String(inq?.quantity ?? 1)} mono />
           <Detail label="Final Price" value={formatKWD(order.final_price?.toString())} mono />
-          <Detail label="Deposit amount (KD)" value={inq?.advance_amount ? formatKWD(inq.advance_amount) : '—'} mono />
-          <Detail
-            label="Deposit Status"
-            value={inq?.advance_paid ? 'Paid' : 'Unpaid'}
-          />
+          <Detail label="Deposit amount (KD)" value={order.deposit_amount ? formatKWD(order.deposit_amount.toString()) : '—'} mono />
           <Detail label="Payment" value={inq?.payment_method || '—'} />
           <Detail label="Delivery" value={order.delivery_type === 'delivery' ? 'Delivery' : 'Pickup'} />
           {order.delivery_type === 'delivery' && inq?.delivery_address && (
@@ -131,13 +130,17 @@ export default async function OrderDetailPage({ params }: Props) {
         </div>
 
         {/* WhatsApp Templates */}
-        {templates.length > 0 && (
+        {inq && (
           <div className="mb-6">
-            <WhatsAppCopy
+            <OrderWhatsAppActions
+              order={{ final_price: order.final_price, deposit_amount: order.deposit_amount, tracking_token: order.tracking_token }}
+              inquiry={{
+                customer_name: inq.customer_name,
+                customer_phone: inq.customer_phone,
+                fully_paid: inq.fully_paid,
+              }}
               templates={templates}
-              customerName={inq?.customer_name ?? ''}
-              trackingLink={trackLink}
-              amount={order.final_price ? String(order.final_price) : ''}
+              myOrdersUrl={myOrdersUrl}
             />
           </div>
         )}

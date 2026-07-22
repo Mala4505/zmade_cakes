@@ -10,10 +10,10 @@ export const metadata: Metadata = { title: 'Calendar' }
 // through an order or standalone as a pending inquiry.
 const INQUIRY_DETAIL_FIELDS = `
   id, status, customer_name, customer_phone,
-  cake_size, flavor, quantity, occasion, theme,
+  cake_size, flavor, order_type, item_name, quantity, occasion, theme,
   special_requirements, message_on_cake,
   allergen_nut_free, allergen_dairy_free, allergen_egg_free, allergen_raw_sugar,
-  admin_price, advance_amount, advance_paid, fully_paid,
+  admin_price, deposit_amount, fully_paid,
   event_date, pickup_time, delivery_type, created_at
 `
 
@@ -35,7 +35,7 @@ async function getPendingInquiries() {
   const { data, error } = await supabase
     .from('inquiries')
     .select(INQUIRY_DETAIL_FIELDS)
-    .in('status', ['pending', 'awaiting_confirmation'])
+    .eq('status', 'pending')
     .order('created_at', { ascending: false })
   if (error) throw new Error(`Calendar: failed to load inquiries — ${error.message}`)
   return data ?? []

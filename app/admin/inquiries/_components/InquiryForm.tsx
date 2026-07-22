@@ -17,6 +17,8 @@ import { z } from 'zod'
 import { GOVERNORATE_LABELS } from '@/lib/utils'
 import { CustomerHistoryPanel } from './CustomerHistoryPanel'
 
+type MatchState = 'pending' | 'selected' | 'new'
+
 const fullSchema = inquirySchema.and(
   z.object({
     address_governorate: z.string().optional(),
@@ -37,6 +39,7 @@ interface Props {
     flavors: OptionRow[]
     sizes: OptionRow[]
     occasions: OptionRow[]
+    items: OptionRow[]
   }
   inquiry?: Inquiry
   minLeadDays?: number
@@ -47,6 +50,9 @@ interface Props {
 }
 
 const numberOrNull = (v: unknown) => (v === '' || v == null ? null : Number(v))
+// discount is never nullable in the schema (defaults to 0) — mirrors numberOrNull but
+// resolves blank -> 0 instead of null.
+const numberOrZero = (v: unknown) => (v === '' || v == null ? 0 : Number(v))
 
 export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, pricingMatrix, minPriceGuard, rushMultiplier }: Props) {
   const router = useRouter()
@@ -72,6 +78,8 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
           cake_type: inquiry.theme ? 'theme' : 'normal',
           theme: inquiry.theme,
           message_on_cake: inquiry.message_on_cake,
+          order_type: inquiry.order_type ?? 'cake',
+          item_name: inquiry.item_name ?? '',
           quantity: inquiry.quantity,
           special_requirements: inquiry.special_requirements,
           allergen_nut_free: inquiry.allergen_nut_free,
@@ -83,8 +91,8 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
           pickup_time: inquiry.pickup_time ?? undefined,
           delivery_type: inquiry.delivery_type,
           admin_price: inquiry.admin_price ? Number(inquiry.admin_price) : undefined,
-          advance_amount: inquiry.advance_amount ? Number(inquiry.advance_amount) : undefined,
-          advance_paid: inquiry.advance_paid,
+          discount: inquiry.discount ? Number(inquiry.discount) : 0,
+          deposit_amount: inquiry.deposit_amount ? Number(inquiry.deposit_amount) : undefined,
           fully_paid: inquiry.fully_paid,
           payment_method: inquiry.payment_method,
           admin_notes: inquiry.admin_notes,
@@ -93,8 +101,10 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
           quantity: 1,
           cake_type: 'normal',
           theme: '',
+          order_type: 'cake',
+          item_name: '',
           delivery_type: 'pickup',
-          advance_paid: false,
+          discount: 0,
           fully_paid: false,
           payment_method: '',
           allergen_nut_free: false,
@@ -107,22 +117,30 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
 
   const deliveryType = watch('delivery_type')
   const cakeType = watch('cake_type')
+  const orderType = watch('order_type')
   const paymentMethod = watch('payment_method')
   const watchedPhone = watch('customer_phone')
   const watchedEventDate = watch('event_date')
   const watchedCakeSize = watch('cake_size')
   const watchedPrice = watch('admin_price')
-  const watchedAdvance = watch('advance_amount')
-  const advancePaid = watch('advance_paid')
+  const watchedDiscount = watch('discount')
+  const watchedDeposit = watch('deposit_amount')
   const fullyPaid = watch('fully_paid')
 
   const [customerHistory, setCustomerHistory] = useState<{
     customer: { id: string; name: string; notes: string; vip: boolean; phone: string; created_at: string; updated_at: string }
-    recentInquiries: Array<{ id: string; cake_size: string; flavor: string; event_date: string; status: string }>
+    recentInquiries: Array<{ id: string; cake_size: string; flavor: string; event_date: string; status: string; order_type?: string; item_name?: string }>
     totalCount: number
   } | null>(null)
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null)
+  const [matchState, setMatchState] = useState<MatchState>('pending')
 
   useEffect(() => {
+    // A stale "use this customer / new customer" decision must never survive a phone edit —
+    // reset both synchronously (before the lookup even debounces) whenever the phone changes.
+    setSelectedCustomerId(null)
+    setMatchState('pending')
+
     if (!watchedPhone || watchedPhone.trim().length < 7) {
       setCustomerHistory(null)
       return
@@ -133,6 +151,18 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
     }, 500)
     return () => clearTimeout(timer)
   }, [watchedPhone])
+
+  const handleUseExisting = () => {
+    if (!customerHistory) return
+    setValue('customer_name', customerHistory.customer.name, { shouldValidate: true })
+    setSelectedCustomerId(customerHistory.customer.id)
+    setMatchState('selected')
+  }
+
+  const handleNewCustomer = () => {
+    setSelectedCustomerId(null)
+    setMatchState('new')
+  }
 
   const isWithinLeadTime = (date: string): boolean => {
     if (!date || !minLeadDays) return false
@@ -159,11 +189,14 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
 
   // Live payment preview — same derivation as the DB's generated payment_status column.
   const depositAmount =
-    typeof watchedAdvance === 'number' && !Number.isNaN(watchedAdvance) ? watchedAdvance : 0
-  const paymentStatus = derivePaymentStatus(!!fullyPaid, !!advancePaid, depositAmount)
+    typeof watchedDeposit === 'number' && !Number.isNaN(watchedDeposit) ? watchedDeposit : 0
+  const paymentStatus = derivePaymentStatus(!!fullyPaid, depositAmount)
   const priceNum =
     typeof watchedPrice === 'number' && !Number.isNaN(watchedPrice) ? watchedPrice : null
-  const remaining = balanceOwed(priceNum, depositAmount, !!advancePaid, !!fullyPaid)
+  const discountNum =
+    typeof watchedDiscount === 'number' && !Number.isNaN(watchedDiscount) ? watchedDiscount : 0
+  const discountedPrice = priceNum !== null ? Math.max(0, priceNum - discountNum) : null
+  const remaining = balanceOwed(discountedPrice, depositAmount, !!fullyPaid)
 
   const onSubmit = (data: FormOutput) => {
     startTransition(async () => {
@@ -181,9 +214,27 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
           }
         : undefined
 
+      // Resolve the customer link BEFORE creating/updating the inquiry — an explicit
+      // "use this customer" selection wins, otherwise fall back to an upsert-by-phone
+      // (awaited, not fire-and-forget) so every admin-created inquiry ends up linked.
+      let customerId: string | null = selectedCustomerId
+      if (!customerId && inquiryData.customer_phone && inquiryData.customer_name) {
+        const upsertResult = await upsertCustomer(inquiryData.customer_phone, inquiryData.customer_name)
+        if (upsertResult.error || !upsertResult.data) {
+          toast.warning('Could not link customer record', {
+            description: upsertResult.error ?? 'Inquiry will be saved without a customer link.',
+          })
+          customerId = null
+        } else {
+          customerId = upsertResult.data.id
+        }
+      }
+
+      const payload = { ...inquiryData, customer_id: customerId }
+
       const result = inquiry
-        ? await updateInquiry(inquiry.id, inquiryData, addressData)
-        : await createInquiry(inquiryData, addressData)
+        ? await updateInquiry(inquiry.id, payload, addressData)
+        : await createInquiry(payload, addressData)
 
       if (result.error) {
         toast.error('Failed to save', { description: result.error })
@@ -194,10 +245,6 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
           setError(field as keyof FormInput, { message: (msgs as string[])[0] })
         })
         return
-      }
-
-      if (inquiryData.customer_phone && inquiryData.customer_name) {
-        void upsertCustomer(inquiryData.customer_phone, inquiryData.customer_name)
       }
 
       router.push(inquiry ? `/admin/inquiries/${inquiry.id}` : `/admin/inquiries/${result.data!.id}`)
@@ -228,6 +275,9 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
         {customerHistory && (
           <CustomerHistoryPanel
             data={customerHistory}
+            matchState={matchState}
+            onUseExisting={handleUseExisting}
+            onNewCustomer={handleNewCustomer}
             onPrefill={(cakeSize, flavor) => {
               setValue('cake_size', cakeSize)
               setValue('flavor', flavor)
@@ -239,24 +289,52 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
       {/* Cake */}
       <Section title="Cake">
         <div className="grid grid-cols-2 gap-4">
-          <Field label="Size" error={errors.cake_size?.message} required>
-            <Select {...register('cake_size')} required aria-invalid={errors.cake_size ? true : undefined}>
-              <option value="">Select size</option>
-              {options.sizes.map((o) => <option key={o.id} value={o.name}>{o.name}</option>)}
-            </Select>
+          <Field label="Order Type" error={errors.order_type?.message} required className="col-span-2">
+            <RadioGroup
+              value={orderType}
+              onChange={(v) => setValue('order_type', v, { shouldDirty: true, shouldValidate: true })}
+              options={[
+                { value: 'cake', label: 'Cake' },
+                { value: 'other_item', label: 'Other Item' },
+              ]}
+              aria-label="Order type"
+            />
           </Field>
-          <Field label="Flavor" error={errors.flavor?.message} required>
-            <Select {...register('flavor')} required aria-invalid={errors.flavor ? true : undefined}>
-              <option value="">Select flavor</option>
-              {options.flavors.map((o) => <option key={o.id} value={o.name}>{o.name}</option>)}
-            </Select>
-          </Field>
-          <Field label="Occasion" error={errors.occasion?.message}>
-            <Select {...register('occasion')}>
-              <option value="">— Optional —</option>
-              {options.occasions.map((o) => <option key={o.id} value={o.name}>{o.name}</option>)}
-            </Select>
-          </Field>
+          {orderType === 'other_item' ? (
+            <Field label="Size" error={errors.cake_size?.message} hint="Optional — free text">
+              <Input {...register('cake_size')} placeholder="500ml, 1kg, small jar…" aria-invalid={errors.cake_size ? true : undefined} />
+            </Field>
+          ) : (
+            <Field label="Size" error={errors.cake_size?.message} required>
+              <Select {...register('cake_size')} required aria-invalid={errors.cake_size ? true : undefined}>
+                <option value="">Select size</option>
+                {options.sizes.map((o) => <option key={o.id} value={o.name}>{o.name}</option>)}
+              </Select>
+            </Field>
+          )}
+          {orderType === 'other_item' ? (
+            <Field label="Item" error={errors.item_name?.message} required>
+              <Select {...register('item_name')} required aria-invalid={errors.item_name ? true : undefined}>
+                <option value="">Select item</option>
+                {options.items.map((o) => <option key={o.id} value={o.name}>{o.name}</option>)}
+              </Select>
+            </Field>
+          ) : (
+            <Field label="Flavor" error={errors.flavor?.message} required>
+              <Select {...register('flavor')} required aria-invalid={errors.flavor ? true : undefined}>
+                <option value="">Select flavor</option>
+                {options.flavors.map((o) => <option key={o.id} value={o.name}>{o.name}</option>)}
+              </Select>
+            </Field>
+          )}
+          {orderType === 'cake' && (
+            <Field label="Occasion" error={errors.occasion?.message}>
+              <Select {...register('occasion')}>
+                <option value="">— Optional —</option>
+                {options.occasions.map((o) => <option key={o.id} value={o.name}>{o.name}</option>)}
+              </Select>
+            </Field>
+          )}
           <Field label="Quantity" error={errors.quantity?.message} required>
             <Input
               {...register('quantity', { valueAsNumber: true })}
@@ -267,21 +345,23 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
               aria-invalid={errors.quantity ? true : undefined}
             />
           </Field>
-          <Field label="Cake Type" error={errors.cake_type?.message} required className="col-span-2">
-            <RadioGroup
-              value={cakeType}
-              onChange={(v) => {
-                setValue('cake_type', v, { shouldDirty: true })
-                if (v === 'normal') clearErrors('theme')
-              }}
-              options={[
-                { value: 'normal', label: 'Normal cake' },
-                { value: 'theme', label: 'Theme cake' },
-              ]}
-              aria-label="Cake type"
-            />
-          </Field>
-          {cakeType === 'theme' && (
+          {orderType === 'cake' && (
+            <Field label="Cake Type" error={errors.cake_type?.message} required className="col-span-2">
+              <RadioGroup
+                value={cakeType}
+                onChange={(v) => {
+                  setValue('cake_type', v, { shouldDirty: true })
+                  if (v === 'normal') clearErrors('theme')
+                }}
+                options={[
+                  { value: 'normal', label: 'Normal cake' },
+                  { value: 'theme', label: 'Theme cake' },
+                ]}
+                aria-label="Cake type"
+              />
+            </Field>
+          )}
+          {orderType === 'cake' && cakeType === 'theme' && (
             <Field label="Theme" error={errors.theme?.message} required className="col-span-2">
               <Input
                 {...register('theme')}
@@ -291,9 +371,11 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
               />
             </Field>
           )}
+          {orderType === 'cake' && (
           <Field label="Message on Cake" error={errors.message_on_cake?.message} className="col-span-2">
             <Input {...register('message_on_cake')} placeholder="Happy Birthday Sarah!" />
           </Field>
+          )}
           <Field
             label="Cake Details"
             error={errors.special_requirements?.message}
@@ -449,22 +531,45 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
                 </p>
               )}
             </Field>
-            <Field label="Deposit Amount (KD)" error={errors.advance_amount?.message} hint="Optional, for security">
+            <Field label="Deposit Amount (KD)" error={errors.deposit_amount?.message} hint="Optional, for security">
               <Input
-                {...register('advance_amount', { setValueAs: numberOrNull })}
+                {...register('deposit_amount', { setValueAs: numberOrNull })}
                 type="number"
                 step="0.001"
                 min="0"
                 placeholder="5.000"
                 style={{ fontFamily: 'var(--font-mono)' }}
-                aria-invalid={errors.advance_amount ? true : undefined}
+                aria-invalid={errors.deposit_amount ? true : undefined}
               />
             </Field>
           </div>
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="Discount (KD)" error={errors.discount?.message} hint="Flat amount off the price">
+              <Input
+                {...register('discount', { setValueAs: numberOrZero })}
+                type="number"
+                step="0.001"
+                min="0"
+                placeholder="0.000"
+                style={{ fontFamily: 'var(--font-mono)' }}
+                aria-invalid={errors.discount ? true : undefined}
+              />
+            </Field>
+            <Field label="Total after discount">
+              <div
+                className="w-full rounded-lg border px-3.5 py-2.5 text-sm"
+                style={{
+                  borderColor: 'var(--color-border)',
+                  backgroundColor: 'var(--color-surface-raised)',
+                  fontFamily: 'var(--font-mono)',
+                  color: 'var(--color-ink)',
+                }}
+              >
+                {discountedPrice !== null ? `KD ${discountedPrice.toFixed(3)}` : '—'}
+              </div>
+            </Field>
+          </div>
           <div className="grid grid-cols-2 gap-2">
-            {depositAmount > 0 && (
-              <Checkbox {...register('advance_paid')} label="Deposit received" />
-            )}
             <Checkbox {...register('fully_paid')} label="Fully paid" />
           </div>
           <div
@@ -475,7 +580,7 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
               Payment status
             </span>
             <span className="flex items-center gap-2">
-              {paymentStatus !== 'paid' && priceNum !== null && priceNum > 0 && (
+              {paymentStatus !== 'paid' && discountedPrice !== null && discountedPrice > 0 && (
                 <span className="text-xs" style={{ color: 'var(--color-ink-muted)', fontFamily: 'var(--font-mono)' }}>
                   KD {remaining.toFixed(3)} owed
                 </span>

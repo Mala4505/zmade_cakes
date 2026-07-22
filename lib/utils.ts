@@ -7,3 +7,38 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9
 export function isValidUUID(value: string): boolean {
   return UUID_REGEX.test(value)
 }
+
+// Digits-only, consistently prefixed with the Kuwait country code (965). Matches the
+// normalization already used inline for WhatsApp numbers (e.g. app/track/[token]/page.tsx),
+// so phone values compare consistently regardless of spacing, dashes, or a missing/extra
+// country code.
+export function normalizePhone(phone: string): string {
+  return phone.replace(/\D/g, '').replace(/^(?!965)/, '965')
+}
+
+// Standard Levenshtein (edit-distance) DP implementation — no external dependency.
+export function levenshteinDistance(a: string, b: string): number {
+  const m = a.length
+  const n = b.length
+  if (m === 0) return n
+  if (n === 0) return m
+
+  const prev = new Array(n + 1)
+  const curr = new Array(n + 1)
+  for (let j = 0; j <= n; j++) prev[j] = j
+
+  for (let i = 1; i <= m; i++) {
+    curr[0] = i
+    for (let j = 1; j <= n; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1
+      curr[j] = Math.min(
+        prev[j] + 1,      // deletion
+        curr[j - 1] + 1,  // insertion
+        prev[j - 1] + cost // substitution
+      )
+    }
+    for (let j = 0; j <= n; j++) prev[j] = curr[j]
+  }
+
+  return prev[n]
+}

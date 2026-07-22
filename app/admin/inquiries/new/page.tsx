@@ -7,10 +7,11 @@ import type { Metadata } from 'next'
 export const metadata: Metadata = { title: 'New Inquiry' }
 
 export default async function NewInquiryPage() {
-  const [flavors, sizes, occasions, settingsResult, blackoutsResult] = await Promise.all([
+  const [flavors, sizes, occasions, items, settingsResult, blackoutsResult] = await Promise.all([
     getOptions('flavor_options'),
     getOptions('size_options'),
     getOptions('occasion_options'),
+    getOptions('item_options'),
     getSettings(['min_lead_days', 'pricing_matrix', 'min_price_guard', 'rush_multiplier']),
     getBlackouts(),
   ])
@@ -19,6 +20,7 @@ export default async function NewInquiryPage() {
     flavors,
     sizes,
     occasions,
+    items,
     settings: settingsResult,
     'blackout dates': blackoutsResult,
   }
@@ -45,6 +47,7 @@ export default async function NewInquiryPage() {
           flavors: flavors.data ?? [],
           sizes: sizes.data ?? [],
           occasions: occasions.data ?? [],
+          items: items.data ?? [],
         }}
         minLeadDays={minLeadDays}
         blackouts={blackoutsResult.data ?? []}

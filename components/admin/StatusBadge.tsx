@@ -6,8 +6,7 @@ type Status = InquiryStatus | OrderStatus
 // Admin-facing labels: 'delivered' reads as "Dispatched" — the DB value is unchanged, this is
 // a UI-only relabel for the admin flow (Confirmed -> Ready -> Dispatched).
 const ADMIN_STATUS_CONFIG: Record<Status, { label: string; variant: BadgeVariant }> = {
-  pending:                { label: 'Pending',           variant: 'neutral' },
-  awaiting_confirmation:  { label: 'Awaiting Confirm.', variant: 'warning' },
+  pending:                { label: 'Inquired',          variant: 'neutral' },
   confirmed:              { label: 'Confirmed',         variant: 'teal'    },
   ready:                  { label: 'Ready',             variant: 'success' },
   delivered:              { label: 'Dispatched',        variant: 'neutral' },

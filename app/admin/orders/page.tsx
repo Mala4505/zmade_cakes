@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import { formatDate, formatKWD } from '@/lib/utils'
+import { formatDate, formatKWD, orderSummary } from '@/lib/utils'
 import { PageHeader } from '@/components/admin/PageHeader'
 import { PaymentBadge } from '@/components/admin/StatusBadge'
 import { derivePaymentStatus } from '@/lib/payments'
@@ -34,11 +34,11 @@ async function getOrders(includeCancelled: boolean) {
     .select(`
       id, status, final_price, delivery_type, created_at, tracking_token,
       inquiry:inquiries (
-        id, customer_name, customer_phone, cake_size, flavor, event_date,
+        id, customer_name, customer_phone, cake_size, flavor, order_type, item_name, event_date,
         pickup_time, occasion, theme, message_on_cake,
         allergen_nut_free, allergen_gluten_free, allergen_dairy_free, allergen_egg_free,
         allergen_halal, allergen_raw_sugar, allergen_other,
-        admin_price, advance_amount, advance_paid, fully_paid
+        admin_price, deposit_amount, fully_paid
       )
     `)
     .in('status', statuses)
@@ -146,7 +146,7 @@ function daysUntil(dateStr: string): number {
 function OrderCard({ order }: { order: any }) {
   const inq = order.inquiry
   const days = inq?.event_date ? daysUntil(inq.event_date) : null
-  const paymentStatus = inq ? derivePaymentStatus(inq.fully_paid, inq.advance_paid, inq.advance_amount) : null
+  const paymentStatus = inq ? derivePaymentStatus(inq.fully_paid, inq.deposit_amount) : null
 
   return (
     <div
@@ -167,7 +167,7 @@ function OrderCard({ order }: { order: any }) {
             {inq?.customer_name ?? '—'}
           </Link>
           <p className="text-xs mt-0.5 truncate" style={{ color: 'var(--color-ink-muted)' }}>
-            {inq?.cake_size} · {inq?.flavor}
+            {inq ? orderSummary(inq) : '—'}
           </p>
         </div>
         {paymentStatus && <PaymentBadge status={paymentStatus} />}

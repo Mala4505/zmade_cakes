@@ -8,8 +8,7 @@ import { toast } from 'sonner'
 import type { InquiryStatus } from '@/lib/supabase/types'
 
 const STATUS_OPTIONS: { value: InquiryStatus; label: string }[] = [
-  { value: 'pending', label: 'Pending' },
-  { value: 'awaiting_confirmation', label: 'Awaiting' },
+  { value: 'pending', label: 'Inquired' },
   { value: 'confirmed', label: 'Confirmed' },
   { value: 'ready', label: 'Ready' },
   { value: 'delivered', label: 'Dispatched' },
@@ -18,7 +17,6 @@ const STATUS_OPTIONS: { value: InquiryStatus; label: string }[] = [
 
 const STATUS_STYLE: Record<InquiryStatus, { bg: string; color: string }> = {
   pending: { bg: 'var(--color-surface-raised)', color: 'var(--color-ink-muted)' },
-  awaiting_confirmation: { bg: 'var(--color-warning-light)', color: 'var(--color-warning)' },
   confirmed: { bg: 'var(--color-teal-light)', color: 'var(--color-teal-deep)' },
   ready: { bg: '#f0e6ff', color: '#6b21a8' },
   delivered: { bg: 'var(--color-success-light)', color: 'var(--color-success)' },

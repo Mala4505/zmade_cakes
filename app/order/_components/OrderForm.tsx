@@ -288,7 +288,7 @@ export default function OrderForm({ flavors, sizes, occasions, blackouts, minLea
                 if (v === 'normal') clearErrors('theme')
               }}
               options={[
-                { value: 'normal', label: 'Normal cake', description: 'A classic ZMade design' },
+                { value: 'normal', label: 'Normal cake', description: 'A classic ZMade Cakes design' },
                 { value: 'theme', label: 'Theme cake', description: 'Designed around your idea', disabled: themeDisabled },
               ]}
               aria-label="Cake type"

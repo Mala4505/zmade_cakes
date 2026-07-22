@@ -7,3 +7,7 @@ export function confirmationLink(token: string): string {
 export function trackingLink(token: string): string {
   return `${appUrl}/track/${token}`
 }
+
+export function myOrdersLink(portalToken: string): string {
+  return `${appUrl}/my-orders?token=${portalToken}`
+}

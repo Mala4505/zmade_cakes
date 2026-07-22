@@ -3,12 +3,13 @@ import { createClient } from '@/lib/supabase/server'
 import { getOptions } from '@/lib/actions/options'
 import { getSettings, getBlackouts } from '@/lib/actions/settings'
 import { getInquiryImages } from '@/lib/actions/images'
-import { formatKWD, confirmationLink } from '@/lib/utils'
+import { formatKWD, confirmationLink, orderSummary } from '@/lib/utils'
 import { StatusBadge } from '@/components/admin/StatusBadge'
 import InquiryActions from './_components/InquiryActions'
 import InquiryDetailForm from './_components/InquiryDetailForm'
 import CancelInquiryButton from './_components/CancelInquiryButton'
 import CollapsibleImages from './_components/CollapsibleImages'
+import CustomerChangesBanner from './_components/CustomerChangesBanner'
 import Link from 'next/link'
 import { ArrowLeft } from '@phosphor-icons/react/dist/ssr'
 import type { Metadata } from 'next'
@@ -26,8 +27,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 const TIMELINE_STEPS: { status: InquiryStatus; label: string }[] = [
-  { status: 'pending', label: 'Pending' },
-  { status: 'awaiting_confirmation', label: 'Awaiting' },
+  { status: 'pending', label: 'Inquired' },
   { status: 'confirmed', label: 'Confirmed' },
   { status: 'ready', label: 'Ready' },
   { status: 'delivered', label: 'Dispatched' },
@@ -35,10 +35,9 @@ const TIMELINE_STEPS: { status: InquiryStatus; label: string }[] = [
 
 const STATUS_ORDER: Record<string, number> = {
   pending: 0,
-  awaiting_confirmation: 1,
-  confirmed: 2,
-  ready: 3,
-  delivered: 4,
+  confirmed: 1,
+  ready: 2,
+  delivered: 3,
   cancelled: -1,
 }
 
@@ -106,11 +105,12 @@ export default async function InquiryDetailPage({ params }: Props) {
 
   if (error || !inquiry) notFound()
 
-  const [flavors, sizes, occasions, settingsResult, blackoutsResult, imagesResult] =
+  const [flavors, sizes, occasions, items, settingsResult, blackoutsResult, imagesResult] =
     await Promise.all([
       getOptions('flavor_options'),
       getOptions('size_options'),
       getOptions('occasion_options'),
+      getOptions('item_options'),
       getSettings(['whatsapp_templates', 'min_lead_days', 'pricing_matrix', 'min_price_guard', 'rush_multiplier']),
       getBlackouts(),
       getInquiryImages(id),
@@ -120,6 +120,7 @@ export default async function InquiryDetailPage({ params }: Props) {
     flavors,
     sizes,
     occasions,
+    items,
     settings: settingsResult,
     'blackout dates': blackoutsResult,
     images: imagesResult,
@@ -186,7 +187,7 @@ export default async function InquiryDetailPage({ params }: Props) {
             )}
           </div>
           <p className="text-sm mt-0.5" style={{ color: 'var(--color-ink-muted)' }}>
-            {inquiry.cake_size} · {inquiry.flavor}
+            {orderSummary(inquiry)}
             {inquiry.admin_price ? ` · ${formatKWD(inquiry.admin_price?.toString())}` : ''}
           </p>
         </div>
@@ -217,6 +218,12 @@ export default async function InquiryDetailPage({ params }: Props) {
         <OrderTimeline currentStatus={inquiry.status as InquiryStatus} />
       )}
 
+      {/* What the customer changed / said before confirming or requesting changes */}
+      <CustomerChangesBanner
+        diff={(inquiry as any).customer_edit_diff ?? null}
+        comments={inquiry.customer_comments ?? ''}
+      />
+
       {/* Grouped editable form cards */}
       <InquiryDetailForm
         inquiry={inquiry as any}
@@ -224,6 +231,7 @@ export default async function InquiryDetailPage({ params }: Props) {
           flavors: flavors.data ?? [],
           sizes: sizes.data ?? [],
           occasions: occasions.data ?? [],
+          items: items.data ?? [],
         }}
         minLeadDays={minLeadDays}
         blackouts={blackoutsResult.data ?? []}

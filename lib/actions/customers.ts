@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import type { Customer } from '@/lib/supabase/types'
+import { normalizePhone } from '@/lib/utils'
 
 type ActionResult<T> = { data: T; error: null } | { data: null; error: string }
 
@@ -57,7 +58,7 @@ export async function upsertCustomer(phone: string, name: string): Promise<Actio
   const { data, error } = await supabase
     .from('customers')
     .upsert(
-      { phone: phone.trim(), name: name.trim(), updated_at: new Date().toISOString() },
+      { phone: normalizePhone(phone), name: name.trim(), updated_at: new Date().toISOString() },
       { onConflict: 'phone' }
     )
     .select()

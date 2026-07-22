@@ -1,12 +1,15 @@
 import { notFound } from 'next/navigation'
 import { createServiceClient } from '@/lib/supabase/server'
 import InvoiceLayout from '@/components/InvoiceLayout'
+import { Navbar } from '@/components/public/Navbar'
 import { PrintButton } from './_components/PrintButton'
+import { DownloadPdfButton } from './_components/DownloadPdfButton'
+import { BRAND_NAME } from '@/lib/brand'
 import type { Metadata } from 'next'
 
 interface Props { params: Promise<{ token: string }> }
 
-export const metadata: Metadata = { title: 'Your Invoice — ZMade Cakes' }
+export const metadata: Metadata = { title: `Your Invoice — ${BRAND_NAME}` }
 
 export default async function PublicInvoicePage({ params }: Props) {
   const { token } = await params
@@ -28,61 +31,32 @@ export default async function PublicInvoicePage({ params }: Props) {
   const inq = o.inquiry
   const businessPhone = (phoneRow?.value as string) ?? ''
   const businessInstagram = (igRow?.value as string) ?? ''
-  const waNumber = businessPhone
-    ? businessPhone.replace(/\D/g, '').replace(/^(?!965)/, '965')
-    : ''
 
   return (
     <main
       className="min-h-svh"
-      style={{ backgroundColor: 'var(--color-cream)' }}
+      style={{ background: 'linear-gradient(180deg, var(--color-cream) 0%, var(--color-surface-raised) 100%)' }}
     >
       <style>{`@media print { .no-print { display: none !important; } }`}</style>
 
-      {/* Header */}
-      <header
-        className="border-b px-5 py-5 text-center"
-        style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
-      >
-        <p
-          className="text-2xl font-bold tracking-tight"
-          style={{ fontFamily: 'var(--font-display)', color: 'var(--color-teal)' }}
-        >
-          ZMade Cakes
-        </p>
-        {businessInstagram && (
-          <p className="text-xs mt-1" style={{ color: 'var(--color-ink-muted)' }}>
-            {businessInstagram} · Kuwait
-          </p>
-        )}
-      </header>
+      <Navbar businessInstagram={businessInstagram} />
 
       <div className="max-w-lg mx-auto px-4 py-8 flex flex-col gap-6">
-        {/* Print button */}
-        <div className="no-print flex justify-end">
+        {/* Print / download buttons */}
+        <div className="no-print flex justify-end gap-2">
+          <DownloadPdfButton
+            order={o}
+            inquiry={inq}
+            adminMode={false}
+            businessPhone={businessPhone}
+            businessInstagram={businessInstagram}
+            invoiceNumber={o.invoice_number ?? null}
+          />
           <PrintButton />
         </div>
 
         {/* Invoice */}
         <InvoiceLayout order={o} inquiry={inq} adminMode={false} businessPhone={businessPhone} businessInstagram={businessInstagram} invoiceNumber={o.invoice_number ?? null} />
-
-        {/* Footer */}
-        {waNumber && (
-          <div className="text-center pb-4">
-            <p className="text-xs mb-2" style={{ color: 'var(--color-ink-muted)' }}>
-              Questions? Message Zainab on WhatsApp
-            </p>
-            <a
-              href={`https://wa.me/${waNumber}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium"
-              style={{ backgroundColor: '#25D366', color: '#fff' }}
-            >
-              Message on WhatsApp
-            </a>
-          </div>
-        )}
       </div>
     </main>
   )

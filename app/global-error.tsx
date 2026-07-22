@@ -1,6 +1,7 @@
 'use client' // Error boundaries must be Client Components
 
 import { useEffect } from 'react'
+import { BRAND_NAME } from '@/lib/brand'
 
 /**
  * Top-level catch-all. Replaces the root layout when active, so it must
@@ -49,7 +50,7 @@ export default function GlobalError({
               color: '#006860',
             }}
           >
-            ZMade Cakes
+            {BRAND_NAME}
           </p>
           <h1
             style={{

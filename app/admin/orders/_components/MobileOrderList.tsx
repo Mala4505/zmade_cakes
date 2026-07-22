@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { formatDate, formatKWD } from '@/lib/utils'
+import { formatDate, formatKWD, orderSummary } from '@/lib/utils'
 import AnimatedCardList from './AnimatedCardList'
 import { PaymentBadge } from '@/components/admin/StatusBadge'
 import { derivePaymentStatus } from '@/lib/payments'
@@ -9,10 +9,11 @@ interface OrderInquiry {
   customer_name?: string | null
   cake_size?: string | null
   flavor?: string | null
+  order_type?: string | null
+  item_name?: string | null
   event_date?: string | null
   admin_price?: string | number | null
-  advance_amount?: string | number | null
-  advance_paid?: boolean | null
+  deposit_amount?: string | number | null
   fully_paid?: boolean | null
   allergen_nut_free?: boolean | null
   allergen_dairy_free?: boolean | null
@@ -49,7 +50,7 @@ function MobileOrderCard({ order }: { order: MobileOrder }) {
   const inq = order.inquiry
   const days = inq?.event_date ? daysUntil(inq.event_date) : null
   const paymentStatus = inq
-    ? derivePaymentStatus(inq.fully_paid ?? false, inq.advance_paid ?? false, inq.advance_amount ?? null)
+    ? derivePaymentStatus(inq.fully_paid ?? false, inq.deposit_amount ?? null)
     : null
 
   return (
@@ -65,7 +66,7 @@ function MobileOrderCard({ order }: { order: MobileOrder }) {
             {inq?.customer_name ?? '—'}
           </p>
           <p className="text-xs mt-0.5 truncate" style={{ color: 'var(--color-ink-muted)' }}>
-            {[inq?.cake_size, inq?.flavor].filter(Boolean).join(' · ') || '—'}
+            {inq ? orderSummary({ order_type: inq.order_type ?? 'cake', item_name: inq.item_name ?? '', cake_size: inq.cake_size ?? '', flavor: inq.flavor ?? '' }) : '—'}
           </p>
         </div>
         {paymentStatus && <PaymentBadge status={paymentStatus} />}

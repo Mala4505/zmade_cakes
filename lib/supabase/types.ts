@@ -1,3 +1,6 @@
+import type { CustomerEditDiffEntry } from '../format'
+import { BRAND_NAME } from '../brand'
+
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[]
 
 export type DeliveryType = 'pickup' | 'delivery'
@@ -5,7 +8,6 @@ export type PaymentMethod = '' | 'cash' | 'wamd'
 export type Priority = 0 | 1 | 2
 export type InquiryStatus =
   | 'pending'
-  | 'awaiting_confirmation'
   | 'confirmed'
   | 'ready'
   | 'delivered'
@@ -68,8 +70,10 @@ export interface Inquiry {
   delivery_type: DeliveryType
   status: InquiryStatus
   admin_price: string | null
-  advance_amount: string | null
-  advance_paid: boolean
+  discount: string
+  order_type: 'cake' | 'other_item'
+  item_name: string
+  deposit_amount: string | null
   payment_method: PaymentMethod
   // Generated column (see supabase/migrations/015_unified_payment_model.sql) — Row-only,
   // never settable on Insert/Update. Derive client-side via lib/payments.ts#derivePaymentStatus.
@@ -85,6 +89,7 @@ export interface Inquiry {
   customer_id: string | null
   source: 'admin' | 'public_form'
   customer_comments: string
+  customer_edit_diff: CustomerEditDiffEntry[] | null
   created_at: string
   updated_at: string
   delivery_address?: DeliveryAddress | null
@@ -96,6 +101,7 @@ export interface Order {
   tracking_token: string
   status: OrderStatus
   final_price: string
+  deposit_amount: string | null
   delivery_type: DeliveryType
   eta_date: string | null
   eta_time: string | null
@@ -188,13 +194,15 @@ export interface WhatsAppTemplates {
   orderReady: string
   balanceDue: string
   trackingLink: string
+  myOrdersLink: string
 }
 
 export const DEFAULT_WHATSAPP_TEMPLATES: WhatsAppTemplates = {
-  confirmationLink: 'Hi {name}! Here is your ZMade Cakes confirmation link: {link}',
+  confirmationLink: `Hi {name}! Here is your ${BRAND_NAME} confirmation link: {link}`,
   orderReady: "Hi {name}! Great news — your cake is ready! Please contact us to arrange collection.",
   balanceDue: 'Hi {name}! A reminder that your balance of KWD {amount} is due on delivery.',
-  trackingLink: 'Hi {name}! Track your ZMade order here: {link}',
+  trackingLink: `Hi {name}! Track your ${BRAND_NAME} order here: {link}`,
+  myOrdersLink: `Hi {name}! You can view all your ${BRAND_NAME} orders anytime here: {link}`,
 }
 
 export interface FlavorSizePrice {
@@ -268,9 +276,9 @@ export type Database = {
         // they're no longer settable via Insert/Update or surfaced in UI/validation.
         // payment_status is a STORED generated column (015_unified_payment_model.sql) — Row
         // only, never on Insert/Update.
-        Row: { admin_notes: string; admin_price: number | null; advance_amount: number | null; advance_paid: boolean; allergen_dairy_free: boolean; allergen_egg_free: boolean; allergen_gluten_free: boolean; allergen_halal: boolean; allergen_nut_free: boolean; allergen_other: string; allergen_raw_sugar: boolean; fully_paid: boolean; cake_size: string; confirmation_token: string; confirmation_sent_at: string | null; created_at: string; customer_comments: string; customer_confirmed: boolean; customer_confirmed_at: string | null; customer_id: string | null; customer_name: string; customer_phone: string; decoration_style: string; delivery_type: string; event_date: string; flavor: string; id: string; message_on_cake: string; occasion: string; payment_method: string; payment_status: string; pickup_time: string | null; priority: number; quantity: number; source: string; special_requirements: string; status: string; theme: string; updated_at: string }
-        Insert: { admin_notes?: string; admin_price?: number | null; advance_amount?: number | null; advance_paid?: boolean; allergen_dairy_free?: boolean; allergen_egg_free?: boolean; allergen_nut_free?: boolean; allergen_other?: string; allergen_raw_sugar?: boolean; fully_paid?: boolean; cake_size: string; confirmation_token?: string; confirmation_sent_at?: string | null; created_at?: string; customer_comments?: string; customer_confirmed?: boolean; customer_confirmed_at?: string | null; customer_id?: string | null; customer_name: string; customer_phone: string; decoration_style?: string; delivery_type?: string; event_date: string; flavor: string; id?: string; message_on_cake?: string; occasion?: string; payment_method?: string; pickup_time?: string | null; quantity?: number; source?: string; special_requirements?: string; status?: string; theme?: string; updated_at?: string }
-        Update: { admin_notes?: string; admin_price?: number | null; advance_amount?: number | null; advance_paid?: boolean; allergen_dairy_free?: boolean; allergen_egg_free?: boolean; allergen_nut_free?: boolean; allergen_other?: string; allergen_raw_sugar?: boolean; fully_paid?: boolean; cake_size?: string; confirmation_token?: string; confirmation_sent_at?: string | null; created_at?: string; customer_comments?: string; customer_confirmed?: boolean; customer_confirmed_at?: string | null; customer_id?: string | null; customer_name?: string; customer_phone?: string; decoration_style?: string; delivery_type?: string; event_date?: string; flavor?: string; id?: string; message_on_cake?: string; occasion?: string; payment_method?: string; pickup_time?: string | null; quantity?: number; source?: string; special_requirements?: string; status?: string; theme?: string; updated_at?: string }
+        Row: { admin_notes: string; admin_price: number | null; discount: string; order_type: 'cake' | 'other_item'; item_name: string; deposit_amount: number | null; allergen_dairy_free: boolean; allergen_egg_free: boolean; allergen_gluten_free: boolean; allergen_halal: boolean; allergen_nut_free: boolean; allergen_other: string; allergen_raw_sugar: boolean; fully_paid: boolean; cake_size: string; confirmation_token: string; confirmation_sent_at: string | null; created_at: string; customer_comments: string; customer_confirmed: boolean; customer_confirmed_at: string | null; customer_edit_diff: Json | null; customer_id: string | null; customer_name: string; customer_phone: string; decoration_style: string; delivery_type: string; event_date: string; flavor: string; id: string; message_on_cake: string; occasion: string; payment_method: string; payment_status: string; pickup_time: string | null; priority: number; quantity: number; source: string; special_requirements: string; status: string; theme: string; updated_at: string }
+        Insert: { admin_notes?: string; admin_price?: number | null; discount?: number; order_type?: 'cake' | 'other_item'; item_name?: string; deposit_amount?: number | null; allergen_dairy_free?: boolean; allergen_egg_free?: boolean; allergen_nut_free?: boolean; allergen_other?: string; allergen_raw_sugar?: boolean; fully_paid?: boolean; cake_size: string; confirmation_token?: string; confirmation_sent_at?: string | null; created_at?: string; customer_comments?: string; customer_confirmed?: boolean; customer_confirmed_at?: string | null; customer_edit_diff?: Json | null; customer_id?: string | null; customer_name: string; customer_phone: string; decoration_style?: string; delivery_type?: string; event_date: string; flavor: string; id?: string; message_on_cake?: string; occasion?: string; payment_method?: string; pickup_time?: string | null; quantity?: number; source?: string; special_requirements?: string; status?: string; theme?: string; updated_at?: string }
+        Update: { admin_notes?: string; admin_price?: number | null; discount?: number; order_type?: 'cake' | 'other_item'; item_name?: string; deposit_amount?: number | null; allergen_dairy_free?: boolean; allergen_egg_free?: boolean; allergen_nut_free?: boolean; allergen_other?: string; allergen_raw_sugar?: boolean; fully_paid?: boolean; cake_size?: string; confirmation_token?: string; confirmation_sent_at?: string | null; created_at?: string; customer_comments?: string; customer_confirmed?: boolean; customer_confirmed_at?: string | null; customer_edit_diff?: Json | null; customer_id?: string | null; customer_name?: string; customer_phone?: string; decoration_style?: string; delivery_type?: string; event_date?: string; flavor?: string; id?: string; message_on_cake?: string; occasion?: string; payment_method?: string; pickup_time?: string | null; quantity?: number; source?: string; special_requirements?: string; status?: string; theme?: string; updated_at?: string }
         Relationships: [{ foreignKeyName: 'inquiries_customer_id_fkey'; columns: ['customer_id']; isOneToOne: false; referencedRelation: 'customers'; referencedColumns: ['id'] }]
       }
       inquiry_images: {
@@ -288,6 +296,12 @@ export type Database = {
           { foreignKeyName: 'notifications_order_id_fkey'; columns: ['order_id']; isOneToOne: false; referencedRelation: 'orders'; referencedColumns: ['id'] },
         ]
       }
+      item_options: {
+        Row: { created_at: string; id: string; image_url: string | null; is_active: boolean; name: string; sort_order: number }
+        Insert: { created_at?: string; id?: string; image_url?: string | null; is_active?: boolean; name: string; sort_order?: number }
+        Update: { created_at?: string; id?: string; image_url?: string | null; is_active?: boolean; name?: string; sort_order?: number }
+        Relationships: []
+      }
       occasion_options: {
         Row: { created_at: string; id: string; image_url: string | null; is_active: boolean; name: string; sort_order: number }
         Insert: { created_at?: string; id?: string; image_url?: string | null; is_active?: boolean; name: string; sort_order?: number }
@@ -295,9 +309,9 @@ export type Database = {
         Relationships: []
       }
       orders: {
-        Row: { created_at: string; delivery_type: string; eta_date: string | null; eta_note: string; eta_time: string | null; final_price: number; id: string; inquiry_id: string; status: string; tracking_token: string; updated_at: string }
-        Insert: { created_at?: string; delivery_type: string; eta_date?: string | null; eta_note?: string; eta_time?: string | null; final_price: number; id?: string; inquiry_id: string; status?: string; tracking_token?: string; updated_at?: string }
-        Update: { created_at?: string; delivery_type?: string; eta_date?: string | null; eta_note?: string; eta_time?: string | null; final_price?: number; id?: string; inquiry_id?: string; status?: string; tracking_token?: string; updated_at?: string }
+        Row: { created_at: string; delivery_type: string; deposit_amount: number | null; eta_date: string | null; eta_note: string; eta_time: string | null; final_price: number; id: string; inquiry_id: string; status: string; tracking_token: string; updated_at: string }
+        Insert: { created_at?: string; delivery_type: string; deposit_amount?: number | null; eta_date?: string | null; eta_note?: string; eta_time?: string | null; final_price: number; id?: string; inquiry_id: string; status?: string; tracking_token?: string; updated_at?: string }
+        Update: { created_at?: string; delivery_type?: string; deposit_amount?: number | null; eta_date?: string | null; eta_note?: string; eta_time?: string | null; final_price?: number; id?: string; inquiry_id?: string; status?: string; tracking_token?: string; updated_at?: string }
         Relationships: [{ foreignKeyName: 'orders_inquiry_id_fkey'; columns: ['inquiry_id']; isOneToOne: true; referencedRelation: 'inquiries'; referencedColumns: ['id'] }]
       }
       size_options: {

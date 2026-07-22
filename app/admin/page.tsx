@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import { formatDate, formatKWD } from '@/lib/utils'
+import { formatDate, formatKWD, orderSummary } from '@/lib/utils'
 import { derivePaymentStatus, balanceOwed } from '@/lib/payments'
 import { StatusBadge } from '@/components/admin/StatusBadge'
 import Link from 'next/link'
@@ -25,18 +25,18 @@ async function getDashboardData() {
     supabase
       .from('inquiries')
       .select('id', { count: 'exact', head: true })
-      .in('status', ['pending', 'awaiting_confirmation']),
+      .eq('status', 'pending'),
 
     supabase
       .from('inquiries')
-      .select('id, customer_name, cake_size, flavor, pickup_time, delivery_type, status')
+      .select('id, customer_name, cake_size, flavor, order_type, item_name, pickup_time, delivery_type, status')
       .eq('event_date', today)
       .not('status', 'in', '(cancelled,delivered)')
       .order('pickup_time', { ascending: true }),
 
     supabase
       .from('orders')
-      .select('id, status, final_price, inquiry:inquiries(customer_name, cake_size, flavor, event_date, advance_amount, advance_paid, admin_price, fully_paid)')
+      .select('id, status, final_price, inquiry:inquiries(customer_name, cake_size, flavor, order_type, item_name, event_date, deposit_amount, admin_price, fully_paid)')
       .in('status', ['confirmed', 'ready'])
       .order('created_at', { ascending: false })
       .limit(5),
@@ -73,7 +73,7 @@ async function getDashboardData() {
 
     supabase
       .from('orders')
-      .select('id, status, inquiry:inquiries(id, customer_name, cake_size, flavor, event_date)')
+      .select('id, status, inquiry:inquiries(id, customer_name, cake_size, flavor, order_type, item_name, event_date)')
       .in('status', ['confirmed']),
   ])
 
@@ -102,7 +102,7 @@ async function getDashboardData() {
   const pendingPayments = activeOrders.filter((o: any) => {
     const inq = o.inquiry
     if (!inq?.admin_price) return false
-    return derivePaymentStatus(inq.fully_paid, inq.advance_paid, inq.advance_amount) !== 'paid'
+    return derivePaymentStatus(inq.fully_paid, inq.deposit_amount) !== 'paid'
   })
 
   const thisMonthData = thisMonthRes.data ?? []
@@ -212,7 +212,7 @@ export default async function DashboardPage() {
                   className="text-sm"
                   style={{ color: 'var(--color-warning)' }}
                 >
-                  {o.inquiry?.customer_name} — {o.inquiry?.cake_size} {o.inquiry?.flavor} on {o.inquiry?.event_date}
+                  {o.inquiry?.customer_name} — {o.inquiry ? orderSummary(o.inquiry) : ''} on {o.inquiry?.event_date}
                 </a>
               </li>
             ))}
@@ -275,7 +275,7 @@ export default async function DashboardPage() {
                   {inq.customer_name}
                 </p>
                 <p className="text-xs mt-0.5 truncate" style={{ color: 'var(--color-ink-muted)' }}>
-                  {inq.cake_size} · {inq.flavor}
+                  {orderSummary(inq)}
                 </p>
               </div>
               <div className="ml-4 text-right shrink-0">
@@ -316,7 +316,7 @@ export default async function DashboardPage() {
                   {order.inquiry?.customer_name ?? '—'}
                 </p>
                 <p className="text-xs mt-0.5" style={{ color: 'var(--color-ink-muted)' }}>
-                  {order.inquiry?.cake_size} · {order.inquiry?.event_date ? formatDate(order.inquiry.event_date) : '—'}
+                  {order.inquiry ? orderSummary(order.inquiry) : '—'} · {order.inquiry?.event_date ? formatDate(order.inquiry.event_date) : '—'}
                 </p>
               </div>
               <div className="ml-4 shrink-0 text-right">
@@ -345,7 +345,7 @@ export default async function DashboardPage() {
               {pendingPayments.map((order: any) => {
                 const inq = order.inquiry
                 const balance = inq
-                  ? balanceOwed(inq.admin_price, inq.advance_amount, inq.advance_paid, inq.fully_paid)
+                  ? balanceOwed(inq.admin_price, inq.deposit_amount, inq.fully_paid)
                   : 0
                 return (
                   <Link

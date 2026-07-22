@@ -1,4 +1,5 @@
 import { Skeleton } from '@/components/ui'
+import { BRAND_NAME } from '@/lib/brand'
 
 /** Mirrors the tracking page: branded header band, status timeline,
  *  and the order summary card. */
@@ -14,7 +15,7 @@ export default function TrackLoading() {
           className="text-2xl font-bold tracking-tight"
           style={{ fontFamily: 'var(--font-display)', color: 'var(--color-teal)' }}
         >
-          ZMade Cakes
+          {BRAND_NAME}
         </p>
       </header>
 

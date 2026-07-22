@@ -3,15 +3,19 @@ import { useState, useEffect, Suspense } from 'react'
 import Link from 'next/link'
 import { useSearchParams, useRouter } from 'next/navigation'
 import PhoneInput from '@/components/PhoneInput'
+import { Navbar } from '@/components/public/Navbar'
 import { appUrl } from '@/lib/links'
 import { KUWAIT_PHONE_REGEX } from '@/lib/validations/inquiry'
 import { StatusBadge } from '@/components/admin/StatusBadge'
+import { orderSummary } from '@/lib/utils'
 import type { InquiryStatus, OrderStatus } from '@/lib/supabase/types'
 
 interface OrderResult {
   id: string
   cake_size: string
   flavor: string
+  order_type: string
+  item_name: string
   occasion: string
   event_date: string
   status: string
@@ -55,10 +59,6 @@ function MyOrdersContent({ businessPhone, businessInstagram }: Props) {
   const [portalToken, setPortalToken] = useState<string | null>(null)
   const [tokenMode, setTokenMode] = useState(false)
   const [copied, setCopied] = useState(false)
-
-  const waNumber = businessPhone
-    ? businessPhone.replace(/\D/g, '').replace(/^(?!965)/, '965')
-    : ''
 
   useEffect(() => {
     const token = searchParams.get('token')
@@ -155,23 +155,7 @@ function MyOrdersContent({ businessPhone, businessInstagram }: Props) {
 
   return (
     <main className="min-h-svh" style={{ backgroundColor: 'var(--color-cream)' }}>
-      {/* Header */}
-      <header
-        className="border-b px-5 py-5 text-center"
-        style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
-      >
-        <p
-          className="text-2xl font-bold tracking-tight"
-          style={{ fontFamily: 'var(--font-display)', color: 'var(--color-teal)' }}
-        >
-          ZMade Cakes
-        </p>
-        {businessInstagram && (
-          <p className="text-xs mt-1" style={{ color: 'var(--color-ink-muted)' }}>
-            {businessInstagram} · Kuwait
-          </p>
-        )}
-      </header>
+      <Navbar businessInstagram={businessInstagram} />
 
       <div className="max-w-lg mx-auto px-4 py-8 flex flex-col gap-6">
         {/* Title */}
@@ -337,7 +321,7 @@ function MyOrdersContent({ businessPhone, businessInstagram }: Props) {
                 {/* Headline + badge */}
                 <div className="flex items-start justify-between gap-2">
                   <p className="text-sm font-semibold" style={{ color: 'var(--color-ink)' }}>
-                    {item.cake_size} · {item.flavor}
+                    {orderSummary(item)}
                   </p>
                   <StatusBadge
                     status={(item.order?.status ?? item.status) as OrderStatus | InquiryStatus}
@@ -413,21 +397,6 @@ function MyOrdersContent({ businessPhone, businessInstagram }: Props) {
                 {copied ? 'Copied!' : 'Copy'}
               </button>
             </div>
-          </div>
-        )}
-
-        {/* Footer */}
-        {waNumber && (
-          <div className="text-center pt-2">
-            <a
-              href={`https://wa.me/${waNumber}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs"
-              style={{ color: 'var(--color-ink-muted)' }}
-            >
-              Questions? Message Zainab on WhatsApp
-            </a>
           </div>
         )}
       </div>

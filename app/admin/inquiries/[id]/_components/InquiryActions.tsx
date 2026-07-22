@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation'
 import { updateInquiryStatus } from '@/lib/actions/inquiries'
 import { toast } from 'sonner'
 import {
-  Clock,
   CheckCircle,
   Package,
   Truck,
@@ -17,27 +16,11 @@ import {
 } from '@phosphor-icons/react'
 import type { Inquiry, InquiryStatus, WhatsAppTemplates } from '@/lib/supabase/types'
 import { DEFAULT_WHATSAPP_TEMPLATES } from '@/lib/supabase/types'
-import { balanceOwed } from '@/lib/payments'
-
-function interpolate(template: string, vars: Record<string, string>): string {
-  return template.replace(/\{(\w+)\}/g, (_, key) => vars[key] ?? `{${key}}`)
-}
-
-function whatsappUrl(phone: string, text: string): string {
-  const cleaned = phone.replace(/\D/g, '')
-  const number = cleaned.startsWith('965') ? cleaned : `965${cleaned}`
-  return `https://wa.me/${number}?text=${encodeURIComponent(text)}`
-}
-
-function whatsappUrlNoText(phone: string): string {
-  const cleaned = phone.replace(/\D/g, '')
-  const number = cleaned.startsWith('965') ? cleaned : `965${cleaned}`
-  return `https://wa.me/${number}`
-}
+import { balanceOwed, subtotalAfterDiscount } from '@/lib/payments'
+import { interpolate, whatsappUrl, whatsappUrlNoText } from '@/lib/whatsapp'
 
 const NEXT_STEP: Record<string, { label: string; Icon: React.ElementType } | null> = {
-  pending: { label: 'Mark as Awaiting', Icon: Clock },
-  awaiting_confirmation: { label: 'Mark as Confirmed', Icon: CheckCircle },
+  pending: { label: 'Mark as Confirmed', Icon: CheckCircle },
   confirmed: { label: 'Mark as Ready', Icon: Package },
   ready: { label: 'Mark as Dispatched', Icon: Truck },
   delivered: null,
@@ -45,8 +28,7 @@ const NEXT_STEP: Record<string, { label: string; Icon: React.ElementType } | nul
 }
 
 const STATUS_PROGRESSION: Record<string, InquiryStatus> = {
-  pending: 'awaiting_confirmation',
-  awaiting_confirmation: 'confirmed',
+  pending: 'confirmed',
   confirmed: 'ready',
   ready: 'delivered',
 }
@@ -88,7 +70,7 @@ export default function InquiryActions({
 
   const firstName = inquiry.customer_name.split(' ')[0]
   const balance = inquiry.admin_price
-    ? balanceOwed(inquiry.admin_price, inquiry.advance_amount, inquiry.advance_paid, inquiry.fully_paid)
+    ? balanceOwed(subtotalAfterDiscount(inquiry.admin_price, inquiry.discount), inquiry.deposit_amount, inquiry.fully_paid)
     : null
   const hasOutstandingBalance = balance !== null && balance > 0
 

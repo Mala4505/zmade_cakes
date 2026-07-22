@@ -146,6 +146,9 @@ export async function proxy(request: NextRequest) {
     (pathname !== '/login' &&
       !pathname.startsWith('/confirm') &&
       !pathname.startsWith('/track') &&
+      !pathname.startsWith('/order') &&
+      !pathname.startsWith('/invoice') &&
+      !pathname.startsWith('/my-orders') &&
       !pathname.startsWith('/api') &&
       !pathname.startsWith('/_next'))
 

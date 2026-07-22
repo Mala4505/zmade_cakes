@@ -10,7 +10,7 @@ import Link from 'next/link'
 import { Modal } from '@/components/ui/Modal'
 import { StatusBadge, PaymentBadge } from '@/components/admin/StatusBadge'
 import { derivePaymentStatus } from '@/lib/payments'
-import { formatDate, formatTime, formatKWD } from '@/lib/utils'
+import { formatDate, formatTime, formatKWD, orderSummary } from '@/lib/utils'
 import type { InquiryStatus, OrderStatus } from '@/lib/supabase/types'
 
 const localizer = dateFnsLocalizer({
@@ -37,6 +37,8 @@ type EventDetails = {
   customerPhone: string
   cakeSize: string
   flavor: string
+  orderType: string
+  itemName: string
   quantity: number
   theme: string
   specialRequirements: string
@@ -49,8 +51,7 @@ type EventDetails = {
   pickupTime: string | null
   deliveryType: string
   price: string | null
-  advanceAmount: string | null
-  advancePaid: boolean
+  depositAmount: string | null
   fullyPaid: boolean
 }
 
@@ -79,6 +80,8 @@ function toDetails(inq: any, opts: { linkId: string; linkKind: 'order' | 'inquir
     customerPhone: inq.customer_phone,
     cakeSize: inq.cake_size,
     flavor: inq.flavor,
+    orderType: inq.order_type ?? 'cake',
+    itemName: inq.item_name ?? '',
     quantity: inq.quantity ?? 1,
     theme: inq.theme ?? '',
     specialRequirements: inq.special_requirements ?? '',
@@ -91,8 +94,7 @@ function toDetails(inq: any, opts: { linkId: string; linkKind: 'order' | 'inquir
     pickupTime: inq.pickup_time,
     deliveryType: opts.deliveryType,
     price: opts.price == null ? null : String(opts.price),
-    advanceAmount: inq.advance_amount == null ? null : String(inq.advance_amount),
-    advancePaid: !!inq.advance_paid,
+    depositAmount: inq.deposit_amount == null ? null : String(inq.deposit_amount),
     fullyPaid: !!inq.fully_paid,
   }
 }
@@ -208,7 +210,7 @@ function EventDetailBody({ event }: { event: DetailEvent }) {
         style={{ borderColor: 'var(--color-border)' }}
       >
         <Row label="Cake">
-          {r.cakeSize} · {r.flavor}
+          {orderSummary({ order_type: r.orderType, item_name: r.itemName, cake_size: r.cakeSize, flavor: r.flavor })}
           {r.quantity > 1 ? ` · ×${r.quantity}` : ''}
         </Row>
         <Row label="Theme">{r.theme || 'Normal'}</Row>
@@ -253,13 +255,13 @@ function EventDetailBody({ event }: { event: DetailEvent }) {
           >
             {formatKWD(r.price)}
           </span>
-          {r.advanceAmount != null && (
+          {r.depositAmount != null && (
             <span className="text-xs" style={{ color: 'var(--color-ink-muted)', fontFamily: 'var(--font-mono)' }}>
-              deposit {formatKWD(r.advanceAmount)}
+              deposit {formatKWD(r.depositAmount)}
             </span>
           )}
         </div>
-        <PaymentBadge status={derivePaymentStatus(r.fullyPaid, r.advancePaid, r.advanceAmount)} />
+        <PaymentBadge status={derivePaymentStatus(r.fullyPaid, r.depositAmount)} />
       </div>
     </div>
   )
@@ -301,8 +303,10 @@ function EventContent({ event }: { event: CalendarEvent }) {
   return (
     <>
       {event.kind === 'inquiry-delivery' && '? '}
-      <strong className="font-semibold">{r.flavor}</strong>
-      <span className="opacity-80"> · {r.cakeSize} · {r.customerName}</span>
+      <strong className="font-semibold">
+        {orderSummary({ order_type: r.orderType, item_name: r.itemName, cake_size: r.cakeSize, flavor: r.flavor })}
+      </strong>
+      <span className="opacity-80"> · {r.customerName}</span>
     </>
   )
 }
@@ -362,7 +366,7 @@ export default function CalendarView({ orders, inquiries, blackouts, deliveryCou
         return {
           id: order.id,
           kind: 'order' as const,
-          title: `${inq.flavor} · ${inq.cake_size} · ${inq.customer_name}`,
+          title: `${orderSummary(inq)} · ${inq.customer_name}`,
           start: eventDate,
           end: eventDate,
           allDay: true as const,
@@ -384,7 +388,7 @@ export default function CalendarView({ orders, inquiries, blackouts, deliveryCou
       return {
         id: `inquiry-delivery-${inq.id}`,
         kind: 'inquiry-delivery' as const,
-        title: `? ${inq.flavor} · ${inq.cake_size} · ${inq.customer_name}`,
+        title: `? ${orderSummary(inq)} · ${inq.customer_name}`,
         start: eventDate,
         end: eventDate,
         allDay: true as const,

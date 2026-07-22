@@ -11,8 +11,8 @@ const inquiryShape = {
     .string()
     .regex(KUWAIT_PHONE_REGEX, 'Enter a valid phone number (e.g. +965 6685 7560)')
     .trim(),
-  cake_size: z.string().min(1, 'Select a size').max(100),
-  flavor: z.string().min(1, 'Select a flavor').max(150),
+  cake_size: z.string().max(100).optional().default(''),
+  flavor: z.string().max(150).optional().default(''),
   occasion: z.string().max(150).optional().default(''),
   // UI-only convenience field — 'theme' selection just means theme !== ''. Not a DB column;
   // must be stripped before any insert/update (see lib/actions/inquiries.ts).
@@ -51,8 +51,11 @@ const inquiryShape = {
     .max(9999)
     .optional()
     .nullable(),
-  advance_amount: z.number().positive().max(9999).optional().nullable(),
-  advance_paid: z.boolean().default(false),
+  discount: z.number().min(0).max(9999).optional().default(0),
+  order_type: z.enum(['cake', 'other_item']).default('cake'),
+  item_name: z.string().max(150).optional().default(''),
+  customer_id: z.string().uuid().optional().nullable(),
+  deposit_amount: z.number().positive().max(9999).optional().nullable(),
   payment_method: z.enum(['', 'cash', 'wamd']).default(''),
   admin_notes: z.string().max(2000).optional().default(''),
   source: z.enum(['admin', 'public_form']).default('admin'),
@@ -77,15 +80,62 @@ function clearThemeWhenNormal<T extends { cake_type?: 'normal' | 'theme'; theme?
   return data.cake_type === 'normal' ? { ...data, theme: '' } : data
 }
 
+function discountRefine(
+  data: { admin_price?: number | null; discount?: number },
+  ctx: z.RefinementCtx
+) {
+  if ((data.discount ?? 0) > (data.admin_price ?? 0)) {
+    ctx.addIssue({
+      code: 'custom',
+      message: 'Discount cannot exceed the price',
+      path: ['discount'],
+    })
+  }
+}
+
+function orderTypeRefine(
+  data: { order_type?: 'cake' | 'other_item'; cake_size?: string; flavor?: string; item_name?: string },
+  ctx: z.RefinementCtx
+) {
+  if (data.order_type === 'cake') {
+    if (!data.cake_size?.trim()) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Select a size',
+        path: ['cake_size'],
+      })
+    }
+    if (!data.flavor?.trim()) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Select a flavor',
+        path: ['flavor'],
+      })
+    }
+  } else if (data.order_type === 'other_item') {
+    if (!data.item_name?.trim()) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Item name is required',
+        path: ['item_name'],
+      })
+    }
+  }
+}
+
 export const inquirySchema = z
   .object(inquiryShape)
   .superRefine(cakeTypeRefine)
+  .superRefine(discountRefine)
+  .superRefine(orderTypeRefine)
   .transform(clearThemeWhenNormal)
 
 export const inquiryUpdateSchema = z
   .object(inquiryShape)
   .partial()
   .superRefine(cakeTypeRefine)
+  .superRefine(discountRefine)
+  .superRefine(orderTypeRefine)
   .transform(clearThemeWhenNormal)
 
 export const deliveryAddressSchema = z.object({

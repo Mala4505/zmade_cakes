@@ -8,9 +8,16 @@ import {
   tokenSchema,
 } from '@/lib/validations/inquiry'
 import { customerConfirmSchema } from '@/lib/validations/confirm'
-import type { Inquiry, Order, InquiryStatus } from '@/lib/supabase/types'
+import { subtotalAfterDiscount } from '@/lib/payments'
+import { orderSummary, buildCustomerEditDiff, type CustomerEditDiffEntry } from '@/lib/format'
+import type { Inquiry, Order, InquiryStatus, Json } from '@/lib/supabase/types'
 
 type FieldErrors = Record<string, string[]>
+
+function editSummary(diff: CustomerEditDiffEntry[]): string {
+  if (diff.length === 0) return ''
+  return ` Changed: ${diff.map((d) => d.label).join(', ')}.`
+}
 type ActionResult<T> =
   | { data: T; error: null; fieldErrors: null }
   | { data: null; error: string; fieldErrors: null }
@@ -114,6 +121,36 @@ export async function updateInquiry(
   return { data: data as unknown as Inquiry, error: null, fieldErrors: null }
 }
 
+// Quick paid/unpaid toggle for list-row actions — a lighter-weight sibling to updateInquiry
+// for when the admin just wants to flip payment status without opening the full edit form.
+export async function setInquiryPaymentFlags(
+  id: string,
+  patch: { fully_paid?: boolean }
+): Promise<ActionResult<{ fully_paid: boolean }>> {
+  if (!tokenSchema.safeParse(id).success) {
+    return { data: null, error: 'Invalid inquiry ID', fieldErrors: null }
+  }
+
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { data: null, error: 'Unauthorized', fieldErrors: null }
+
+  const { data, error } = await supabase
+    .from('inquiries')
+    .update(patch)
+    .eq('id', id)
+    .select('fully_paid')
+    .single()
+
+  if (error || !data) {
+    return { data: null, error: error?.message ?? 'Failed to update payment status', fieldErrors: null }
+  }
+
+  return { data, error: null, fieldErrors: null }
+}
+
 export async function cancelInquiry(id: string): Promise<ActionResult<void>> {
   if (!tokenSchema.safeParse(id).success) {
     return { data: null, error: 'Invalid inquiry ID', fieldErrors: null }
@@ -135,35 +172,6 @@ export async function cancelInquiry(id: string): Promise<ActionResult<void>> {
   return { data: undefined, error: null, fieldErrors: null }
 }
 
-// Admin marks inquiry as awaiting confirmation — returns the confirmation token to copy
-export async function sendConfirmationLink(
-  id: string
-): Promise<ActionResult<{ confirmation_token: string }>> {
-  if (!tokenSchema.safeParse(id).success) {
-    return { data: null, error: 'Invalid inquiry ID', fieldErrors: null }
-  }
-
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return { data: null, error: 'Unauthorized', fieldErrors: null }
-
-  const { data, error } = await supabase
-    .from('inquiries')
-    .update({ status: 'awaiting_confirmation', confirmation_sent_at: new Date().toISOString() })
-    .eq('id', id)
-    .eq('status', 'pending')
-    .select('confirmation_token')
-    .single()
-
-  if (error || !data) {
-    return { data: null, error: 'Inquiry not found or already sent to customer', fieldErrors: null }
-  }
-
-  return { data: { confirmation_token: data.confirmation_token }, error: null, fieldErrors: null }
-}
-
 // Called from the public API route handler — uses service role to bypass RLS.
 // Token validated in code before any DB operation.
 export async function confirmInquiry(
@@ -183,7 +191,7 @@ export async function confirmInquiry(
 
   const { data: inquiry, error: fetchError } = await supabase
     .from('inquiries')
-    .select()
+    .select('*, delivery_address:delivery_addresses(*)')
     .eq('confirmation_token', token)
     .single()
 
@@ -194,7 +202,7 @@ export async function confirmInquiry(
   if (inquiry.confirmation_sent_at) {
     const ageMs = Date.now() - new Date(inquiry.confirmation_sent_at).getTime()
     if (ageMs > 72 * 60 * 60 * 1000) {
-      return { data: null, error: 'This confirmation link has expired. Please contact Zainab for a new one.', fieldErrors: null }
+      return { data: null, error: 'This confirmation link has expired. Please contact us for a new one.', fieldErrors: null }
     }
   }
 
@@ -210,12 +218,13 @@ export async function confirmInquiry(
     parsed.data
 
   const customerEdits = { pickup_time, message_on_cake, special_requirements, customer_comments }
+  const editDiff = buildCustomerEditDiff(inquiry as any, customerEdits, delivery_address)
 
   if (action === 'confirm') {
     if (!inquiry.admin_price) {
       return {
         data: null,
-        error: 'Price not yet set — please wait for Zainab to finalize your order details',
+        error: 'Price not yet set — please wait for us to finalize your order details',
         fieldErrors: null,
       }
     }
@@ -227,6 +236,7 @@ export async function confirmInquiry(
         status: 'confirmed',
         customer_confirmed: true,
         customer_confirmed_at: new Date().toISOString(),
+        customer_edit_diff: (editDiff.length > 0 ? editDiff : null) as unknown as Json,
       })
       .eq('confirmation_token', token)
       .select()
@@ -242,37 +252,76 @@ export async function confirmInquiry(
         .upsert({ inquiry_id: inquiry.id, ...delivery_address }, { onConflict: 'inquiry_id' })
     }
 
-    // Create order
-    const { data: order, error: orderError } = await supabase
-      .from('orders')
-      .insert({
-        inquiry_id: inquiry.id,
-        status: 'confirmed',
-        final_price: inquiry.admin_price!,
-        delivery_type: inquiry.delivery_type,
-      })
-      .select()
-      .single()
+    // Create order — idempotent. An order may already exist for this inquiry if
+    // the admin advanced it to "confirmed" manually (updateInquiryStatus creates
+    // an order without setting customer_confirmed), or if this action is retried /
+    // double-submitted. In those cases the unique constraint on orders.inquiry_id
+    // would reject a second INSERT, so reuse the existing order instead.
+    let order: Order | null = null
 
-    if (orderError || !order) {
-      return { data: null, error: orderError?.message ?? 'Failed to create order', fieldErrors: null }
+    const { data: existingOrder, error: existingOrderError } = await supabase
+      .from('orders')
+      .select('*')
+      .eq('inquiry_id', inquiry.id)
+      .maybeSingle()
+    if (existingOrderError) {
+      return { data: null, error: existingOrderError.message, fieldErrors: null }
+    }
+
+    if (existingOrder) {
+      order = existingOrder as unknown as Order
+    } else {
+      const { data: newOrder, error: orderError } = await supabase
+        .from('orders')
+        .insert({
+          inquiry_id: inquiry.id,
+          status: 'confirmed',
+          final_price: subtotalAfterDiscount(inquiry.admin_price, inquiry.discount),
+          deposit_amount: inquiry.deposit_amount,
+          delivery_type: inquiry.delivery_type,
+        })
+        .select()
+        .single()
+
+      // 23505 = unique_violation: a concurrent confirm created the order between
+      // our lookup and insert. Fall back to the row that won the race.
+      if (orderError?.code === '23505') {
+        const { data: racedOrder } = await supabase
+          .from('orders')
+          .select('*')
+          .eq('inquiry_id', inquiry.id)
+          .single()
+        order = racedOrder as unknown as Order
+      } else if (orderError || !newOrder) {
+        return { data: null, error: orderError?.message ?? 'Failed to create order', fieldErrors: null }
+      } else {
+        order = newOrder as unknown as Order
+      }
+    }
+
+    if (!order) {
+      return { data: null, error: 'Failed to create order', fieldErrors: null }
     }
 
     await supabase.from('notifications').insert({
       type: 'customer_confirmed',
       title: 'Customer Confirmed Order',
-      body: `${inquiry.customer_name} confirmed — ${inquiry.cake_size} ${inquiry.flavor}`,
+      body: `${inquiry.customer_name} confirmed — ${orderSummary(inquiry)}.${editSummary(editDiff)}`,
       inquiry_id: inquiry.id,
       order_id: order.id,
       is_read: false,
     })
 
-    return { data: { inquiry: updatedInquiry as unknown as Inquiry, order: order as unknown as Order }, error: null, fieldErrors: null }
+    return { data: { inquiry: updatedInquiry as unknown as Inquiry, order }, error: null, fieldErrors: null }
   } else {
     // action === 'request_changes'
     const { data: updatedInquiry, error: updateError } = await supabase
       .from('inquiries')
-      .update({ ...customerEdits, status: 'pending' })
+      .update({
+        ...customerEdits,
+        status: 'pending',
+        customer_edit_diff: (editDiff.length > 0 ? editDiff : null) as unknown as Json,
+      })
       .eq('confirmation_token', token)
       .select()
       .single()
@@ -281,10 +330,16 @@ export async function confirmInquiry(
       return { data: null, error: updateError?.message ?? 'Failed to save changes', fieldErrors: null }
     }
 
+    if (inquiry.delivery_type === 'delivery' && delivery_address) {
+      await supabase
+        .from('delivery_addresses')
+        .upsert({ inquiry_id: inquiry.id, ...delivery_address }, { onConflict: 'inquiry_id' })
+    }
+
     await supabase.from('notifications').insert({
       type: 'general',
       title: 'Customer Requested Changes',
-      body: `${inquiry.customer_name} requested changes — review their comments`,
+      body: `${inquiry.customer_name} requested changes — review their comments${editSummary(editDiff)}`,
       inquiry_id: inquiry.id,
       order_id: null,
       is_read: false,
@@ -329,7 +384,7 @@ export async function updateInquiryStatus(
   if (!existingOrder && status === 'confirmed') {
     const { data: inquiry, error: fetchError } = await supabase
       .from('inquiries')
-      .select('admin_price, delivery_type')
+      .select('admin_price, discount, deposit_amount, delivery_type')
       .eq('id', id)
       .single()
     if (fetchError || !inquiry) return { data: null, error: fetchError?.message ?? 'Inquiry not found', fieldErrors: null }
@@ -340,7 +395,8 @@ export async function updateInquiryStatus(
     const { error: orderError } = await supabase.from('orders').insert({
       inquiry_id: id,
       status: 'confirmed',
-      final_price: inquiry.admin_price,
+      final_price: subtotalAfterDiscount(inquiry.admin_price, inquiry.discount),
+      deposit_amount: inquiry.deposit_amount,
       delivery_type: inquiry.delivery_type,
     })
     if (orderError) return { data: null, error: orderError.message, fieldErrors: null }

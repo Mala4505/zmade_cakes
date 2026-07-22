@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { cn } from '@/lib/utils'
+import { cn, orderSummary } from '@/lib/utils'
 import type { Customer } from '@/lib/supabase/types'
 import { updateCustomerNotes } from '@/lib/actions/customers'
 import { toast } from 'sonner'
@@ -15,19 +15,29 @@ interface CustomerWithHistory {
     flavor: string
     event_date: string
     status: string
+    // Not selected by every caller yet — treated as optional/tolerant here; falls back to
+    // 'cake' semantics (matches the DB default) when absent.
+    order_type?: string
+    item_name?: string
   }>
   totalCount: number
 }
 
+export type MatchState = 'pending' | 'selected' | 'new'
+
 interface Props {
   data: CustomerWithHistory
   onPrefill?: (cakeSize: string, flavor: string) => void
+  matchState: MatchState
+  onUseExisting: () => void
+  onNewCustomer: () => void
 }
 
-export function CustomerHistoryPanel({ data, onPrefill }: Props) {
+export function CustomerHistoryPanel({ data, onPrefill, matchState, onUseExisting, onNewCustomer }: Props) {
   const { customer, recentInquiries, totalCount } = data
   const [notes, setNotes] = useState(customer.notes ?? '')
   const last = recentInquiries[0]
+  const lastIsCake = !last || last.order_type !== 'other_item'
 
   async function handleBlur() {
     const result = await updateCustomerNotes(customer.id, notes)
@@ -46,6 +56,58 @@ export function CustomerHistoryPanel({ data, onPrefill }: Props) {
           'bg-[var(--color-teal-light)] border-[var(--color-teal)]'
         )}
       >
+        <div className="flex items-center justify-between gap-2 pb-3 border-b border-[var(--color-teal)]/30">
+          {matchState === 'pending' && (
+            <>
+              <span className="text-xs text-[var(--color-ink-secondary)]">
+                Existing customer found: <span className="font-bold text-[var(--color-ink)]">{customer.name}</span>
+              </span>
+              <div className="flex gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={onUseExisting}
+                  className="text-xs px-2.5 py-1 rounded-lg font-semibold bg-[var(--color-teal)] text-white transition-colors hover:opacity-90"
+                >
+                  Use this customer
+                </button>
+                <button
+                  type="button"
+                  onClick={onNewCustomer}
+                  className="text-xs px-2.5 py-1 rounded-lg font-medium border border-[var(--color-border)] text-[var(--color-ink-secondary)] transition-colors hover:bg-[var(--color-surface)]"
+                >
+                  This is someone else
+                </button>
+              </div>
+            </>
+          )}
+          {matchState === 'selected' && (
+            <>
+              <span className="text-xs text-[var(--color-ink-secondary)]">
+                Linked to <span className="font-bold text-[var(--color-ink)]">{customer.name}</span>
+              </span>
+              <button
+                type="button"
+                onClick={onNewCustomer}
+                className="text-xs font-medium text-[var(--color-teal-deep)] underline underline-offset-2 shrink-0"
+              >
+                Not them? Use new customer
+              </button>
+            </>
+          )}
+          {matchState === 'new' && (
+            <>
+              <span className="text-xs text-[var(--color-ink-secondary)]">New customer</span>
+              <button
+                type="button"
+                onClick={onUseExisting}
+                className="text-xs font-medium text-[var(--color-teal-deep)] underline underline-offset-2 shrink-0"
+              >
+                Actually, use this customer
+              </button>
+            </>
+          )}
+        </div>
+
         <div className="flex items-start justify-between gap-2">
           <div className="flex flex-col gap-0.5">
             <div className="flex items-center gap-2">
@@ -69,12 +131,17 @@ export function CustomerHistoryPanel({ data, onPrefill }: Props) {
 
         {last && (
           <div className="flex items-center gap-1.5 text-xs text-[var(--color-ink-secondary)]">
-            <span className="text-[var(--color-ink-muted)]">Last cake:</span>
-            <span>{last.cake_size} · {last.flavor}</span>
+            <span className="text-[var(--color-ink-muted)]">Last order:</span>
+            <span>{orderSummary({
+              order_type: last.order_type ?? 'cake',
+              item_name: last.item_name ?? '',
+              cake_size: last.cake_size,
+              flavor: last.flavor,
+            })}</span>
           </div>
         )}
 
-        {onPrefill && last && (
+        {onPrefill && last && lastIsCake && (
           <button
             type="button"
             onClick={() => onPrefill(last.cake_size, last.flavor)}

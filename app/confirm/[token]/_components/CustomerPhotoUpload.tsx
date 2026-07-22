@@ -52,7 +52,7 @@ export default function CustomerPhotoUpload({ token }: Props) {
         Reference Photos <span style={{ fontWeight: 400 }}>(optional)</span>
       </p>
       <p className="text-xs mb-4" style={{ color: 'var(--color-ink-muted)' }}>
-        Share inspiration images with Zainab.
+        Share inspiration images with us.
       </p>
 
       <div className="flex flex-wrap gap-2">

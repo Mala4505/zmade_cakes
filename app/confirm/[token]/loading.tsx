@@ -1,4 +1,5 @@
 import { Skeleton } from '@/components/ui'
+import { BRAND_NAME } from '@/lib/brand'
 
 /** Mirrors the confirmation page: branded header band, progress row,
  *  order summary card, and the confirm action. */
@@ -14,7 +15,7 @@ export default function ConfirmLoading() {
           className="text-2xl font-bold tracking-tight"
           style={{ fontFamily: 'var(--font-display)', color: 'var(--color-teal)' }}
         >
-          ZMade Cakes
+          {BRAND_NAME}
         </p>
       </header>
 

@@ -17,7 +17,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     supabase
       .from('inquiries')
       .select('id', { count: 'exact', head: true })
-      .in('status', ['pending', 'awaiting_confirmation']),
+      .eq('status', 'pending'),
     supabase
       .from('orders')
       .select('id', { count: 'exact', head: true })

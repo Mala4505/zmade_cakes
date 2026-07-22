@@ -1,13 +1,14 @@
 import { createClient } from '@/lib/supabase/server'
-import { formatDate, formatKWD } from '@/lib/utils'
+import { getSettings } from '@/lib/actions/settings'
+import { formatDate, formatKWD, orderSummary } from '@/lib/utils'
 import { PageHeader } from '@/components/admin/PageHeader'
 import { InquiryStatusSelect } from '@/components/admin/InquiryStatusSelect'
-import { PaymentBadge } from '@/components/admin/StatusBadge'
-import { derivePaymentStatus, balanceOwed } from '@/lib/payments'
+import InquiryRowActions from './_components/InquiryRowActions'
+import { balanceOwed, subtotalAfterDiscount } from '@/lib/payments'
 import Link from 'next/link'
-import { Plus } from '@phosphor-icons/react/dist/ssr'
+import { Plus, CheckCircle, Circle } from '@phosphor-icons/react/dist/ssr'
 import type { Metadata } from 'next'
-import type { InquiryStatus } from '@/lib/supabase/types'
+import type { InquiryStatus, WhatsAppTemplates } from '@/lib/supabase/types'
 
 export const metadata: Metadata = { title: 'Inquiries' }
 
@@ -15,8 +16,7 @@ type PaymentStatus = 'unpaid' | 'partial' | 'paid'
 
 const STATUS_OPTIONS: { value: InquiryStatus | 'all'; label: string }[] = [
   { value: 'all', label: 'All statuses' },
-  { value: 'pending', label: 'Pending' },
-  { value: 'awaiting_confirmation', label: 'Awaiting' },
+  { value: 'pending', label: 'Inquired' },
   { value: 'confirmed', label: 'Confirmed' },
   { value: 'ready', label: 'Ready' },
   { value: 'delivered', label: 'Dispatched' },
@@ -42,7 +42,7 @@ async function getInquiries(status: string, payment: string, sort: string, q?: s
   let query = supabase
     .from('inquiries')
     .select(
-      'id, customer_name, customer_phone, cake_size, flavor, occasion, event_date, status, admin_price, advance_amount, advance_paid, fully_paid, payment_status, created_at, customer_id',
+      'id, customer_name, customer_phone, cake_size, flavor, occasion, order_type, item_name, event_date, status, admin_price, discount, deposit_amount, fully_paid, payment_status, created_at, customer_id, customer_confirmed, confirmation_token',
       { count: 'exact' }
     )
 
@@ -105,9 +105,11 @@ export default async function InquiriesPage({
 }) {
   const { status = 'all', payment = 'all', sort = 'event_date', q } = await searchParams
 
-  const [{ data: inquiries, count: totalCount }] = await Promise.all([
+  const [{ data: inquiries, count: totalCount }, settingsResult] = await Promise.all([
     getInquiries(status, payment, sort, q),
+    getSettings(['whatsapp_templates']),
   ])
+  const templates = settingsResult.data?.whatsapp_templates as WhatsAppTemplates | undefined
 
   const customerIds = [...new Set(
     inquiries.filter((i: any) => i.customer_id).map((i: any) => i.customer_id as string)
@@ -202,21 +204,39 @@ export default async function InquiriesPage({
             <colgroup>
               <col />
               <col style={{ width: 110 }} />
-              <col style={{ width: 90 }} />
-              <col style={{ width: 100 }} />
               <col style={{ width: 140 }} />
               <col style={{ width: 130 }} />
+              <col style={{ width: 90 }} />
             </colgroup>
+            <thead>
+              <tr
+                className="border-b text-left"
+                style={{ borderColor: 'var(--color-border)' }}
+              >
+                {['Customer', 'Event Date', 'Status', 'Payment', 'Actions'].map((h) => (
+                  <th
+                    key={h}
+                    className="px-3 py-2.5 text-[11px] font-bold uppercase tracking-wider whitespace-nowrap"
+                    style={{ color: 'var(--color-ink-muted)' }}
+                  >
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
             <tbody>
               {inquiries.map((inq: any) => {
                 const hasNoPrice = inq.admin_price === null || inq.admin_price === undefined
                 const urgent = isUrgent(inq.event_date)
                 const isReturning = inq.customer_id && (customerInquiryCounts[inq.customer_id] ?? 0) > 1
-                const balance = inq.admin_price
-                  ? balanceOwed(inq.admin_price, inq.advance_amount, inq.advance_paid, inq.fully_paid)
+                const isPaid = inq.fully_paid
+                const discountedPrice = inq.admin_price ? subtotalAfterDiscount(inq.admin_price, inq.discount) : null
+                const balance = discountedPrice !== null
+                  ? balanceOwed(discountedPrice, inq.deposit_amount, inq.fully_paid)
                   : null
-                const isSettled = balance !== null && balance <= 0
-                const paymentStatus = derivePaymentStatus(inq.fully_paid, inq.advance_paid, inq.advance_amount)
+                // Binary paid/not-paid — the amount shown is contextual: the settled total once
+                // paid, or what's still outstanding (net of any deposit already credited) if not.
+                const paymentAmount = isPaid ? discountedPrice : balance
 
                 return (
                   <tr
@@ -246,7 +266,7 @@ export default async function InquiriesPage({
                           )}
                         </div>
                         <p className="text-xs mt-0.5" style={{ color: 'var(--color-ink-muted)' }}>
-                          {inq.occasion || inq.cake_size} · {inq.flavor}
+                          {orderSummary(inq)}
                         </p>
                       </Link>
                     </td>
@@ -271,52 +291,52 @@ export default async function InquiriesPage({
                       </Link>
                     </td>
 
-                    {/* Price */}
-                    <td className="px-3 py-3 align-middle">
-                      <Link href={`/admin/inquiries/${inq.id}`} className="block">
-                        {hasNoPrice ? (
-                          <span className="text-xs font-medium" style={{ color: 'var(--color-danger)' }}>
-                            ⚠ No price
-                          </span>
-                        ) : (
-                          <span
-                            className="text-xs font-semibold font-mono"
-                            style={{ color: 'var(--color-ink)', fontFamily: 'var(--font-mono)' }}
-                          >
-                            {formatKWD(inq.admin_price)}
-                          </span>
-                        )}
-                      </Link>
-                    </td>
-
-                    {/* Balance */}
-                    <td className="px-3 py-3 align-middle">
-                      <Link href={`/admin/inquiries/${inq.id}`} className="block">
-                        {isSettled ? (
-                          <span className="text-xs font-medium" style={{ color: 'var(--color-success)' }}>
-                            Settled
-                          </span>
-                        ) : balance !== null ? (
-                          <span
-                            className="text-xs font-mono"
-                            style={{ color: 'var(--color-ink-secondary)', fontFamily: 'var(--font-mono)' }}
-                          >
-                            {formatKWD(balance.toFixed(3))}
-                          </span>
-                        ) : (
-                          <span className="text-xs" style={{ color: 'var(--color-ink-muted)' }}>—</span>
-                        )}
-                      </Link>
-                    </td>
-
                     {/* Status inline select */}
                     <td className="px-3 py-3 align-middle">
                       <InquiryStatusSelect inquiryId={inq.id} value={inq.status as InquiryStatus} />
                     </td>
 
-                    {/* Payment status (read-only, computed) */}
+                    {/* Payment status — bare icon + amount, binary paid/not-paid */}
+                    <td className="px-3 py-3 align-middle">
+                      {paymentAmount !== null ? (
+                        <span className="inline-flex items-center gap-1.5">
+                          {isPaid ? (
+                            <CheckCircle size={14} weight="fill" style={{ color: 'var(--color-success)' }} />
+                          ) : (
+                            <Circle size={14} weight="bold" style={{ color: 'var(--color-warning)' }} />
+                          )}
+                          <span
+                            className="text-xs font-mono font-medium"
+                            style={{
+                              color: isPaid ? 'var(--color-success)' : 'var(--color-ink)',
+                              fontFamily: 'var(--font-mono)',
+                            }}
+                          >
+                            {formatKWD(paymentAmount.toFixed(3))}
+                          </span>
+                        </span>
+                      ) : (
+                        <span className="text-xs" style={{ color: 'var(--color-ink-muted)' }}>—</span>
+                      )}
+                    </td>
+
+                    {/* Quick actions */}
                     <td className="px-3 py-3 align-middle pr-4">
-                      <PaymentBadge status={paymentStatus} />
+                      <InquiryRowActions
+                        inquiry={{
+                          id: inq.id,
+                          customer_name: inq.customer_name,
+                          customer_phone: inq.customer_phone,
+                          status: inq.status,
+                          customer_confirmed: inq.customer_confirmed,
+                          admin_price: inq.admin_price,
+                          discount: inq.discount,
+                          deposit_amount: inq.deposit_amount,
+                          fully_paid: inq.fully_paid,
+                          confirmation_token: inq.confirmation_token,
+                        }}
+                        templates={templates}
+                      />
                     </td>
                   </tr>
                 )

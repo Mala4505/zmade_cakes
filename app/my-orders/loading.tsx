@@ -1,4 +1,5 @@
 import { Skeleton } from '@/components/ui'
+import { BRAND_NAME } from '@/lib/brand'
 
 /** Mirrors the my-orders lookup page: branded header band and the
  *  name/phone search form. */
@@ -14,7 +15,7 @@ export default function MyOrdersLoading() {
           className="text-2xl font-bold tracking-tight"
           style={{ fontFamily: 'var(--font-display)', color: 'var(--color-teal)' }}
         >
-          ZMade Cakes
+          {BRAND_NAME}
         </p>
       </header>
 

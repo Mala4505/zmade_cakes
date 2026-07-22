@@ -1,12 +1,14 @@
 import { formatDate, formatTime, formatKWD, GOVERNORATE_LABELS } from '@/lib/utils'
 import { hasAllergens, ALLERGEN_LABELS } from '@/lib/supabase/types'
 import { derivePaymentStatus, balanceOwed } from '@/lib/payments'
+import { BRAND_NAME } from '@/lib/brand'
 import type { DeliveryType } from '@/lib/supabase/types'
 
 interface Props {
   order: {
     id: string
     final_price: string
+    deposit_amount: string | null
     delivery_type: DeliveryType
     tracking_token: string
     invoice_number?: number | null
@@ -17,6 +19,8 @@ interface Props {
   inquiry: {
     customer_name: string
     customer_phone: string
+    order_type?: 'cake' | 'other_item'
+    item_name: string
     cake_size: string
     flavor: string
     theme?: string
@@ -26,8 +30,7 @@ interface Props {
     event_date: string
     pickup_time: string | null
     admin_price: string | null
-    advance_amount: string | null
-    advance_paid: boolean
+    discount: string | null
     fully_paid: boolean
     payment_method: string
     special_requirements?: string
@@ -68,14 +71,14 @@ export default function InvoiceLayout({ order, inquiry, adminMode, businessPhone
   if (inquiry.allergen_other) allergenList.push(inquiry.allergen_other)
 
   const total = parseFloat(order.final_price) || 0
-  const advance = inquiry.advance_amount ? parseFloat(inquiry.advance_amount) : null
-  const balance = balanceOwed(order.final_price, inquiry.advance_amount, inquiry.advance_paid, inquiry.fully_paid)
-  const adminTotal = inquiry.admin_price ? parseFloat(inquiry.admin_price) : null
-  const paymentStatus = derivePaymentStatus(inquiry.fully_paid, inquiry.advance_paid, inquiry.advance_amount)
+  const deposit = order.deposit_amount ? parseFloat(order.deposit_amount) : null
+  const balance = balanceOwed(order.final_price, order.deposit_amount, inquiry.fully_paid)
+  const paymentStatus = derivePaymentStatus(inquiry.fully_paid, order.deposit_amount)
+  const hasDiscount = Number(inquiry.discount) > 0
 
   return (
     <div
-      className="rounded-2xl overflow-hidden"
+      className="rounded-2xl overflow-hidden shadow-[var(--shadow-floating)]"
       style={{
         backgroundColor: 'var(--color-surface)',
         border: '1px solid var(--color-border)',
@@ -94,7 +97,7 @@ export default function InvoiceLayout({ order, inquiry, adminMode, businessPhone
             className="text-xl font-extrabold tracking-tight"
             style={{ color: 'var(--color-teal)', fontFamily: 'var(--font-display)' }}
           >
-            ZMade Cakes
+            {BRAND_NAME}
           </p>
           <p className="text-xs mt-0.5" style={{ color: 'var(--color-ink-muted)' }}>
             Handcrafted with love
@@ -169,12 +172,21 @@ export default function InvoiceLayout({ order, inquiry, adminMode, businessPhone
           Cake Details
         </p>
 
-        <InvRow label="Size" value={inquiry.cake_size} />
-        <InvRow label="Flavor" value={inquiry.flavor} />
-        {inquiry.theme && <InvRow label="Theme" value={inquiry.theme} />}
-        {inquiry.occasion && <InvRow label="Occasion" value={inquiry.occasion} />}
-        {inquiry.message_on_cake && (
-          <InvRow label="Message" value={`"${inquiry.message_on_cake}"`} />
+        {inquiry.order_type === 'other_item' ? (
+          <>
+            <InvRow label="Item" value={inquiry.item_name} />
+            {inquiry.cake_size && <InvRow label="Size" value={inquiry.cake_size} />}
+          </>
+        ) : (
+          <>
+            <InvRow label="Size" value={inquiry.cake_size} />
+            <InvRow label="Flavor" value={inquiry.flavor} />
+            {inquiry.theme && <InvRow label="Theme" value={inquiry.theme} />}
+            {inquiry.occasion && <InvRow label="Occasion" value={inquiry.occasion} />}
+            {inquiry.message_on_cake && (
+              <InvRow label="Message" value={`"${inquiry.message_on_cake}"`} />
+            )}
+          </>
         )}
         <InvRow label="Quantity" value={String(inquiry.quantity)} mono />
         {inquiry.special_requirements && (
@@ -224,8 +236,11 @@ export default function InvoiceLayout({ order, inquiry, adminMode, businessPhone
           Payment
         </p>
 
-        {adminMode && adminTotal !== null && (
-          <InvRow label="Admin Price" value={formatKWD(inquiry.admin_price)} mono />
+        {hasDiscount && (
+          <>
+            <InvRow label="Subtotal" value={formatKWD(inquiry.admin_price)} mono />
+            <InvRow label="Discount" value={`- ${formatKWD(inquiry.discount)}`} mono />
+          </>
         )}
 
         <div className="flex justify-between items-center mb-1.5">
@@ -240,8 +255,8 @@ export default function InvoiceLayout({ order, inquiry, adminMode, businessPhone
           </span>
         </div>
 
-        {advance !== null && (
-          <InvRow label="Advance Paid" value={formatKWD(String(advance))} mono />
+        {deposit !== null && (
+          <InvRow label="Deposit" value={formatKWD(String(deposit))} mono />
         )}
 
         {paymentStatus === 'paid' ? (

@@ -1,19 +1,23 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { createServiceClient } from '@/lib/supabase/server'
-import { isValidUUID, formatDate, formatTime, formatKWD, formatDateLong } from '@/lib/utils'
+import { isValidUUID, formatDate, formatTime, formatKWD, formatDateLong, orderSummary } from '@/lib/utils'
 import type { Metadata } from 'next'
 import type { OrderStatus } from '@/lib/supabase/types'
-import { CheckCircle, Circle } from '@phosphor-icons/react/dist/ssr'
+import { CheckCircle, Circle, PencilSimple, Receipt } from '@phosphor-icons/react/dist/ssr'
+import { BRAND_NAME } from '@/lib/brand'
+import { Navbar } from '@/components/public/Navbar'
+import { whatsappUrl } from '@/lib/whatsapp'
+import { Field, Input } from '@/components/ui'
 
 interface Props { params: Promise<{ token: string }> }
 
-export const metadata: Metadata = { title: 'Track Your Order — ZMade Cakes' }
+export const metadata: Metadata = { title: `Track Your Order — ${BRAND_NAME}` }
 
 const STEPS: { status: OrderStatus; label: string; sublabel: string }[] = [
-  { status: 'confirmed', label: 'Order Confirmed', sublabel: 'Your order is in Zainab\'s hands' },
+  { status: 'confirmed', label: 'Order Confirmed', sublabel: 'Your order is with us' },
   { status: 'ready', label: 'Ready', sublabel: 'Your cake is ready — please arrange pickup or await delivery' },
-  { status: 'delivered', label: 'Delivered', sublabel: 'Enjoy every bite. Thank you for choosing ZMade' },
+  { status: 'delivered', label: 'Delivered', sublabel: `Enjoy every bite. Thank you for choosing ${BRAND_NAME}` },
 ]
 
 const STATUS_ORDER: Record<OrderStatus, number> = {
@@ -70,20 +74,7 @@ export default async function TrackPage({ params }: Props) {
       className="min-h-svh"
       style={{ backgroundColor: 'var(--color-cream)' }}
     >
-      {/* Header */}
-      <header className="border-b px-5 py-5 text-center" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
-        <p
-          className="text-2xl font-bold tracking-tight"
-          style={{ fontFamily: 'var(--font-display)', color: 'var(--color-teal)' }}
-        >
-          ZMade Cakes
-        </p>
-        {businessInstagram && (
-          <p className="text-xs mt-1" style={{ color: 'var(--color-ink-muted)' }}>
-            {businessInstagram} · Kuwait
-          </p>
-        )}
-      </header>
+      <Navbar businessInstagram={businessInstagram} />
 
       <div className="max-w-lg mx-auto px-4 py-8 flex flex-col gap-6">
         {/* Greeting */}
@@ -104,7 +95,7 @@ export default async function TrackPage({ params }: Props) {
           {isCancelled && (
             <div className="mt-2">
               <p className="text-sm" style={{ color: 'var(--color-ink-muted)' }}>
-                This order has been cancelled. If you have questions or would like to rebook, Zainab is just a message away.
+                This order has been cancelled. If you have questions or would like to rebook, we're just a message away.
               </p>
               {waNumber && (
                 <a
@@ -114,7 +105,7 @@ export default async function TrackPage({ params }: Props) {
                   className="mt-4 inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium"
                   style={{ backgroundColor: '#25D366', color: '#fff' }}
                 >
-                  Message Zainab on WhatsApp
+                  Message us on WhatsApp
                 </a>
               )}
             </div>
@@ -134,16 +125,29 @@ export default async function TrackPage({ params }: Props) {
               Order Status
             </h2>
 
-            <div className="flex flex-col gap-0">
+            <div className="flex flex-row items-start">
               {STEPS.map((step, i) => {
                 const isDone = currentStep > i
                 const isCurrent = currentStep === i
                 const isUpcoming = currentStep < i
+                // Connector "after" this step (between step i and i+1) is teal once
+                // the order has moved past this step.
+                const isPrevDone = i > 0 && currentStep > i - 1
 
                 return (
-                  <div key={step.status} className="flex gap-4">
-                    {/* Connector column */}
-                    <div className="flex flex-col items-center">
+                  <div key={step.status} className="flex-1 min-w-0 flex flex-col items-center">
+                    {/* Circle + connector row */}
+                    <div className="flex items-center w-full">
+                      <div
+                        className="flex-1 h-0.5"
+                        style={{
+                          backgroundColor: i === 0
+                            ? 'transparent'
+                            : isPrevDone
+                            ? 'var(--color-teal)'
+                            : 'var(--color-border)',
+                        }}
+                      />
                       <div
                         className="w-7 h-7 rounded-full flex items-center justify-center shrink-0"
                         style={{
@@ -161,23 +165,23 @@ export default async function TrackPage({ params }: Props) {
                           <Circle size={10} weight="regular" color="var(--color-border-strong)" />
                         )}
                       </div>
-                      {i < STEPS.length - 1 && (
-                        <div
-                          className="w-0.5 flex-1 my-1"
-                          style={{
-                            backgroundColor: isDone
-                              ? 'var(--color-teal)'
-                              : 'var(--color-border)',
-                            minHeight: '24px',
-                          }}
-                        />
-                      )}
+                      <div
+                        className="flex-1 h-0.5"
+                        style={{
+                          backgroundColor: i === STEPS.length - 1
+                            ? 'transparent'
+                            : isDone
+                            ? 'var(--color-teal)'
+                            : 'var(--color-border)',
+                        }}
+                      />
                     </div>
 
                     {/* Label */}
-                    <div className={`pb-${i < STEPS.length - 1 ? '0' : '0'} pt-0.5`} style={{ paddingBottom: i < STEPS.length - 1 ? '24px' : '0' }}>
+                    <div className="mt-2 px-1 flex flex-col items-center gap-1 text-center">
                       <p
                         className="text-sm font-semibold leading-tight"
+                        title={isDone ? step.sublabel : undefined}
                         style={{
                           color: isCurrent
                             ? 'var(--color-teal)'
@@ -187,20 +191,20 @@ export default async function TrackPage({ params }: Props) {
                         }}
                       >
                         {step.label}
-                        {isCurrent && (
-                          <span
-                            className="ml-2 text-xs font-medium px-1.5 py-0.5 rounded"
-                            style={{
-                              backgroundColor: 'var(--color-teal-light)',
-                              color: 'var(--color-teal-deep)',
-                            }}
-                          >
-                            Now
-                          </span>
-                        )}
                       </p>
-                      {(isCurrent || isDone) && (
-                        <p className="text-xs mt-0.5" style={{ color: 'var(--color-ink-muted)' }}>
+                      {isCurrent && (
+                        <span
+                          className="text-xs font-medium px-1.5 py-0.5 rounded"
+                          style={{
+                            backgroundColor: 'var(--color-teal-light)',
+                            color: 'var(--color-teal-deep)',
+                          }}
+                        >
+                          Now
+                        </span>
+                      )}
+                      {isCurrent && (
+                        <p className="text-xs" style={{ color: 'var(--color-ink-muted)' }}>
                           {step.sublabel}
                         </p>
                       )}
@@ -275,23 +279,40 @@ export default async function TrackPage({ params }: Props) {
               color: 'var(--color-ink-muted)',
             }}
           >
-            Zainab will share an expected date soon.
+            We'll share an expected date soon.
           </div>
         ) : null}
 
         {/* Order details */}
         <section
-          className="rounded-2xl border p-5 flex flex-col gap-2.5"
+          className="rounded-2xl border p-5 flex flex-col gap-3"
           style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
         >
-          <h2
-            className="text-xs font-semibold uppercase tracking-widest mb-1"
-            style={{ color: 'var(--color-ink-muted)' }}
-          >
-            Order Details
-          </h2>
+          <div className="flex items-center justify-between mb-1">
+            <h2
+              className="text-xs font-semibold uppercase tracking-widest"
+              style={{ color: 'var(--color-ink-muted)' }}
+            >
+              Order Details
+            </h2>
+            {waNumber && inq && (
+              <a
+                href={whatsappUrl(
+                  businessPhone,
+                  `Hi, I'd like to update my order (${orderSummary(inq)}, ${formatDate(inq.event_date)})`
+                )}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-xs font-medium shrink-0"
+                style={{ color: 'var(--color-teal)' }}
+              >
+                <PencilSimple size={13} weight="bold" />
+                Edit
+              </a>
+            )}
+          </div>
 
-          <TrackRow label="Cake" value={`${inq?.cake_size} · ${inq?.flavor}`} />
+          <TrackRow label="Cake" value={inq ? orderSummary(inq) : '—'} />
           {inq?.theme && inq.theme !== '' && (
             <TrackRow label="Theme" value={inq.theme} />
           )}
@@ -315,43 +336,15 @@ export default async function TrackPage({ params }: Props) {
           )}
         </section>
 
-        {/* Contact */}
-        <div className="text-center flex flex-col items-center gap-3">
-          <Link
-            href={`/invoice/${token}`}
-            className="text-xs"
-            style={{ color: 'var(--color-teal)' }}
-          >
-            View Invoice
-          </Link>
-          <Link
-            href="/my-orders"
-            className="text-xs"
-            style={{ color: 'var(--color-ink-secondary)' }}
-          >
-            My Orders
-          </Link>
-          <p className="text-xs" style={{ color: 'var(--color-ink-muted)' }}>
-            Questions about your order?
-          </p>
-          {waNumber && (
-            <a
-              href={`https://wa.me/${waNumber}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium"
-              style={{ backgroundColor: '#25D366', color: '#fff' }}
-            >
-              Message Zainab on WhatsApp
-            </a>
-          )}
-          {businessInstagram && (
-            <p className="text-xs" style={{ color: 'var(--color-ink-muted)' }}>
-              Instagram:{' '}
-              <span style={{ color: 'var(--color-teal)' }}>{businessInstagram}</span>
-            </p>
-          )}
-        </div>
+        {/* Actions */}
+        <Link
+          href={`/invoice/${token}`}
+          className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium"
+          style={{ backgroundColor: 'var(--color-surface-raised)', color: 'var(--color-ink-secondary)' }}
+        >
+          <Receipt size={15} weight="bold" />
+          View Invoice
+        </Link>
       </div>
     </main>
   )
@@ -367,19 +360,13 @@ function TrackRow({
   mono?: boolean
 }) {
   return (
-    <div className="flex items-start justify-between gap-4">
-      <span className="text-xs pt-0.5 shrink-0" style={{ color: 'var(--color-ink-muted)' }}>
-        {label}
-      </span>
-      <span
-        className="text-sm text-right"
-        style={{
-          color: 'var(--color-ink-secondary)',
-          fontFamily: mono ? 'var(--font-mono)' : undefined,
-        }}
-      >
-        {value}
-      </span>
-    </div>
+    <Field label={label}>
+      <Input
+        value={value}
+        disabled
+        readOnly
+        style={{ fontFamily: mono ? 'var(--font-mono)' : undefined }}
+      />
+    </Field>
   )
 }

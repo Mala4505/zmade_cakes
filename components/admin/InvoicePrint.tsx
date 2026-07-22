@@ -1,11 +1,13 @@
 import { formatDate, formatTime, formatKWD, GOVERNORATE_LABELS } from '@/lib/utils'
 import { hasAllergens, ALLERGEN_LABELS } from '@/lib/supabase/types'
 import { derivePaymentStatus, balanceOwed } from '@/lib/payments'
+import { BRAND_NAME } from '@/lib/brand'
 
 interface Props {
   order: {
     id: string
     final_price: string
+    deposit_amount: string | null
     delivery_type: string
     tracking_token: string
     invoice_number?: number | null
@@ -16,6 +18,8 @@ interface Props {
   inquiry: {
     customer_name: string
     customer_phone: string
+    order_type?: 'cake' | 'other_item'
+    item_name: string
     cake_size: string
     flavor: string
     theme?: string
@@ -25,8 +29,7 @@ interface Props {
     event_date: string
     pickup_time: string | null
     admin_price: string | null
-    advance_amount: string | null
-    advance_paid: boolean
+    discount: string | null
     fully_paid: boolean
     payment_method: string
     special_requirements?: string
@@ -65,9 +68,10 @@ export default function InvoicePrint({ order, inquiry, businessPhone, businessIn
     .map(([, label]) => label)
   if (inquiry.allergen_other) allergenList.push(inquiry.allergen_other)
 
-  const advance = inquiry.advance_amount ? parseFloat(inquiry.advance_amount) : null
-  const balance = balanceOwed(order.final_price, inquiry.advance_amount, inquiry.advance_paid, inquiry.fully_paid)
-  const paymentStatus = derivePaymentStatus(inquiry.fully_paid, inquiry.advance_paid, inquiry.advance_amount)
+  const deposit = order.deposit_amount ? parseFloat(order.deposit_amount) : null
+  const balance = balanceOwed(order.final_price, order.deposit_amount, inquiry.fully_paid)
+  const paymentStatus = derivePaymentStatus(inquiry.fully_paid, order.deposit_amount)
+  const hasDiscount = Number(inquiry.discount) > 0
 
   return (
     <div id="invoice" className="print-only">
@@ -111,7 +115,7 @@ export default function InvoicePrint({ order, inquiry, businessPhone, businessIn
 
       <div className="inv-header">
         <div>
-          <div className="inv-brand-name">ZMade Cakes</div>
+          <div className="inv-brand-name">{BRAND_NAME}</div>
           <div className="inv-tagline">Handcrafted with love</div>
         </div>
         <div>
@@ -159,31 +163,48 @@ export default function InvoicePrint({ order, inquiry, businessPhone, businessIn
       <div className="inv-divider" />
       <div className="inv-section-title">Cake Details</div>
 
-      <div className="inv-row">
-        <span className="inv-label">Size:</span>
-        <span>{inquiry.cake_size}</span>
-      </div>
-      <div className="inv-row">
-        <span className="inv-label">Flavor:</span>
-        <span>{inquiry.flavor}</span>
-      </div>
-      {inquiry.theme && (
-        <div className="inv-row">
-          <span className="inv-label">Theme:</span>
-          <span>{inquiry.theme}</span>
-        </div>
-      )}
-      {inquiry.occasion && (
-        <div className="inv-row">
-          <span className="inv-label">Occasion:</span>
-          <span>{inquiry.occasion}</span>
-        </div>
-      )}
-      {inquiry.message_on_cake && (
-        <div className="inv-row">
-          <span className="inv-label">Message:</span>
-          <span>"{inquiry.message_on_cake}"</span>
-        </div>
+      {inquiry.order_type === 'other_item' ? (
+        <>
+          <div className="inv-row">
+            <span className="inv-label">Item:</span>
+            <span>{inquiry.item_name}</span>
+          </div>
+          {inquiry.cake_size && (
+            <div className="inv-row">
+              <span className="inv-label">Size:</span>
+              <span>{inquiry.cake_size}</span>
+            </div>
+          )}
+        </>
+      ) : (
+        <>
+          <div className="inv-row">
+            <span className="inv-label">Size:</span>
+            <span>{inquiry.cake_size}</span>
+          </div>
+          <div className="inv-row">
+            <span className="inv-label">Flavor:</span>
+            <span>{inquiry.flavor}</span>
+          </div>
+          {inquiry.theme && (
+            <div className="inv-row">
+              <span className="inv-label">Theme:</span>
+              <span>{inquiry.theme}</span>
+            </div>
+          )}
+          {inquiry.occasion && (
+            <div className="inv-row">
+              <span className="inv-label">Occasion:</span>
+              <span>{inquiry.occasion}</span>
+            </div>
+          )}
+          {inquiry.message_on_cake && (
+            <div className="inv-row">
+              <span className="inv-label">Message:</span>
+              <span>"{inquiry.message_on_cake}"</span>
+            </div>
+          )}
+        </>
       )}
       <div className="inv-row">
         <span className="inv-label">Quantity:</span>
@@ -211,14 +232,26 @@ export default function InvoicePrint({ order, inquiry, businessPhone, businessIn
       <div className="inv-divider" />
       <div className="inv-section-title">Payment</div>
 
+      {hasDiscount && (
+        <>
+          <div className="inv-total-row">
+            <span className="inv-label">Subtotal</span>
+            <span className="inv-mono">{formatKWD(inquiry.admin_price)}</span>
+          </div>
+          <div className="inv-total-row">
+            <span className="inv-label">Discount</span>
+            <span className="inv-mono">- {formatKWD(inquiry.discount)}</span>
+          </div>
+        </>
+      )}
       <div className="inv-total-row inv-total-main">
         <span>Total</span>
         <span className="inv-mono">{formatKWD(order.final_price)}</span>
       </div>
-      {advance !== null && (
+      {deposit !== null && (
         <div className="inv-total-row">
-          <span className="inv-label">Advance Paid</span>
-          <span className="inv-mono">{formatKWD(String(advance))}</span>
+          <span className="inv-label">Deposit</span>
+          <span className="inv-mono">{formatKWD(String(deposit))}</span>
         </div>
       )}
       {paymentStatus === 'paid' ? (

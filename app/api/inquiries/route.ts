@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
 import { publicInquirySchema } from '@/lib/validations/publicInquiry'
+import { normalizePhone } from '@/lib/utils'
 
 async function getRatelimit() {
   if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN) return null
@@ -30,7 +31,7 @@ export async function POST(req: NextRequest) {
 
     const { data: customer, error: customerError } = await supabase
       .from('customers')
-      .upsert({ phone: data.customer_phone, name: data.customer_name, updated_at: new Date().toISOString() }, { onConflict: 'phone' })
+      .upsert({ phone: normalizePhone(data.customer_phone), name: data.customer_name, updated_at: new Date().toISOString() }, { onConflict: 'phone' })
       .select('id').single()
     if (customerError) console.error('[inquiries] customer upsert failed:', customerError.message)
 
@@ -50,8 +51,7 @@ export async function POST(req: NextRequest) {
         ...inquiryFields,
         quantity: 1,
         admin_price: null,
-        advance_amount: null,
-        advance_paid: false,
+        deposit_amount: null,
         payment_method: '',
         admin_notes: '',
         customer_id: customer?.id ?? null,

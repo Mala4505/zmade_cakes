@@ -30,7 +30,7 @@ export default async function AdminInvoicePage({ params }: Props) {
   return (
     <div
       className="min-h-svh px-4 py-8"
-      style={{ backgroundColor: 'var(--color-cream)' }}
+      style={{ background: 'linear-gradient(180deg, var(--color-cream) 0%, var(--color-surface-raised) 100%)' }}
     >
       <style>{`@media print { .no-print { display: none !important; } }`}</style>
 

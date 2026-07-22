@@ -1,34 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createHmac, timingSafeEqual } from 'crypto'
 import { createServiceClient } from '@/lib/supabase/server'
+import { generatePortalToken, verifyPortalToken } from '@/lib/portal'
+import { normalizePhone, levenshteinDistance } from '@/lib/utils'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
-// ── Token helpers ──────────────────────────────────────────────────────────────
-
-function generatePortalToken(customerId: string): string {
-  const secret = process.env.PORTAL_TOKEN_SECRET ?? 'dev-secret'
-  const hmac = createHmac('sha256', secret).update(customerId).digest('hex')
-  return Buffer.from(`${customerId}:${hmac}`).toString('base64url')
-}
-
-function verifyPortalToken(token: string): string | null {
-  try {
-    const decoded = Buffer.from(token, 'base64url').toString('utf-8')
-    const colonIdx = decoded.indexOf(':')
-    if (colonIdx === -1) return null
-    const customerId = decoded.slice(0, colonIdx)
-    const hmac = decoded.slice(colonIdx + 1)
-    const secret = process.env.PORTAL_TOKEN_SECRET ?? 'dev-secret'
-    const expected = createHmac('sha256', secret).update(customerId).digest('hex')
-    const hmacBuf = Buffer.from(hmac)
-    const expectedBuf = Buffer.from(expected)
-    if (hmacBuf.byteLength !== expectedBuf.byteLength) return null
-    if (!timingSafeEqual(hmacBuf, expectedBuf)) return null
-    return customerId
-  } catch { return null }
-}
-
 const normalize = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ')
+
+// Builds an ILIKE pattern that matches strings containing `digits` in order, with any
+// characters (including none) interspersed — e.g. "66857560" -> "%6%6%8%5%7%5%6%0%", which
+// matches legacy stored values like "6685 7560" or "+965-6685-7560" regardless of formatting.
+const digitWildcardPattern = (digits: string) => `%${digits.split('').join('%')}%`
 
 // ── Rate limiter ───────────────────────────────────────────────────────────────
 
@@ -51,6 +32,8 @@ type OrderResult = {
   id: string
   cake_size: string
   flavor: string
+  order_type: string
+  item_name: string
   occasion: string
   event_date: string
   status: string
@@ -64,7 +47,7 @@ async function fetchOrdersForCustomer(
 ): Promise<OrderResult[]> {
   const { data: inquiries } = await supabase
     .from('inquiries')
-    .select('id, cake_size, flavor, occasion, event_date, status, created_at, orders(id, tracking_token, status, final_price)')
+    .select('id, cake_size, flavor, order_type, item_name, occasion, event_date, status, created_at, orders(id, tracking_token, status, final_price)')
     .eq('customer_id', customerId)
     .order('event_date', { ascending: false })
     .limit(50)
@@ -74,6 +57,8 @@ async function fetchOrdersForCustomer(
       id: inq.id,
       cake_size: inq.cake_size,
       flavor: inq.flavor,
+      order_type: inq.order_type,
+      item_name: inq.item_name,
       occasion: inq.occasion,
       event_date: inq.event_date,
       status: inq.status,
@@ -124,15 +109,45 @@ export async function GET(request: NextRequest) {
 
   const supabase = createServiceClient()
 
-  const { data: customer } = await supabase
+  const normalizedIncomingPhone = normalizePhone(phone)
+
+  // Primary path — write-time normalization (see app/api/inquiries/route.ts and
+  // lib/actions/customers.ts) means new/updated rows store phone as normalizePhone()
+  // output already, so a direct match is the common case.
+  const { data: exactMatch } = await supabase
     .from('customers')
-    .select('id, name')
-    .eq('phone', phone.trim())
-    .single() as { data: { id: string; name: string } | null; error: unknown }
+    .select('id, name, phone')
+    .eq('phone', normalizedIncomingPhone)
+    .maybeSingle() as { data: { id: string; name: string; phone: string } | null; error: unknown }
+
+  let customer: { id: string; name: string; phone: string } | null = exactMatch
+
+  if (!customer) {
+    // Fallback for legacy rows stored in whatever format they were originally entered
+    // (spaces, dashes, missing/extra country code). Narrow candidates via a digit-aware
+    // ILIKE pattern on the last 8 digits, then confirm with a normalized JS comparison.
+    const last8 = normalizedIncomingPhone.slice(-8)
+    const { data: candidates } = await supabase
+      .from('customers')
+      .select('id, name, phone')
+      .ilike('phone', digitWildcardPattern(last8))
+      .limit(10) as { data: { id: string; name: string; phone: string }[] | null; error: unknown }
+
+    customer = (candidates ?? []).find(
+      (c) => normalizePhone(c.phone ?? '') === normalizedIncomingPhone
+    ) ?? null
+  }
 
   if (!customer) return NextResponse.json({ orders: [] })
 
-  if (normalize(customer.name ?? '') !== normalize(name)) {
+  // Name is a tolerant edit-distance check (typos/case) — phone is the hard identifier and
+  // has already uniquely resolved to this one customer, so loosening the name check doesn't
+  // widen who can be matched.
+  const normalizedStoredName = normalize(customer.name ?? '')
+  const normalizedIncomingName = normalize(name)
+  const distance = levenshteinDistance(normalizedStoredName, normalizedIncomingName)
+  const threshold = Math.max(2, Math.ceil(normalizedIncomingName.length * 0.2))
+  if (distance > threshold) {
     return NextResponse.json({ orders: [] })
   }
 

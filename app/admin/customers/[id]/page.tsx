@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { formatDate, formatKWD } from '@/lib/utils'
+import { formatDate, formatKWD, orderSummary } from '@/lib/utils'
 import { PageHeader } from '@/components/admin/PageHeader'
 import { StatusBadge } from '@/components/admin/StatusBadge'
 import Link from 'next/link'
@@ -12,6 +12,8 @@ type InquiryRow = {
   id: string
   cake_size: string
   flavor: string
+  order_type: string
+  item_name: string
   occasion: string
   event_date: string
   status: InquiryStatus
@@ -44,7 +46,7 @@ export default async function CustomerDetailPage({ params }: Props) {
 
   const { data: inquiries, error: inquiriesError } = await supabase
     .from('inquiries')
-    .select('id, cake_size, flavor, occasion, event_date, status, admin_price, created_at')
+    .select('id, cake_size, flavor, order_type, item_name, occasion, event_date, status, admin_price, created_at')
     .eq('customer_id', id)
     .order('event_date', { ascending: false })
 
@@ -138,7 +140,7 @@ export default async function CustomerDetailPage({ params }: Props) {
                   >
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium" style={{ color: 'var(--color-ink)' }}>
-                        {inq.cake_size} · {inq.flavor}
+                        {orderSummary(inq)}
                         {inq.occasion ? ` · ${inq.occasion}` : ''}
                       </p>
                       <div className="flex items-center gap-3 mt-1 flex-wrap">
