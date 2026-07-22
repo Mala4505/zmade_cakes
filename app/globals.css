@@ -101,12 +101,22 @@ body {
 @media print {
   body {
     background: #fff;
-    color: #000;
-    font-family: monospace;
-    font-size: 12px;
+  }
+
+  /* Preserve teal accents, dashed dividers, and badge tints instead of the
+     browser's default of stripping background colors from printed pages. */
+  * {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
   }
 
   .no-print {
+    display: none !important;
+  }
+
+  /* Site chrome (navbar, global footer) has no place on a printed document —
+     only the page's own content should print. */
+  .site-chrome {
     display: none !important;
   }
 

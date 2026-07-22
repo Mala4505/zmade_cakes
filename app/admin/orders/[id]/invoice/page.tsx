@@ -29,10 +29,16 @@ export default async function AdminInvoicePage({ params }: Props) {
 
   return (
     <div
-      className="min-h-svh px-4 py-8"
+      className="invoice-page-bg min-h-svh px-4 py-8"
       style={{ background: 'linear-gradient(180deg, var(--color-cream) 0%, var(--color-surface-raised) 100%)' }}
     >
-      <style>{`@media print { .no-print { display: none !important; } }`}</style>
+      <style>{`
+        @media print {
+          @page { margin: 16mm 14mm; }
+          .no-print { display: none !important; }
+          .invoice-page-bg { background: #fff !important; }
+        }
+      `}</style>
 
       <div className="no-print max-w-lg mx-auto mb-6 flex items-center justify-between">
         <Link

@@ -34,16 +34,23 @@ export default async function PublicInvoicePage({ params }: Props) {
 
   return (
     <main
-      className="min-h-svh"
+      className="invoice-page-bg min-h-svh"
       style={{ background: 'linear-gradient(180deg, var(--color-cream) 0%, var(--color-surface-raised) 100%)' }}
     >
-      <style>{`@media print { .no-print { display: none !important; } }`}</style>
+      <style>{`
+        @media print {
+          @page { margin: 16mm 14mm; }
+          .no-print { display: none !important; }
+          .invoice-page-bg { background: #fff !important; }
+        }
+      `}</style>
 
       <Navbar businessInstagram={businessInstagram} />
 
       <div className="max-w-lg mx-auto px-4 py-8 flex flex-col gap-6">
         {/* Print / download buttons */}
         <div className="no-print flex justify-end gap-2">
+          <PrintButton />
           <DownloadPdfButton
             order={o}
             inquiry={inq}
@@ -52,7 +59,6 @@ export default async function PublicInvoicePage({ params }: Props) {
             businessInstagram={businessInstagram}
             invoiceNumber={o.invoice_number ?? null}
           />
-          <PrintButton />
         </div>
 
         {/* Invoice */}

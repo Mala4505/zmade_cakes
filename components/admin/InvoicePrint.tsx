@@ -81,16 +81,16 @@ export default function InvoicePrint({ order, inquiry, businessPhone, businessIn
           @page { margin: 18mm 15mm; }
           .no-print, header, nav, aside { display: none !important; }
           #invoice {
-            font-family: 'Cabinet Grotesk', 'Inter', sans-serif;
+            font-family: var(--font-display), sans-serif;
             color: #111;
             width: 100%;
             max-width: 480px;
             margin: 0 auto;
             padding: 0;
           }
-          .inv-accent { height: 3px; background: #0d9488; width: 100%; margin-bottom: 18px; }
+          .inv-accent { height: 3px; background: var(--color-teal); width: 100%; margin-bottom: 18px; }
           .inv-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; }
-          .inv-brand-name { font-size: 20px; font-weight: 800; letter-spacing: -0.3px; color: #0d9488; }
+          .inv-brand-name { font-size: 20px; font-weight: 800; letter-spacing: -0.3px; color: var(--color-teal); }
           .inv-tagline { font-size: 11px; color: #777; margin-top: 2px; }
           .inv-label-invoice { font-size: 22px; font-weight: 700; letter-spacing: 2px; color: #ccc; text-transform: uppercase; }
           .inv-divider { border-top: 1px dashed #ccc; margin: 10px 0; }

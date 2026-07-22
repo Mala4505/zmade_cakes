@@ -8,7 +8,7 @@ interface Props {
 export function Navbar({ businessInstagram }: Props) {
   return (
     <header
-      className="flex items-center justify-between gap-4 border-b px-5 py-5"
+      className="site-chrome flex items-center justify-between gap-4 border-b px-5 py-5"
       style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
     >
       <div>

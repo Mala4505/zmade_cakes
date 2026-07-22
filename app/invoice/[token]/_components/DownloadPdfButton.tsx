@@ -51,11 +51,10 @@ export function DownloadPdfButton(props: Props) {
       type="button"
       onClick={handleDownload}
       disabled={loading}
-      className="inline-flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-lg border transition-all active:scale-[0.97] disabled:opacity-60"
+      className="inline-flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-lg disabled:opacity-60"
       style={{
-        borderColor: 'var(--color-teal)',
-        backgroundColor: 'transparent',
-        color: 'var(--color-teal)',
+        backgroundColor: 'var(--color-teal)',
+        color: '#fff',
       }}
     >
       {loading ? <Spinner size={14} className="animate-spin" /> : <DownloadSimple size={14} />}

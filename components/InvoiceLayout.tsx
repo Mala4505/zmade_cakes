@@ -78,7 +78,7 @@ export default function InvoiceLayout({ order, inquiry, adminMode, businessPhone
 
   return (
     <div
-      className="rounded-2xl overflow-hidden shadow-[var(--shadow-floating)]"
+      className="rounded-2xl overflow-hidden shadow-[var(--shadow-floating)] print:shadow-none print:rounded-none print:!border-none"
       style={{
         backgroundColor: 'var(--color-surface)',
         border: '1px solid var(--color-border)',
