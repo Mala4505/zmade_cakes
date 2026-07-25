@@ -14,6 +14,7 @@ interface OrderInquiry {
   event_date?: string | null
   admin_price?: string | number | null
   deposit_amount?: string | number | null
+  amount_paid?: string | number | null
   fully_paid?: boolean | null
   allergen_nut_free?: boolean | null
   allergen_dairy_free?: boolean | null
@@ -50,7 +51,7 @@ function MobileOrderCard({ order }: { order: MobileOrder }) {
   const inq = order.inquiry
   const days = inq?.event_date ? daysUntil(inq.event_date) : null
   const paymentStatus = inq
-    ? derivePaymentStatus(inq.fully_paid ?? false, inq.deposit_amount ?? null)
+    ? derivePaymentStatus(inq.fully_paid ?? false, inq.amount_paid ?? null)
     : null
 
   return (

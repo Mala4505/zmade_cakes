@@ -10,14 +10,12 @@ import {
   Truck,
   Spinner,
   WhatsappLogo,
-  Link as LinkIcon,
   Copy,
   Check,
 } from '@phosphor-icons/react'
 import type { Inquiry, InquiryStatus, WhatsAppTemplates } from '@/lib/supabase/types'
-import { DEFAULT_WHATSAPP_TEMPLATES } from '@/lib/supabase/types'
-import { balanceOwed, subtotalAfterDiscount } from '@/lib/payments'
-import { interpolate, whatsappUrl, whatsappUrlNoText } from '@/lib/whatsapp'
+import { pickWhatsAppAction, whatsappUrlNoText } from '@/lib/whatsapp'
+import WhatsAppButton from '@/components/admin/WhatsAppButton'
 
 const NEXT_STEP: Record<string, { label: string; Icon: React.ElementType } | null> = {
   pending: { label: 'Mark as Confirmed', Icon: CheckCircle },
@@ -37,10 +35,12 @@ export default function InquiryActions({
   inquiry,
   confirmLink,
   templates,
+  fallbackLinkUrl,
 }: {
   inquiry: Inquiry & { payment_status?: string }
   confirmLink: string
   templates?: WhatsAppTemplates
+  fallbackLinkUrl?: string
 }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
@@ -62,21 +62,29 @@ export default function InquiryActions({
     })
   }
 
+  const waAction = pickWhatsAppAction(
+    {
+      customer_name: inquiry.customer_name,
+      customer_phone: inquiry.customer_phone,
+      fully_paid: inquiry.fully_paid,
+      amount_paid: inquiry.amount_paid,
+      customer_confirmed: inquiry.customer_confirmed,
+      status: inquiry.status,
+      admin_price: inquiry.admin_price,
+      discount: inquiry.discount,
+      confirmationLinkUrl: confirmLink,
+      fallbackLinkUrl,
+    },
+    templates
+  )
+
   const handleCopyLink = async () => {
-    await navigator.clipboard.writeText(confirmLink)
+    if (!waAction.linkUrl) return
+    await navigator.clipboard.writeText(waAction.linkUrl)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
 
-  const firstName = inquiry.customer_name.split(' ')[0]
-  const balance = inquiry.admin_price
-    ? balanceOwed(subtotalAfterDiscount(inquiry.admin_price, inquiry.discount), inquiry.deposit_amount, inquiry.fully_paid)
-    : null
-  const hasOutstandingBalance = balance !== null && balance > 0
-
-  const notConfirmed = !inquiry.customer_confirmed
-  const isConfirmedOrBeyond =
-    inquiry.status === 'confirmed' || inquiry.status === 'ready'
   const isCancelled = inquiry.status === 'cancelled'
   const isDelivered = inquiry.status === 'delivered'
 
@@ -125,76 +133,28 @@ export default function InquiryActions({
           Quick Message
         </p>
 
-        {/* Not confirmed + has price: Send Confirmation */}
-        {notConfirmed && !!inquiry.admin_price && (
+        {/* Single status-driven WhatsApp action: confirmation, balance due, or order ready — never more than one */}
+        {waAction.kind !== 'plain' && (
           <div className="flex gap-2">
-            <a
-              href={whatsappUrl(
-                inquiry.customer_phone,
-                interpolate(templates?.confirmationLink ?? DEFAULT_WHATSAPP_TEMPLATES.confirmationLink, {
-                  name: firstName,
-                  link: confirmLink,
-                })
-              )}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-all active:scale-[0.97]"
-              style={{ backgroundColor: 'var(--color-teal)', color: 'var(--color-cream)' }}
-            >
-              <WhatsappLogo size={15} weight="fill" />
-              Send Confirmation
-            </a>
-            <button
-              type="button"
-              onClick={handleCopyLink}
-              className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium border transition-all active:scale-[0.97]"
-              style={{
-                borderColor: 'var(--color-border)',
-                backgroundColor: 'var(--color-surface-raised)',
-                color: 'var(--color-ink-secondary)',
-              }}
-            >
-              {copied ? <Check size={14} weight="bold" /> : <Copy size={14} />}
-              {copied ? 'Copied' : 'Copy Link'}
-            </button>
+            <div className="flex-1">
+              <WhatsAppButton variant="pill" action={waAction} customer_phone={inquiry.customer_phone} />
+            </div>
+            {waAction.linkUrl && (
+              <button
+                type="button"
+                onClick={handleCopyLink}
+                className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium border transition-all active:scale-[0.97]"
+                style={{
+                  borderColor: 'var(--color-border)',
+                  backgroundColor: 'var(--color-surface-raised)',
+                  color: 'var(--color-ink-secondary)',
+                }}
+              >
+                {copied ? <Check size={14} weight="bold" /> : <Copy size={14} />}
+                {copied ? 'Copied' : 'Copy Link'}
+              </button>
+            )}
           </div>
-        )}
-
-        {/* Confirmed + making/ready: Order Ready */}
-        {isConfirmedOrBeyond && (
-          <a
-            href={whatsappUrl(
-              inquiry.customer_phone,
-              interpolate(templates?.orderReady ?? DEFAULT_WHATSAPP_TEMPLATES.orderReady, { name: firstName })
-            )}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-all active:scale-[0.97]"
-            style={{ backgroundColor: '#25D366', color: '#fff' }}
-          >
-            <WhatsappLogo size={15} weight="fill" />
-            Order Ready
-          </a>
-        )}
-
-        {/* Outstanding balance reminder */}
-        {hasOutstandingBalance && (
-          <a
-            href={whatsappUrl(
-              inquiry.customer_phone,
-              interpolate(templates?.balanceDue ?? DEFAULT_WHATSAPP_TEMPLATES.balanceDue, {
-                name: firstName,
-                amount: (balance ?? 0).toFixed(3),
-              })
-            )}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-all active:scale-[0.97]"
-            style={{ backgroundColor: '#1a9e4c', color: '#fff' }}
-          >
-            <WhatsappLogo size={15} weight="fill" />
-            Balance Due — KD {(balance ?? 0).toFixed(3)}
-          </a>
         )}
 
         {/* Always: Message Customer */}

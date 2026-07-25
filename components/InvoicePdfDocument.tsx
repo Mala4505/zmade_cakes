@@ -10,6 +10,7 @@ interface Props {
     id: string
     final_price: string
     deposit_amount: string | null
+    amount_paid: string | null
     delivery_type: DeliveryType
     tracking_token: string
     invoice_number?: number | null
@@ -63,7 +64,7 @@ const styles = StyleSheet.create({
     fontFamily: 'Helvetica',
     fontSize: 10,
     color: INK_SECONDARY,
-    padding: 32,
+    padding: 28,
   },
   accentBar: {
     height: 4,
@@ -78,30 +79,30 @@ const styles = StyleSheet.create({
   },
   brandName: {
     fontFamily: 'Helvetica-Bold',
-    fontSize: 18,
+    fontSize: 24,
     color: TEAL,
   },
   tagline: {
-    fontSize: 9,
+    fontSize: 11,
     color: INK_MUTED,
     marginTop: 2,
   },
   invoiceLabel: {
     fontFamily: 'Helvetica-Bold',
-    fontSize: 16,
+    fontSize: 22,
     color: BORDER,
     letterSpacing: 2,
     textAlign: 'right',
   },
   invoiceNumber: {
     fontFamily: 'Courier',
-    fontSize: 9,
+    fontSize: 11,
     color: INK_MUTED,
     textAlign: 'right',
     marginTop: 4,
   },
   contactLine: {
-    fontSize: 9,
+    fontSize: 10,
     color: INK_MUTED,
     marginBottom: 10,
   },
@@ -109,16 +110,16 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: BORDER,
     borderTopStyle: 'dashed',
-    marginVertical: 10,
+    marginVertical: 8,
   },
   dividerSolid: {
     borderTopWidth: 1,
     borderTopColor: BORDER,
-    marginVertical: 10,
+    marginVertical: 8,
   },
   sectionTitle: {
     fontFamily: 'Helvetica-Bold',
-    fontSize: 9,
+    fontSize: 11,
     color: INK_MUTED,
     letterSpacing: 1.5,
     textTransform: 'uppercase',
@@ -128,21 +129,21 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 6,
+    marginBottom: 5,
   },
   rowLabel: {
-    fontSize: 9,
+    fontSize: 12,
     color: INK_MUTED,
   },
   rowValue: {
-    fontSize: 10,
+    fontSize: 13,
     color: INK_SECONDARY,
     textAlign: 'right',
     maxWidth: 320,
   },
   rowValueMono: {
     fontFamily: 'Courier',
-    fontSize: 10,
+    fontSize: 13,
     color: INK_SECONDARY,
     textAlign: 'right',
   },
@@ -154,29 +155,35 @@ const styles = StyleSheet.create({
   },
   totalLabel: {
     fontFamily: 'Helvetica-Bold',
-    fontSize: 10,
+    fontSize: 15,
     color: INK,
   },
   totalValue: {
     fontFamily: 'Courier-Bold',
-    fontSize: 10,
+    fontSize: 15,
     color: INK,
   },
   balancePaidLabel: {
-    fontSize: 9,
+    fontSize: 12,
     color: INK_MUTED,
   },
   balancePaidValue: {
     fontFamily: 'Helvetica-Bold',
-    fontSize: 10,
+    fontSize: 14,
     color: '#16a34a',
+  },
+  depositHint: {
+    fontSize: 9,
+    color: INK_MUTED,
+    marginTop: -1,
+    marginBottom: 4,
   },
   allergenTagsWrap: {
     flexDirection: 'row',
     flexWrap: 'wrap',
   },
   allergenTag: {
-    fontSize: 8,
+    fontSize: 10,
     color: '#92400e',
     backgroundColor: '#fffbeb',
     borderWidth: 1,
@@ -193,7 +200,7 @@ const styles = StyleSheet.create({
     borderTopStyle: 'dashed',
     marginTop: 14,
     paddingTop: 12,
-    fontSize: 8,
+    fontSize: 9,
     color: INK_MUTED,
     textAlign: 'center',
     lineHeight: 1.5,
@@ -229,8 +236,9 @@ export default function InvoicePdfDocument({ order, inquiry, businessPhone, busi
   if (inquiry.allergen_other) allergenList.push(inquiry.allergen_other)
 
   const deposit = order.deposit_amount ? parseFloat(order.deposit_amount) : null
-  const balance = balanceOwed(order.final_price, order.deposit_amount, inquiry.fully_paid)
-  const paymentStatus = derivePaymentStatus(inquiry.fully_paid, order.deposit_amount)
+  const amountPaid = order.amount_paid ? parseFloat(order.amount_paid) : null
+  const balance = balanceOwed(order.final_price, order.amount_paid, inquiry.fully_paid)
+  const paymentStatus = derivePaymentStatus(inquiry.fully_paid, order.amount_paid)
   const hasDiscount = Number(inquiry.discount) > 0
 
   return (
@@ -321,11 +329,9 @@ export default function InvoicePdfDocument({ order, inquiry, businessPhone, busi
         <View>
           <Text style={styles.sectionTitle}>Payment</Text>
 
+          <Row label="Subtotal" value={formatKWD(inquiry.admin_price)} mono />
           {hasDiscount && (
-            <>
-              <Row label="Subtotal" value={formatKWD(inquiry.admin_price)} mono />
-              <Row label="Discount" value={`- ${formatKWD(inquiry.discount)}`} mono />
-            </>
+            <Row label="Discount" value={`- ${formatKWD(inquiry.discount)}`} mono />
           )}
 
           <View style={styles.totalRow}>
@@ -333,21 +339,34 @@ export default function InvoicePdfDocument({ order, inquiry, businessPhone, busi
             <Text style={styles.totalValue}>{formatKWD(order.final_price)}</Text>
           </View>
 
-          {deposit !== null && <Row label="Deposit" value={formatKWD(String(deposit))} mono />}
+          {paymentStatus === 'partial' && amountPaid !== null && amountPaid !== 0 && (
+            <Row label="Amount Paid" value={formatKWD(String(amountPaid))} mono />
+          )}
 
           {paymentStatus === 'paid' ? (
             <View style={styles.totalRow}>
               <Text style={styles.balancePaidLabel}>Balance</Text>
               <Text style={styles.balancePaidValue}>Fully Paid</Text>
             </View>
-          ) : (
+          ) : balance > 0 ? (
             <Row label="Balance Due" value={formatKWD(String(balance))} mono />
-          )}
+          ) : null}
 
           {inquiry.payment_method && (
             <Row label="Payment Method" value={inquiry.payment_method === 'wamd' ? 'WAMD' : 'Cash'} />
           )}
         </View>
+
+        {/* Security Deposit — informational only, held as collateral, not counted toward balance */}
+        {deposit !== null && deposit !== 0 && (
+          <>
+            <View style={styles.divider} />
+            <View>
+              <Row label="Security Deposit" value={formatKWD(String(deposit))} mono />
+              <Text style={styles.depositHint}>Held as collateral — not counted toward balance.</Text>
+            </View>
+          </>
+        )}
 
         {/* Footer */}
         <Text style={styles.footer}>

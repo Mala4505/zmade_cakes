@@ -3,7 +3,8 @@ import { createClient } from '@/lib/supabase/server'
 import { getOptions } from '@/lib/actions/options'
 import { getSettings, getBlackouts } from '@/lib/actions/settings'
 import { getInquiryImages } from '@/lib/actions/images'
-import { formatKWD, confirmationLink, orderSummary } from '@/lib/utils'
+import { formatKWD, confirmationLink, myOrdersLink, orderSummary } from '@/lib/utils'
+import { generatePortalToken } from '@/lib/portal'
 import { StatusBadge } from '@/components/admin/StatusBadge'
 import InquiryActions from './_components/InquiryActions'
 import InquiryDetailForm from './_components/InquiryDetailForm'
@@ -137,6 +138,7 @@ export default async function InquiryDetailPage({ params }: Props) {
   const rushMultiplier = Number(settingsResult.data?.rush_multiplier ?? 1.3)
 
   const customerId = (inquiry as any).customer_id
+  const myOrdersUrl = customerId ? myOrdersLink(generatePortalToken(customerId)) : undefined
   let customerData = null
   if (customerId) {
     const { data } = await supabase.from('customers').select('*').eq('id', customerId).single()
@@ -210,6 +212,7 @@ export default async function InquiryDetailPage({ params }: Props) {
           inquiry={inquiry as any}
           confirmLink={confirmLink}
           templates={templates}
+          fallbackLinkUrl={myOrdersUrl}
         />
       )}
 

@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { getSettings } from '@/lib/actions/settings'
-import { formatDate, formatKWD, orderSummary } from '@/lib/utils'
+import { formatDate, formatKWD, orderSummary, myOrdersLink } from '@/lib/utils'
+import { generatePortalToken } from '@/lib/portal'
 import { PageHeader } from '@/components/admin/PageHeader'
 import { InquiryStatusSelect } from '@/components/admin/InquiryStatusSelect'
 import InquiryRowActions from './_components/InquiryRowActions'
@@ -42,7 +43,7 @@ async function getInquiries(status: string, payment: string, sort: string, q?: s
   let query = supabase
     .from('inquiries')
     .select(
-      'id, customer_name, customer_phone, cake_size, flavor, occasion, order_type, item_name, event_date, status, admin_price, discount, deposit_amount, fully_paid, payment_status, created_at, customer_id, customer_confirmed, confirmation_token',
+      'id, customer_name, customer_phone, cake_size, flavor, occasion, order_type, item_name, event_date, status, admin_price, discount, deposit_amount, amount_paid, fully_paid, payment_status, created_at, customer_id, customer_confirmed, confirmation_token',
       { count: 'exact' }
     )
 
@@ -232,7 +233,7 @@ export default async function InquiriesPage({
                 const isPaid = inq.fully_paid
                 const discountedPrice = inq.admin_price ? subtotalAfterDiscount(inq.admin_price, inq.discount) : null
                 const balance = discountedPrice !== null
-                  ? balanceOwed(discountedPrice, inq.deposit_amount, inq.fully_paid)
+                  ? balanceOwed(discountedPrice, inq.amount_paid, inq.fully_paid)
                   : null
                 // Binary paid/not-paid — the amount shown is contextual: the settled total once
                 // paid, or what's still outstanding (net of any deposit already credited) if not.
@@ -331,11 +332,14 @@ export default async function InquiriesPage({
                           customer_confirmed: inq.customer_confirmed,
                           admin_price: inq.admin_price,
                           discount: inq.discount,
-                          deposit_amount: inq.deposit_amount,
+                          amount_paid: inq.amount_paid,
                           fully_paid: inq.fully_paid,
                           confirmation_token: inq.confirmation_token,
                         }}
                         templates={templates}
+                        fallbackLinkUrl={
+                          inq.customer_id ? myOrdersLink(generatePortalToken(inq.customer_id)) : undefined
+                        }
                       />
                     </td>
                   </tr>

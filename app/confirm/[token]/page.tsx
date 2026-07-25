@@ -149,7 +149,7 @@ export default async function ConfirmPage({ params }: Props) {
                 </div>
                 {inquiry.deposit_amount && (
                   <p className="text-xs mt-1" style={{ color: 'var(--color-ink-muted)' }}>
-                    Deposit: {formatKWD(inquiry.deposit_amount)}
+                    Security Deposit: {formatKWD(inquiry.deposit_amount)}
                     {inquiry.payment_method === 'wamd' ? ' via WAMD' : ' cash'}
                   </p>
                 )}

@@ -38,7 +38,7 @@ async function getOrders(includeCancelled: boolean) {
         pickup_time, occasion, theme, message_on_cake,
         allergen_nut_free, allergen_gluten_free, allergen_dairy_free, allergen_egg_free,
         allergen_halal, allergen_raw_sugar, allergen_other,
-        admin_price, deposit_amount, fully_paid
+        admin_price, deposit_amount, amount_paid, fully_paid
       )
     `)
     .in('status', statuses)
@@ -146,7 +146,7 @@ function daysUntil(dateStr: string): number {
 function OrderCard({ order }: { order: any }) {
   const inq = order.inquiry
   const days = inq?.event_date ? daysUntil(inq.event_date) : null
-  const paymentStatus = inq ? derivePaymentStatus(inq.fully_paid, inq.deposit_amount) : null
+  const paymentStatus = inq ? derivePaymentStatus(inq.fully_paid, inq.amount_paid) : null
 
   return (
     <div

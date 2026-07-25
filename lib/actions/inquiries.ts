@@ -38,8 +38,9 @@ export async function createInquiry(
   } = await supabase.auth.getUser()
   if (!user) return { data: null, error: 'Unauthorized', fieldErrors: null }
 
-  // cake_type is a UI-only convenience field (not a DB column) — strip before insert.
-  const { cake_type: _cakeType, ...inquiryData } = parsed.data
+  // cake_type and payment_choice are UI-only convenience fields (not DB columns) — strip
+  // before insert. payment_choice only drove the real fully_paid/amount_paid fields above.
+  const { cake_type: _cakeType, payment_choice: _paymentChoice, ...inquiryData } = parsed.data
 
   const { data: inquiry, error: inquiryError } = await supabase
     .from('inquiries')
@@ -93,8 +94,9 @@ export async function updateInquiry(
   } = await supabase.auth.getUser()
   if (!user) return { data: null, error: 'Unauthorized', fieldErrors: null }
 
-  // cake_type is a UI-only convenience field (not a DB column) — strip before update.
-  const { cake_type: _cakeType, ...updateData } = parsed.data
+  // cake_type and payment_choice are UI-only convenience fields (not DB columns) — strip
+  // before update. payment_choice only drove the real fully_paid/amount_paid fields above.
+  const { cake_type: _cakeType, payment_choice: _paymentChoice, ...updateData } = parsed.data
 
   const { data, error } = await supabase
     .from('inquiries')
@@ -278,6 +280,7 @@ export async function confirmInquiry(
           status: 'confirmed',
           final_price: subtotalAfterDiscount(inquiry.admin_price, inquiry.discount),
           deposit_amount: inquiry.deposit_amount,
+          amount_paid: inquiry.amount_paid,
           delivery_type: inquiry.delivery_type,
         })
         .select()
@@ -384,7 +387,7 @@ export async function updateInquiryStatus(
   if (!existingOrder && status === 'confirmed') {
     const { data: inquiry, error: fetchError } = await supabase
       .from('inquiries')
-      .select('admin_price, discount, deposit_amount, delivery_type')
+      .select('admin_price, discount, deposit_amount, amount_paid, delivery_type')
       .eq('id', id)
       .single()
     if (fetchError || !inquiry) return { data: null, error: fetchError?.message ?? 'Inquiry not found', fieldErrors: null }
@@ -397,6 +400,7 @@ export async function updateInquiryStatus(
       status: 'confirmed',
       final_price: subtotalAfterDiscount(inquiry.admin_price, inquiry.discount),
       deposit_amount: inquiry.deposit_amount,
+      amount_paid: inquiry.amount_paid,
       delivery_type: inquiry.delivery_type,
     })
     if (orderError) return { data: null, error: orderError.message, fieldErrors: null }

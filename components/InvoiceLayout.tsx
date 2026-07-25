@@ -9,6 +9,7 @@ interface Props {
     id: string
     final_price: string
     deposit_amount: string | null
+    amount_paid: string | null
     delivery_type: DeliveryType
     tracking_token: string
     invoice_number?: number | null
@@ -72,8 +73,9 @@ export default function InvoiceLayout({ order, inquiry, adminMode, businessPhone
 
   const total = parseFloat(order.final_price) || 0
   const deposit = order.deposit_amount ? parseFloat(order.deposit_amount) : null
-  const balance = balanceOwed(order.final_price, order.deposit_amount, inquiry.fully_paid)
-  const paymentStatus = derivePaymentStatus(inquiry.fully_paid, order.deposit_amount)
+  const amountPaid = order.amount_paid ? parseFloat(order.amount_paid) : null
+  const balance = balanceOwed(order.final_price, order.amount_paid, inquiry.fully_paid)
+  const paymentStatus = derivePaymentStatus(inquiry.fully_paid, order.amount_paid)
   const hasDiscount = Number(inquiry.discount) > 0
 
   return (
@@ -94,25 +96,25 @@ export default function InvoiceLayout({ order, inquiry, adminMode, businessPhone
       <div className="px-6 pt-5 pb-4 flex justify-between items-start">
         <div>
           <p
-            className="text-xl font-extrabold tracking-tight"
+            className="text-2xl font-extrabold tracking-tight"
             style={{ color: 'var(--color-teal)', fontFamily: 'var(--font-display)' }}
           >
             {BRAND_NAME}
           </p>
-          <p className="text-xs mt-0.5" style={{ color: 'var(--color-ink-muted)' }}>
+          <p className="text-sm mt-0.5" style={{ color: 'var(--color-ink-muted)' }}>
             Handcrafted with love
           </p>
         </div>
         <div>
           <p
-            className="text-2xl font-bold tracking-widest uppercase"
+            className="text-4xl font-bold tracking-widest uppercase"
             style={{ color: 'var(--color-border)', letterSpacing: '0.2em' }}
           >
             INVOICE
           </p>
           {(invoiceNumber ?? order.invoice_number) && (
             <p
-              className="text-xs mt-1"
+              className="text-sm mt-1"
               style={{ color: 'var(--color-ink-muted)', fontFamily: 'var(--font-mono)', textAlign: 'right' }}
             >
               {`ZM-${new Date().getFullYear()}-${String(invoiceNumber ?? order.invoice_number).padStart(4, '0')}`}
@@ -124,7 +126,7 @@ export default function InvoiceLayout({ order, inquiry, adminMode, businessPhone
       {/* Contact line */}
       {(businessInstagram || businessPhone) && (
         <div className="px-6 pb-3">
-          <p className="text-xs" style={{ color: 'var(--color-ink-muted)' }}>
+          <p className="text-sm" style={{ color: 'var(--color-ink-muted)' }}>
             {[businessInstagram, businessPhone].filter(Boolean).join(' · ')}
           </p>
         </div>
@@ -136,7 +138,7 @@ export default function InvoiceLayout({ order, inquiry, adminMode, businessPhone
       {/* Order Details section */}
       <div className="px-6 pt-4 pb-2">
         <p
-          className="text-xs font-bold uppercase tracking-widest mb-3"
+          className="text-sm font-bold uppercase tracking-widest mb-3"
           style={{ color: 'var(--color-ink-muted)' }}
         >
           Order Details
@@ -166,7 +168,7 @@ export default function InvoiceLayout({ order, inquiry, adminMode, businessPhone
       {/* Cake Details section */}
       <div className="px-6 pt-4 pb-2">
         <p
-          className="text-xs font-bold uppercase tracking-widest mb-3"
+          className="text-sm font-bold uppercase tracking-widest mb-3"
           style={{ color: 'var(--color-ink-muted)' }}
         >
           Cake Details
@@ -200,7 +202,7 @@ export default function InvoiceLayout({ order, inquiry, adminMode, businessPhone
           <div style={{ borderTop: '1px dashed var(--color-border)', margin: '0 24px' }} />
           <div className="px-6 pt-4 pb-2">
             <p
-              className="text-xs font-bold uppercase tracking-widest mb-3"
+              className="text-sm font-bold uppercase tracking-widest mb-3"
               style={{ color: 'var(--color-ink-muted)' }}
             >
               Dietary Requirements
@@ -209,7 +211,7 @@ export default function InvoiceLayout({ order, inquiry, adminMode, businessPhone
               {allergenList.map((label) => (
                 <span
                   key={label}
-                  className="text-xs px-2 py-0.5 rounded"
+                  className="text-sm px-2 py-0.5 rounded"
                   style={{
                     border: '1px solid #f59e0b',
                     color: '#92400e',
@@ -230,33 +232,31 @@ export default function InvoiceLayout({ order, inquiry, adminMode, businessPhone
       {/* Payment section */}
       <div className="px-6 pt-4 pb-5">
         <p
-          className="text-xs font-bold uppercase tracking-widest mb-3"
+          className="text-sm font-bold uppercase tracking-widest mb-3"
           style={{ color: 'var(--color-ink-muted)' }}
         >
           Payment
         </p>
 
+        <InvRow label="Subtotal" value={formatKWD(inquiry.admin_price)} mono />
         {hasDiscount && (
-          <>
-            <InvRow label="Subtotal" value={formatKWD(inquiry.admin_price)} mono />
-            <InvRow label="Discount" value={`- ${formatKWD(inquiry.discount)}`} mono />
-          </>
+          <InvRow label="Discount" value={`- ${formatKWD(inquiry.discount)}`} mono />
         )}
 
         <div className="flex justify-between items-center mb-1.5">
-          <span className="text-sm font-bold" style={{ color: 'var(--color-ink)' }}>
+          <span className="text-xl font-bold" style={{ color: 'var(--color-ink)' }}>
             Total
           </span>
           <span
-            className="text-sm font-bold"
+            className="text-xl font-bold"
             style={{ color: 'var(--color-ink)', fontFamily: 'var(--font-mono)' }}
           >
             {formatKWD(order.final_price)}
           </span>
         </div>
 
-        {deposit !== null && (
-          <InvRow label="Deposit" value={formatKWD(String(deposit))} mono />
+        {paymentStatus === 'partial' && amountPaid !== null && amountPaid !== 0 && (
+          <InvRow label="Amount Paid" value={formatKWD(String(amountPaid))} mono />
         )}
 
         {paymentStatus === 'paid' ? (
@@ -269,9 +269,9 @@ export default function InvoiceLayout({ order, inquiry, adminMode, businessPhone
               Fully Paid
             </span>
           </div>
-        ) : (
+        ) : balance > 0 ? (
           <InvRow label="Balance Due" value={formatKWD(String(balance))} mono />
-        )}
+        ) : null}
 
         {inquiry.payment_method && (
           <InvRow
@@ -281,9 +281,22 @@ export default function InvoiceLayout({ order, inquiry, adminMode, businessPhone
         )}
       </div>
 
+      {/* Security Deposit — informational only, held as collateral, not counted toward balance */}
+      {deposit !== null && deposit !== 0 && (
+        <>
+          <div style={{ borderTop: '1px dashed var(--color-border)', margin: '0 24px' }} />
+          <div className="px-6 pt-3 pb-5">
+            <InvRow label="Security Deposit" value={formatKWD(String(deposit))} mono />
+            <p className="text-sm" style={{ color: 'var(--color-ink-muted)' }}>
+              Held as collateral — not counted toward balance.
+            </p>
+          </div>
+        </>
+      )}
+
       {/* Footer note */}
       <div
-        className="px-6 py-4 text-center text-xs leading-relaxed"
+        className="px-6 py-4 text-center text-sm leading-relaxed"
         style={{
           borderTop: '1px dashed var(--color-border)',
           color: 'var(--color-ink-muted)',
@@ -307,11 +320,11 @@ function InvRow({
 }) {
   return (
     <div className="flex justify-between items-start gap-4 mb-1.5">
-      <span className="text-xs pt-0.5 shrink-0" style={{ color: 'var(--color-ink-muted)' }}>
+      <span className="text-sm pt-0.5 shrink-0" style={{ color: 'var(--color-ink-muted)' }}>
         {label}
       </span>
       <span
-        className="text-sm text-right"
+        className="text-base text-right"
         style={{
           color: 'var(--color-ink-secondary)',
           fontFamily: mono ? 'var(--font-mono)' : undefined,

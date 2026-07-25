@@ -86,7 +86,7 @@ export default async function OrderDetailPage({ params }: Props) {
           {inq?.message_on_cake && <Detail label="Message" value={inq.message_on_cake} />}
           <Detail label="Quantity" value={String(inq?.quantity ?? 1)} mono />
           <Detail label="Final Price" value={formatKWD(order.final_price?.toString())} mono />
-          <Detail label="Deposit amount (KD)" value={order.deposit_amount ? formatKWD(order.deposit_amount.toString()) : '—'} mono />
+          <Detail label="Security Deposit (KD)" value={order.deposit_amount ? formatKWD(order.deposit_amount.toString()) : '—'} mono />
           <Detail label="Payment" value={inq?.payment_method || '—'} />
           <Detail label="Delivery" value={order.delivery_type === 'delivery' ? 'Delivery' : 'Pickup'} />
           {order.delivery_type === 'delivery' && inq?.delivery_address && (
@@ -133,7 +133,7 @@ export default async function OrderDetailPage({ params }: Props) {
         {inq && (
           <div className="mb-6">
             <OrderWhatsAppActions
-              order={{ final_price: order.final_price, deposit_amount: order.deposit_amount, tracking_token: order.tracking_token }}
+              order={{ final_price: order.final_price, amount_paid: order.amount_paid, tracking_token: order.tracking_token }}
               inquiry={{
                 customer_name: inq.customer_name,
                 customer_phone: inq.customer_phone,

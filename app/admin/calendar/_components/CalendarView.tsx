@@ -52,6 +52,7 @@ type EventDetails = {
   deliveryType: string
   price: string | null
   depositAmount: string | null
+  amountPaid: string | null
   fullyPaid: boolean
 }
 
@@ -95,6 +96,7 @@ function toDetails(inq: any, opts: { linkId: string; linkKind: 'order' | 'inquir
     deliveryType: opts.deliveryType,
     price: opts.price == null ? null : String(opts.price),
     depositAmount: inq.deposit_amount == null ? null : String(inq.deposit_amount),
+    amountPaid: inq.amount_paid == null ? null : String(inq.amount_paid),
     fullyPaid: !!inq.fully_paid,
   }
 }
@@ -261,7 +263,7 @@ function EventDetailBody({ event }: { event: DetailEvent }) {
             </span>
           )}
         </div>
-        <PaymentBadge status={derivePaymentStatus(r.fullyPaid, r.depositAmount)} />
+        <PaymentBadge status={derivePaymentStatus(r.fullyPaid, r.amountPaid)} />
       </div>
     </div>
   )

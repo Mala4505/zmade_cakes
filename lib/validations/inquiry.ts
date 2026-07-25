@@ -32,6 +32,15 @@ const inquiryShape = {
   allergen_raw_sugar: z.boolean().default(false),
   allergen_other: z.string().max(500).optional().default(''),
   fully_paid: z.boolean().default(false),
+  // amount_paid is the only figure credited against the price (see lib/payments.ts).
+  // deposit_amount, below, is separate collateral and never subtracted from the balance.
+  amount_paid: z.number().positive().max(9999).optional().nullable(),
+  // UI-only convenience field — the 3-way Payment Status control (Unpaid/Partial/Paid).
+  // Not a DB column (the real, generated `payment_status` column lives in
+  // lib/supabase/types.ts and is never settable); must be stripped before any
+  // insert/update (see lib/actions/inquiries.ts). Named distinctly from that column
+  // to avoid ever being confused with it.
+  payment_choice: z.enum(['unpaid', 'partial', 'paid']).default('unpaid'),
   event_date: z
     .string()
     .refine((d) => {
@@ -93,6 +102,19 @@ function discountRefine(
   }
 }
 
+function paymentChoiceRefine(
+  data: { payment_choice?: 'unpaid' | 'partial' | 'paid'; amount_paid?: number | null },
+  ctx: z.RefinementCtx
+) {
+  if (data.payment_choice === 'partial' && !(data.amount_paid && data.amount_paid > 0)) {
+    ctx.addIssue({
+      code: 'custom',
+      message: 'Enter the amount paid so far',
+      path: ['amount_paid'],
+    })
+  }
+}
+
 function orderTypeRefine(
   data: { order_type?: 'cake' | 'other_item'; cake_size?: string; flavor?: string; item_name?: string },
   ctx: z.RefinementCtx
@@ -128,6 +150,7 @@ export const inquirySchema = z
   .superRefine(cakeTypeRefine)
   .superRefine(discountRefine)
   .superRefine(orderTypeRefine)
+  .superRefine(paymentChoiceRefine)
   .transform(clearThemeWhenNormal)
 
 export const inquiryUpdateSchema = z
@@ -136,6 +159,7 @@ export const inquiryUpdateSchema = z
   .superRefine(cakeTypeRefine)
   .superRefine(discountRefine)
   .superRefine(orderTypeRefine)
+  .superRefine(paymentChoiceRefine)
   .transform(clearThemeWhenNormal)
 
 export const deliveryAddressSchema = z.object({

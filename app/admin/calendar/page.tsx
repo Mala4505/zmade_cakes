@@ -13,7 +13,7 @@ const INQUIRY_DETAIL_FIELDS = `
   cake_size, flavor, order_type, item_name, quantity, occasion, theme,
   special_requirements, message_on_cake,
   allergen_nut_free, allergen_dairy_free, allergen_egg_free, allergen_raw_sugar,
-  admin_price, deposit_amount, fully_paid,
+  admin_price, deposit_amount, amount_paid, fully_paid,
   event_date, pickup_time, delivery_type, created_at
 `
 

@@ -2,11 +2,11 @@ import { format, parseISO } from 'date-fns'
 import type { Governorate, InquiryStatus, OrderStatus } from './supabase/types'
 
 export function formatDate(date: string): string {
-  return format(parseISO(date), 'dd MMM yyyy')
+  return format(parseISO(date), 'dd/MM/yyyy')
 }
 
 export function formatDateLong(date: string): string {
-  return format(parseISO(date), 'EEEE, dd MMMM yyyy')
+  return format(parseISO(date), 'EEEE, dd/MM/yyyy')
 }
 
 export function formatTime(time: string | null): string {

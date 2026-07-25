@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import { formatDate, formatKWD, orderSummary } from '@/lib/utils'
+import { formatDate, formatDateLong, formatKWD, orderSummary } from '@/lib/utils'
 import { derivePaymentStatus, balanceOwed } from '@/lib/payments'
 import { StatusBadge } from '@/components/admin/StatusBadge'
 import Link from 'next/link'
@@ -36,7 +36,7 @@ async function getDashboardData() {
 
     supabase
       .from('orders')
-      .select('id, status, final_price, inquiry:inquiries(customer_name, cake_size, flavor, order_type, item_name, event_date, deposit_amount, admin_price, fully_paid)')
+      .select('id, status, final_price, inquiry:inquiries(customer_name, cake_size, flavor, order_type, item_name, event_date, deposit_amount, amount_paid, admin_price, fully_paid)')
       .in('status', ['confirmed', 'ready'])
       .order('created_at', { ascending: false })
       .limit(5),
@@ -102,7 +102,7 @@ async function getDashboardData() {
   const pendingPayments = activeOrders.filter((o: any) => {
     const inq = o.inquiry
     if (!inq?.admin_price) return false
-    return derivePaymentStatus(inq.fully_paid, inq.deposit_amount) !== 'paid'
+    return derivePaymentStatus(inq.fully_paid, inq.amount_paid) !== 'paid'
   })
 
   const thisMonthData = thisMonthRes.data ?? []
@@ -144,12 +144,7 @@ export default async function DashboardPage() {
           Dashboard
         </h1>
         <p className="text-sm mt-0.5" style={{ color: 'var(--color-ink-muted)' }}>
-          {new Date().toLocaleDateString('en-KW', {
-            weekday: 'long',
-            day: 'numeric',
-            month: 'long',
-            year: 'numeric',
-          })}
+          {formatDateLong(new Date().toISOString())}
         </p>
       </div>
 
@@ -345,7 +340,7 @@ export default async function DashboardPage() {
               {pendingPayments.map((order: any) => {
                 const inq = order.inquiry
                 const balance = inq
-                  ? balanceOwed(inq.admin_price, inq.deposit_amount, inq.fully_paid)
+                  ? balanceOwed(inq.admin_price, inq.amount_paid, inq.fully_paid)
                   : 0
                 return (
                   <Link

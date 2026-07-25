@@ -3,9 +3,9 @@
 import { WhatsappLogo } from '@phosphor-icons/react'
 import type { WhatsAppTemplates } from '@/lib/supabase/types'
 import { DEFAULT_WHATSAPP_TEMPLATES } from '@/lib/supabase/types'
-import { balanceOwed } from '@/lib/payments'
 import { trackingLink } from '@/lib/utils'
-import { interpolate, whatsappUrl } from '@/lib/whatsapp'
+import { interpolate, whatsappUrl, pickWhatsAppAction } from '@/lib/whatsapp'
+import WhatsAppButton from '@/components/admin/WhatsAppButton'
 
 export default function OrderWhatsAppActions({
   order,
@@ -15,7 +15,7 @@ export default function OrderWhatsAppActions({
 }: {
   order: {
     final_price: number | string
-    deposit_amount: string | number | null
+    amount_paid: string | number | null
     tracking_token: string
   }
   inquiry: {
@@ -27,8 +27,18 @@ export default function OrderWhatsAppActions({
   myOrdersUrl?: string | null
 }) {
   const firstName = inquiry.customer_name.split(' ')[0]
-  const balance = balanceOwed(order.final_price, order.deposit_amount, inquiry.fully_paid)
-  const hasOutstandingBalance = balance > 0
+  const trackLink = trackingLink(order.tracking_token)
+  const waAction = pickWhatsAppAction(
+    {
+      customer_name: inquiry.customer_name,
+      customer_phone: inquiry.customer_phone,
+      fully_paid: inquiry.fully_paid,
+      amount_paid: order.amount_paid,
+      final_price: order.final_price,
+      fallbackLinkUrl: trackLink,
+    },
+    templates
+  )
 
   return (
     <div
@@ -42,40 +52,8 @@ export default function OrderWhatsAppActions({
         Quick Message
       </p>
 
-      {/* Order Ready — always shown for a confirmed order */}
-      <a
-        href={whatsappUrl(
-          inquiry.customer_phone,
-          interpolate(templates?.orderReady ?? DEFAULT_WHATSAPP_TEMPLATES.orderReady, { name: firstName })
-        )}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-all active:scale-[0.97]"
-        style={{ backgroundColor: '#25D366', color: '#fff' }}
-      >
-        <WhatsappLogo size={15} weight="fill" />
-        Order Ready
-      </a>
-
-      {/* Balance Due — only when the order's own frozen final_price still has a balance owing */}
-      {hasOutstandingBalance && (
-        <a
-          href={whatsappUrl(
-            inquiry.customer_phone,
-            interpolate(templates?.balanceDue ?? DEFAULT_WHATSAPP_TEMPLATES.balanceDue, {
-              name: firstName,
-              amount: balance.toFixed(3),
-            })
-          )}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-all active:scale-[0.97]"
-          style={{ backgroundColor: '#1a9e4c', color: '#fff' }}
-        >
-          <WhatsappLogo size={15} weight="fill" />
-          Balance Due — KD {balance.toFixed(3)}
-        </a>
-      )}
+      {/* Single status-driven WhatsApp action: balance due (if outstanding) or order ready — never both */}
+      <WhatsAppButton variant="pill" action={waAction} customer_phone={inquiry.customer_phone} />
 
       {/* Send Tracking Link */}
       <a
@@ -83,7 +61,7 @@ export default function OrderWhatsAppActions({
           inquiry.customer_phone,
           interpolate(templates?.trackingLink ?? DEFAULT_WHATSAPP_TEMPLATES.trackingLink, {
             name: firstName,
-            link: trackingLink(order.tracking_token),
+            link: trackLink,
           })
         )}
         target="_blank"

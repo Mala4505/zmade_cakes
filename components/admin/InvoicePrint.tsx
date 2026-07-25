@@ -8,6 +8,7 @@ interface Props {
     id: string
     final_price: string
     deposit_amount: string | null
+    amount_paid: string | null
     delivery_type: string
     tracking_token: string
     invoice_number?: number | null
@@ -69,16 +70,17 @@ export default function InvoicePrint({ order, inquiry, businessPhone, businessIn
   if (inquiry.allergen_other) allergenList.push(inquiry.allergen_other)
 
   const deposit = order.deposit_amount ? parseFloat(order.deposit_amount) : null
-  const balance = balanceOwed(order.final_price, order.deposit_amount, inquiry.fully_paid)
-  const paymentStatus = derivePaymentStatus(inquiry.fully_paid, order.deposit_amount)
+  const amountPaid = order.amount_paid ? parseFloat(order.amount_paid) : null
+  const balance = balanceOwed(order.final_price, order.amount_paid, inquiry.fully_paid)
+  const paymentStatus = derivePaymentStatus(inquiry.fully_paid, order.amount_paid)
   const hasDiscount = Number(inquiry.discount) > 0
 
   return (
     <div id="invoice" className="print-only">
       <style>{`
         @media print {
-          body { font-size: 11pt; margin: 0; }
-          @page { margin: 18mm 15mm; }
+          body { font-size: 12pt; margin: 0; }
+          @page { margin: 14mm 12mm; }
           .no-print, header, nav, aside { display: none !important; }
           #invoice {
             font-family: var(--font-display), sans-serif;
@@ -90,23 +92,24 @@ export default function InvoicePrint({ order, inquiry, businessPhone, businessIn
           }
           .inv-accent { height: 3px; background: var(--color-teal); width: 100%; margin-bottom: 18px; }
           .inv-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; }
-          .inv-brand-name { font-size: 20px; font-weight: 800; letter-spacing: -0.3px; color: var(--color-teal); }
-          .inv-tagline { font-size: 11px; color: #777; margin-top: 2px; }
-          .inv-label-invoice { font-size: 22px; font-weight: 700; letter-spacing: 2px; color: #ccc; text-transform: uppercase; }
-          .inv-divider { border-top: 1px dashed #ccc; margin: 10px 0; }
-          .inv-divider-solid { border-top: 1px solid #e5e5e5; margin: 10px 0; }
-          .inv-row { display: flex; justify-content: space-between; margin: 4px 0; font-size: 10.5pt; }
+          .inv-brand-name { font-size: 26px; font-weight: 800; letter-spacing: -0.3px; color: var(--color-teal); }
+          .inv-tagline { font-size: 12px; color: #777; margin-top: 2px; }
+          .inv-label-invoice { font-size: 30px; font-weight: 700; letter-spacing: 2px; color: #ccc; text-transform: uppercase; }
+          .inv-divider { border-top: 1px dashed #ccc; margin: 8px 0; }
+          .inv-divider-solid { border-top: 1px solid #e5e5e5; margin: 8px 0; }
+          .inv-row { display: flex; justify-content: space-between; margin: 4px 0; font-size: 13pt; }
           .inv-label { color: #777; }
-          .inv-section-title { font-weight: 700; margin: 10px 0 5px; text-transform: uppercase; font-size: 9pt; letter-spacing: 0.8px; color: #444; }
-          .inv-note { font-size: 9pt; color: #777; margin-top: 16px; text-align: center; line-height: 1.6; border-top: 1px dashed #ccc; padding-top: 10px; }
-          .inv-allergen-row { margin: 4px 0; font-size: 10.5pt; }
+          .inv-section-title { font-weight: 700; margin: 8px 0 4px; text-transform: uppercase; font-size: 11pt; letter-spacing: 0.8px; color: #444; }
+          .inv-note { font-size: 10pt; color: #777; margin-top: 14px; text-align: center; line-height: 1.6; border-top: 1px dashed #ccc; padding-top: 8px; }
+          .inv-allergen-row { margin: 4px 0; font-size: 13pt; }
           .inv-allergen-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
-          .inv-allergen-tag { border: 1px solid #f59e0b; color: #92400e; font-size: 9pt; padding: 1px 6px; border-radius: 4px; }
-          .inv-total-row { display: flex; justify-content: space-between; margin: 5px 0; font-size: 10.5pt; }
-          .inv-total-main { font-weight: 700; font-size: 11.5pt; }
-          .inv-paid { color: #16a34a; font-weight: 700; font-size: 10.5pt; }
+          .inv-allergen-tag { border: 1px solid #f59e0b; color: #92400e; font-size: 10pt; padding: 1px 6px; border-radius: 4px; }
+          .inv-total-row { display: flex; justify-content: space-between; margin: 4px 0; font-size: 13pt; }
+          .inv-total-main { font-weight: 700; font-size: 17pt; }
+          .inv-paid { color: #16a34a; font-weight: 700; font-size: 13pt; }
           .inv-mono { font-family: 'Courier New', monospace; }
-          .inv-contact { text-align: center; font-size: 9.5pt; color: #555; margin-bottom: 12px; }
+          .inv-deposit-hint { font-size: 9pt; color: #777; margin-top: -2px; margin-bottom: 4px; }
+          .inv-contact { text-align: center; font-size: 11pt; color: #555; margin-bottom: 10px; }
           .inv-invoice-number { font-family: 'Courier New', monospace; font-size: 9pt; color: #777; text-align: right; margin-top: 3px; }
         }
       `}</style>
@@ -232,26 +235,24 @@ export default function InvoicePrint({ order, inquiry, businessPhone, businessIn
       <div className="inv-divider" />
       <div className="inv-section-title">Payment</div>
 
+      <div className="inv-total-row">
+        <span className="inv-label">Subtotal</span>
+        <span className="inv-mono">{formatKWD(inquiry.admin_price)}</span>
+      </div>
       {hasDiscount && (
-        <>
-          <div className="inv-total-row">
-            <span className="inv-label">Subtotal</span>
-            <span className="inv-mono">{formatKWD(inquiry.admin_price)}</span>
-          </div>
-          <div className="inv-total-row">
-            <span className="inv-label">Discount</span>
-            <span className="inv-mono">- {formatKWD(inquiry.discount)}</span>
-          </div>
-        </>
+        <div className="inv-total-row">
+          <span className="inv-label">Discount</span>
+          <span className="inv-mono">- {formatKWD(inquiry.discount)}</span>
+        </div>
       )}
       <div className="inv-total-row inv-total-main">
         <span>Total</span>
         <span className="inv-mono">{formatKWD(order.final_price)}</span>
       </div>
-      {deposit !== null && (
+      {paymentStatus === 'partial' && amountPaid !== null && amountPaid !== 0 && (
         <div className="inv-total-row">
-          <span className="inv-label">Deposit</span>
-          <span className="inv-mono">{formatKWD(String(deposit))}</span>
+          <span className="inv-label">Amount Paid</span>
+          <span className="inv-mono">{formatKWD(String(amountPaid))}</span>
         </div>
       )}
       {paymentStatus === 'paid' ? (
@@ -259,17 +260,28 @@ export default function InvoicePrint({ order, inquiry, businessPhone, businessIn
           <span className="inv-label">Balance</span>
           <span className="inv-paid">✓ Fully Paid</span>
         </div>
-      ) : (
+      ) : balance > 0 ? (
         <div className="inv-total-row">
           <span className="inv-label">Balance Due</span>
           <span className="inv-mono">{formatKWD(String(balance))}</span>
         </div>
-      )}
+      ) : null}
       {inquiry.payment_method && (
         <div className="inv-row">
           <span className="inv-label">Payment Method:</span>
           <span>{inquiry.payment_method === 'wamd' ? 'WAMD' : 'Cash'}</span>
         </div>
+      )}
+
+      {deposit !== null && deposit !== 0 && (
+        <>
+          <div className="inv-divider" />
+          <div className="inv-total-row">
+            <span className="inv-label">Security Deposit</span>
+            <span className="inv-mono">{formatKWD(String(deposit))}</span>
+          </div>
+          <div className="inv-deposit-hint">Held as collateral — not counted toward balance.</div>
+        </>
       )}
 
       <div className="inv-divider" />

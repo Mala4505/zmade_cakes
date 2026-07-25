@@ -2,13 +2,14 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { createServiceClient } from '@/lib/supabase/server'
 import { isValidUUID, formatDate, formatTime, formatKWD, formatDateLong, orderSummary } from '@/lib/utils'
+import { balanceOwed } from '@/lib/payments'
 import type { Metadata } from 'next'
 import type { OrderStatus } from '@/lib/supabase/types'
-import { CheckCircle, Circle, PencilSimple, Receipt } from '@phosphor-icons/react/dist/ssr'
+import { CheckCircle, Circle, Receipt, ShieldCheck } from '@phosphor-icons/react/dist/ssr'
 import { BRAND_NAME } from '@/lib/brand'
 import { Navbar } from '@/components/public/Navbar'
-import { whatsappUrl } from '@/lib/whatsapp'
 import { Field, Input } from '@/components/ui'
+import { EditOrderModal } from './_components/EditOrderModal'
 
 interface Props { params: Promise<{ token: string }> }
 
@@ -56,6 +57,14 @@ export default async function TrackPage({ params }: Props) {
   const inq = o.inquiry
   const currentStep = STATUS_ORDER[o.status as OrderStatus] ?? -1
   const isCancelled = o.status === 'cancelled'
+
+  const fullyPaid = Boolean(inq?.fully_paid)
+  const hasDiscount = Number(inq?.discount) > 0
+  const amountPaid = Number(o.amount_paid ?? 0)
+  const isPartiallyPaid = !fullyPaid && amountPaid !== 0
+  const balance = balanceOwed(o.final_price, o.amount_paid, fullyPaid)
+  const hasBalanceDue = !fullyPaid && balance > 0
+  const hasSecurityDeposit = Number(o.deposit_amount ?? 0) !== 0
 
   let finishedImages: any[] = []
   if ((o.status === 'ready' || o.status === 'delivered') && inq?.id) {
@@ -296,19 +305,11 @@ export default async function TrackPage({ params }: Props) {
               Order Details
             </h2>
             {waNumber && inq && (
-              <a
-                href={whatsappUrl(
-                  businessPhone,
-                  `Hi, I'd like to update my order (${orderSummary(inq)}, ${formatDate(inq.event_date)})`
-                )}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-xs font-medium shrink-0"
-                style={{ color: 'var(--color-teal)' }}
-              >
-                <PencilSimple size={13} weight="bold" />
-                Edit
-              </a>
+              <EditOrderModal
+                businessPhone={businessPhone}
+                cakeSummary={orderSummary(inq)}
+                eventDate={formatDate(inq.event_date)}
+              />
             )}
           </div>
 
@@ -330,11 +331,50 @@ export default async function TrackPage({ params }: Props) {
             label="Delivery"
             value={o.delivery_type === 'delivery' ? 'Delivery' : 'Pickup'}
           />
+
+          <div style={{ borderTop: '1px dashed var(--color-border)', margin: '2px 0' }} />
+
+          <TrackRow label="Subtotal" value={formatKWD(inq?.admin_price)} mono />
+          {hasDiscount && (
+            <TrackRow label="Discount" value={`- ${formatKWD(inq.discount)}`} mono />
+          )}
           <TrackRow label="Total" value={formatKWD(o.final_price)} mono />
+          {isPartiallyPaid && (
+            <TrackRow label="Amount Paid" value={formatKWD(o.amount_paid)} mono />
+          )}
+          {hasBalanceDue && (
+            <TrackRow label="Balance Due" value={formatKWD(String(balance))} mono />
+          )}
           {inq?.payment_method && inq.payment_method !== '' && (
             <TrackRow label="Payment" value={inq.payment_method === 'wamd' ? 'WAMD' : 'Cash'} />
           )}
         </section>
+
+        {/* Security Deposit — collateral, kept visually separate from the balance math above */}
+        {hasSecurityDeposit && (
+          <div
+            className="rounded-xl border px-4 py-3 flex items-center justify-between gap-3"
+            style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface-raised)' }}
+          >
+            <div className="flex items-center gap-2.5">
+              <ShieldCheck size={18} weight="bold" color="var(--color-ink-muted)" />
+              <div>
+                <p className="text-sm font-medium" style={{ color: 'var(--color-ink)' }}>
+                  Security Deposit
+                </p>
+                <p className="text-xs" style={{ color: 'var(--color-ink-muted)' }}>
+                  Held as collateral, separate from your order balance
+                </p>
+              </div>
+            </div>
+            <p
+              className="text-sm font-semibold shrink-0"
+              style={{ color: 'var(--color-ink-secondary)', fontFamily: 'var(--font-mono)' }}
+            >
+              {formatKWD(o.deposit_amount)}
+            </p>
+          </div>
+        )}
 
         {/* Actions */}
         <Link

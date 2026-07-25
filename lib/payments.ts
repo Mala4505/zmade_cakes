@@ -2,19 +2,22 @@ import type { PaymentStatus } from './supabase/types'
 
 /**
  * Client-side mirror of the STORED generated `payment_status` column added in
- * supabase/migrations/025_remove_advance_payment.sql. Keep this in sync with that
+ * supabase/migrations/026_add_amount_paid.sql. Keep this in sync with that
  * migration's CASE expression if either one changes.
  *
  *   'paid'    when fully_paid
- *   'partial' when deposit_amount is set (not null, not zero)
+ *   'partial' when amount_paid is set (not null, not zero)
  *   'unpaid'  otherwise
+ *
+ * Note: deposit_amount (security deposit / collateral) is a separate field and does
+ * NOT factor into payment status or balance calculations — see balanceOwed below.
  */
 export function derivePaymentStatus(
   fully_paid: boolean,
-  deposit_amount: number | string | null
+  amount_paid: number | string | null
 ): PaymentStatus {
   if (fully_paid) return 'paid'
-  const amount = deposit_amount == null ? 0 : Number(deposit_amount)
+  const amount = amount_paid == null ? 0 : Number(amount_paid)
   if (amount !== 0) return 'partial'
   return 'unpaid'
 }
@@ -22,18 +25,21 @@ export function derivePaymentStatus(
 /**
  * Remaining balance owed on an inquiry/order.
  * - Fully paid orders owe nothing.
- * - Otherwise the deposit amount is credited against the price (a deposit is assumed
+ * - Otherwise the amount paid is credited against the price (an amount is assumed
  *   collected once an admin records it — there's no separate "paid" toggle).
+ *
+ * Note: deposit_amount (security deposit / collateral) is intentionally excluded from
+ * this calculation — it's held as collateral, not credited toward the price.
  */
 export function balanceOwed(
   price: number | string | null,
-  deposit_amount: number | string | null,
+  amount_paid: number | string | null,
   fully_paid: boolean
 ): number {
   if (fully_paid) return 0
   const priceNum = price == null ? 0 : Number(price)
-  const depositNum = deposit_amount == null ? 0 : Number(deposit_amount)
-  return Math.max(0, priceNum - depositNum)
+  const amountNum = amount_paid == null ? 0 : Number(amount_paid)
+  return Math.max(0, priceNum - amountNum)
 }
 
 /**

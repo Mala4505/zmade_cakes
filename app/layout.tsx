@@ -55,8 +55,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     <html
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} ${bricolageGrotesque.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
-      <body className="min-h-full flex flex-col">
+      <body className="min-h-full flex flex-col" suppressHydrationWarning>
         <div className="flex-1 flex flex-col">{children}</div>
         <Footer businessPhone={businessPhone} businessInstagram={businessInstagram} />
         <Toaster

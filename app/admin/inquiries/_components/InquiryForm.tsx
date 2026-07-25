@@ -1,23 +1,31 @@
 'use client'
 
-import { useTransition, useEffect, useState } from 'react'
+import { useTransition, useEffect, useState, useRef } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import PhoneInput from '@/components/PhoneInput'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useRouter } from 'next/navigation'
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
+import { EASE_OUT_QUART } from '@/lib/motion'
 import { inquirySchema } from '@/lib/validations/inquiry'
 import { createInquiry, updateInquiry } from '@/lib/actions/inquiries'
 import { lookupCustomerByPhone, upsertCustomer } from '@/lib/actions/customers'
+import { createOption } from '@/lib/actions/options'
 import { derivePaymentStatus, balanceOwed } from '@/lib/payments'
 import { PaymentBadge } from '@/components/admin/StatusBadge'
-import { Button, Checkbox, Field, Input, RadioGroup, Select, Textarea } from '@/components/ui'
+import { Button, Checkbox, Field, Input, RadioGroup, Select, Spinner, Textarea } from '@/components/ui'
+import { Check, X } from '@phosphor-icons/react'
 import type { OptionRow, Inquiry, BlackoutDate } from '@/lib/supabase/types'
 import { z } from 'zod'
 import { GOVERNORATE_LABELS } from '@/lib/utils'
 import { CustomerHistoryPanel } from './CustomerHistoryPanel'
 
 type MatchState = 'pending' | 'selected' | 'new'
+
+// Sentinel value for the "+ Add new item" entry appended to the item <Select>.
+// Never a real option — intercepted in the onChange handler before it reaches form state.
+const NEW_ITEM_OPTION = '__add_new_item__'
 
 const fullSchema = inquirySchema.and(
   z.object({
@@ -58,6 +66,18 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
   const router = useRouter()
   const [pending, startTransition] = useTransition()
 
+  // Inline "add new item" affordance for the Item dropdown (Other Item order type).
+  const [itemOptions, setItemOptions] = useState<OptionRow[]>(options.items)
+  const [isAddingItem, setIsAddingItem] = useState(false)
+  const [newItemName, setNewItemName] = useState('')
+  const [itemError, setItemError] = useState<string | null>(null)
+  const [itemPending, setItemPending] = useState(false)
+  const itemSelectRef = useRef<HTMLSelectElement>(null)
+
+  useEffect(() => {
+    setItemOptions(options.items)
+  }, [options.items])
+
   const {
     register,
     handleSubmit,
@@ -93,7 +113,9 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
           admin_price: inquiry.admin_price ? Number(inquiry.admin_price) : undefined,
           discount: inquiry.discount ? Number(inquiry.discount) : 0,
           deposit_amount: inquiry.deposit_amount ? Number(inquiry.deposit_amount) : undefined,
+          amount_paid: inquiry.amount_paid ? Number(inquiry.amount_paid) : undefined,
           fully_paid: inquiry.fully_paid,
+          payment_choice: derivePaymentStatus(inquiry.fully_paid, inquiry.amount_paid),
           payment_method: inquiry.payment_method,
           admin_notes: inquiry.admin_notes,
         }
@@ -106,6 +128,7 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
           delivery_type: 'pickup',
           discount: 0,
           fully_paid: false,
+          payment_choice: 'unpaid',
           payment_method: '',
           allergen_nut_free: false,
           allergen_dairy_free: false,
@@ -124,8 +147,45 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
   const watchedCakeSize = watch('cake_size')
   const watchedPrice = watch('admin_price')
   const watchedDiscount = watch('discount')
-  const watchedDeposit = watch('deposit_amount')
+  const watchedAmountPaid = watch('amount_paid')
   const fullyPaid = watch('fully_paid')
+  const paymentChoice = watch('payment_choice')
+  const watchedItemName = watch('item_name')
+  const reduceMotion = useReducedMotion()
+
+  const cancelAddItem = () => {
+    setIsAddingItem(false)
+    setNewItemName('')
+    setItemError(null)
+  }
+
+  const handleCreateItem = async () => {
+    const trimmed = newItemName.trim()
+    if (!trimmed || itemPending) return
+    setItemPending(true)
+    setItemError(null)
+    const result = await createOption('item_options', {
+      name: trimmed,
+      sort_order: itemOptions.length,
+      is_active: true,
+    })
+    setItemPending(false)
+    if (result.error !== null) {
+      setItemError(result.error)
+      return
+    }
+    if (result.fieldErrors !== null) {
+      setItemError(result.fieldErrors.name?.[0] ?? 'Could not add item')
+      return
+    }
+    const created = result.data
+    setItemOptions((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)))
+    setValue('item_name', created.name, { shouldDirty: true, shouldValidate: true })
+    setIsAddingItem(false)
+    setNewItemName('')
+    toast.success('Item added')
+    requestAnimationFrame(() => itemSelectRef.current?.focus())
+  }
 
   const [customerHistory, setCustomerHistory] = useState<{
     customer: { id: string; name: string; notes: string; vip: boolean; phone: string; created_at: string; updated_at: string }
@@ -188,15 +248,17 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
   const suggestedRush = isRush && rushMultiplier && suggestedBase ? suggestedBase * rushMultiplier : undefined
 
   // Live payment preview — same derivation as the DB's generated payment_status column.
-  const depositAmount =
-    typeof watchedDeposit === 'number' && !Number.isNaN(watchedDeposit) ? watchedDeposit : 0
-  const paymentStatus = derivePaymentStatus(!!fullyPaid, depositAmount)
+  // Driven by amount_paid, the only figure credited against the price; deposit_amount is
+  // collateral, held/returned/forfeited, and intentionally excluded — see lib/payments.ts.
+  const amountPaidNum =
+    typeof watchedAmountPaid === 'number' && !Number.isNaN(watchedAmountPaid) ? watchedAmountPaid : 0
+  const paymentStatus = derivePaymentStatus(!!fullyPaid, amountPaidNum)
   const priceNum =
     typeof watchedPrice === 'number' && !Number.isNaN(watchedPrice) ? watchedPrice : null
   const discountNum =
     typeof watchedDiscount === 'number' && !Number.isNaN(watchedDiscount) ? watchedDiscount : 0
   const discountedPrice = priceNum !== null ? Math.max(0, priceNum - discountNum) : null
-  const remaining = balanceOwed(discountedPrice, depositAmount, !!fullyPaid)
+  const remaining = balanceOwed(discountedPrice, amountPaidNum, !!fullyPaid)
 
   const onSubmit = (data: FormOutput) => {
     startTransition(async () => {
@@ -260,7 +322,6 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
           <Field label="Name" error={errors.customer_name?.message} required>
             <Input
               {...register('customer_name')}
-              placeholder="Fatima Al-Ahmad"
               required
               aria-invalid={errors.customer_name ? true : undefined}
             />
@@ -314,10 +375,86 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
           )}
           {orderType === 'other_item' ? (
             <Field label="Item" error={errors.item_name?.message} required>
-              <Select {...register('item_name')} required aria-invalid={errors.item_name ? true : undefined}>
+              <Select
+                ref={itemSelectRef}
+                value={isAddingItem ? NEW_ITEM_OPTION : watchedItemName ?? ''}
+                onChange={(e) => {
+                  const val = e.target.value
+                  if (val === NEW_ITEM_OPTION) {
+                    setIsAddingItem(true)
+                    setItemError(null)
+                    return
+                  }
+                  setIsAddingItem(false)
+                  setNewItemName('')
+                  setItemError(null)
+                  setValue('item_name', val, { shouldDirty: true, shouldValidate: true })
+                }}
+                required
+                aria-invalid={errors.item_name ? true : undefined}
+              >
                 <option value="">Select item</option>
-                {options.items.map((o) => <option key={o.id} value={o.name}>{o.name}</option>)}
+                {itemOptions.map((o) => <option key={o.id} value={o.name}>{o.name}</option>)}
+                <option value={NEW_ITEM_OPTION}>+ Add new item…</option>
               </Select>
+              {isAddingItem && (
+                <div className="mt-2 flex items-start gap-2">
+                  <div className="flex-1">
+                    <Input
+                      autoFocus
+                      value={newItemName}
+                      onChange={(e) => {
+                        setNewItemName(e.target.value)
+                        setItemError(null)
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          void handleCreateItem()
+                        }
+                        if (e.key === 'Escape') {
+                          e.preventDefault()
+                          cancelAddItem()
+                        }
+                      }}
+                      placeholder="New item name…"
+                      disabled={itemPending}
+                      aria-invalid={itemError ? true : undefined}
+                    />
+                    {itemError && (
+                      <p className="mt-1 text-xs" style={{ color: 'var(--color-danger)' }}>{itemError}</p>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void handleCreateItem()}
+                    disabled={itemPending || !newItemName.trim()}
+                    className="shrink-0 p-2.5 rounded-lg border transition-all active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed"
+                    style={{
+                      borderColor: 'var(--color-border)',
+                      backgroundColor: 'var(--color-teal-light)',
+                      color: 'var(--color-teal-deep)',
+                    }}
+                    title="Add item"
+                  >
+                    {itemPending ? <Spinner size={14} /> : <Check size={14} weight="bold" />}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={cancelAddItem}
+                    disabled={itemPending}
+                    className="shrink-0 p-2.5 rounded-lg border transition-all active:scale-[0.97] disabled:opacity-50"
+                    style={{
+                      borderColor: 'var(--color-border)',
+                      backgroundColor: 'var(--color-surface-raised)',
+                      color: 'var(--color-ink-secondary)',
+                    }}
+                    title="Cancel"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              )}
             </Field>
           ) : (
             <Field label="Flavor" error={errors.flavor?.message} required>
@@ -365,7 +502,6 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
             <Field label="Theme" error={errors.theme?.message} required className="col-span-2">
               <Input
                 {...register('theme')}
-                placeholder="e.g. Butterfly garden, football, unicorn…"
                 required
                 aria-invalid={errors.theme ? true : undefined}
               />
@@ -373,16 +509,19 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
           )}
           {orderType === 'cake' && (
           <Field label="Message on Cake" error={errors.message_on_cake?.message} className="col-span-2">
-            <Input {...register('message_on_cake')} placeholder="Happy Birthday Sarah!" />
+            <Input {...register('message_on_cake')} />
           </Field>
           )}
           <Field
             label="Cake Details"
             error={errors.special_requirements?.message}
-            hint="Tiers, colours, decoration, toppers — everything the bake needs."
             className="col-span-2"
           >
-            <Textarea {...register('special_requirements')} rows={3} placeholder="Two tiers, sage green palette, gold leaf accents…" />
+            <Textarea
+              {...register('special_requirements')}
+              rows={3}
+              placeholder="Tiers, colours, decoration, toppers — everything the bake needs."
+            />
           </Field>
         </div>
       </Section>
@@ -398,7 +537,6 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
           <Field label="Other dietary notes" error={errors.allergen_other?.message}>
             <Input
               {...register('allergen_other')}
-              placeholder="e.g. no artificial colouring, specific ingredient brand…"
             />
           </Field>
         </div>
@@ -497,7 +635,6 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
                 type="number"
                 step="0.001"
                 min="0"
-                placeholder="12.500"
                 style={{ fontFamily: 'var(--font-mono)' }}
                 aria-invalid={errors.admin_price ? true : undefined}
               />
@@ -531,13 +668,16 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
                 </p>
               )}
             </Field>
-            <Field label="Deposit Amount (KD)" error={errors.deposit_amount?.message} hint="Optional, for security">
+            <Field
+              label="Security Deposit (KD)"
+              error={errors.deposit_amount?.message}
+              hint="Held as collateral — not counted toward balance"
+            >
               <Input
                 {...register('deposit_amount', { setValueAs: numberOrNull })}
                 type="number"
                 step="0.001"
                 min="0"
-                placeholder="5.000"
                 style={{ fontFamily: 'var(--font-mono)' }}
                 aria-invalid={errors.deposit_amount ? true : undefined}
               />
@@ -569,9 +709,61 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
               </div>
             </Field>
           </div>
-          <div className="grid grid-cols-2 gap-2">
-            <Checkbox {...register('fully_paid')} label="Fully paid" />
-          </div>
+
+          <Field label="Payment Status" required>
+            <RadioGroup
+              value={paymentChoice}
+              onChange={(v) => {
+                setValue('payment_choice', v, { shouldDirty: true, shouldValidate: true })
+                if (v === 'unpaid') {
+                  setValue('fully_paid', false, { shouldDirty: true })
+                  setValue('amount_paid', null, { shouldDirty: true, shouldValidate: true })
+                  clearErrors('amount_paid')
+                } else if (v === 'partial') {
+                  setValue('fully_paid', false, { shouldDirty: true })
+                } else if (v === 'paid') {
+                  setValue('fully_paid', true, { shouldDirty: true })
+                  setValue('amount_paid', null, { shouldDirty: true, shouldValidate: true })
+                  clearErrors('amount_paid')
+                }
+              }}
+              options={[
+                { value: 'unpaid', label: 'Unpaid' },
+                { value: 'partial', label: 'Partial' },
+                { value: 'paid', label: 'Paid' },
+              ]}
+              aria-label="Payment status"
+            />
+          </Field>
+          <AnimatePresence initial={false}>
+            {paymentChoice === 'partial' && (
+              <motion.div
+                key="amount-paid"
+                initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -6 }}
+                transition={{ duration: reduceMotion ? 0 : 0.16, ease: EASE_OUT_QUART }}
+              >
+                <Field
+                  label="Amount Paid (KD)"
+                  error={errors.amount_paid?.message}
+                  hint="How much the customer has paid so far"
+                  required
+                >
+                  <Input
+                    {...register('amount_paid', { setValueAs: numberOrNull })}
+                    type="number"
+                    step="0.001"
+                    min="0"
+                    required
+                    autoFocus
+                    style={{ fontFamily: 'var(--font-mono)' }}
+                    aria-invalid={errors.amount_paid ? true : undefined}
+                  />
+                </Field>
+              </motion.div>
+            )}
+          </AnimatePresence>
           <div
             className="flex items-center justify-between rounded-lg border px-3.5 py-2.5"
             style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface-raised)' }}

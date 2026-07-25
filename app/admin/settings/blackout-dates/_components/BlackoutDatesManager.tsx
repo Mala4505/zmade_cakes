@@ -80,7 +80,7 @@ export default function BlackoutDatesManager({
               >
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium" style={{ color: 'var(--color-ink)', fontFamily: 'var(--font-mono)' }}>
-                    {format(parseISO(b.date_from), 'dd MMM yyyy')} → {format(parseISO(b.date_to), 'dd MMM yyyy')}
+                    {format(parseISO(b.date_from), 'dd/MM/yyyy')} → {format(parseISO(b.date_to), 'dd/MM/yyyy')}
                   </p>
                   {b.reason && (
                     <p className="text-xs mt-0.5 truncate" style={{ color: 'var(--color-ink-muted)' }}>
