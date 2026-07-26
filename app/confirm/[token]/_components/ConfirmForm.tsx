@@ -1,12 +1,13 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useEffect, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { confirmInquiry } from '@/lib/actions/inquiries'
 import { customerConfirmSchema } from '@/lib/validations/confirm'
-import { CheckCircle, ArrowClockwise, WarningCircle, PencilSimple, X } from '@phosphor-icons/react'
+import { CheckCircle, ArrowClockwise, WarningCircle, PencilSimple, X, WhatsappLogo } from '@phosphor-icons/react'
 import { GOVERNORATE_LABELS, formatTime, formatAddress } from '@/lib/utils'
-import { Field, Input, Textarea, Select } from '@/components/ui'
+import { holdMinimumVisible } from '@/lib/motion'
+import { DetailRow, Field, Input, Textarea, Select, Button, CakeLoader } from '@/components/ui'
 
 type Address = {
   governorate: string
@@ -26,11 +27,29 @@ interface Props {
   currentMessageOnCake: string
   currentSpecialRequirements: string
   existingAddress: Address | null
+  waNumber: string
 }
 
 const GOVERNORATES = Object.entries(GOVERNORATE_LABELS) as [string, string][]
 
 type ConfirmAction = 'confirm' | 'request_changes'
+
+const DRAFT_STORAGE_KEY = 'zmade-confirm-draft-v1'
+
+interface ConfirmDraft {
+  editing: boolean
+  pickupTime: string
+  messageOnCake: string
+  specialRequirements: string
+  customerComments: string
+  governorate: string
+  area: string
+  block: string
+  street: string
+  houseNo: string
+  extraNotes: string
+  locationLink: string
+}
 
 export default function ConfirmForm({
   token,
@@ -39,13 +58,17 @@ export default function ConfirmForm({
   currentMessageOnCake,
   currentSpecialRequirements,
   existingAddress,
+  waNumber,
 }: Props) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
+  const [pendingAction, setPendingAction] = useState<ConfirmAction | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [requestSent, setRequestSent] = useState(false)
+  const requestSentHeadingRef = useRef<HTMLParagraphElement | null>(null)
   const [editing, setEditing] = useState(false)
+  const [draftRestored, setDraftRestored] = useState(false)
 
   const [pickupTime, setPickupTime] = useState(currentPickupTime ?? '')
   const [messageOnCake, setMessageOnCake] = useState(currentMessageOnCake)
@@ -59,6 +82,83 @@ export default function ConfirmForm({
   const [houseNo, setHouseNo] = useState(existingAddress?.house_no ?? '')
   const [extraNotes, setExtraNotes] = useState(existingAddress?.extra_notes ?? '')
   const [locationLink, setLocationLink] = useState(existingAddress?.location_link ?? '')
+
+  // Token-scoped so one customer's in-progress edits never leak into a different
+  // order opened in the same browser/session.
+  const draftKey = `${DRAFT_STORAGE_KEY}:${token}`
+  const draftSaveTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Restore an in-progress draft (e.g. after WhatsApp's in-app browser evicts the tab).
+  useEffect(() => {
+    if (requestSent) return
+    try {
+      const raw = sessionStorage.getItem(draftKey)
+      if (!raw) return
+      const draft: ConfirmDraft = JSON.parse(raw)
+      setEditing(draft.editing)
+      setPickupTime(draft.pickupTime)
+      setMessageOnCake(draft.messageOnCake)
+      setSpecialRequirements(draft.specialRequirements)
+      setCustomerComments(draft.customerComments)
+      setGovernorate(draft.governorate)
+      setArea(draft.area)
+      setBlock(draft.block)
+      setStreet(draft.street)
+      setHouseNo(draft.houseNo)
+      setExtraNotes(draft.extraNotes)
+      setLocationLink(draft.locationLink)
+      setDraftRestored(true)
+    } catch {
+      // Corrupt or stale draft — ignore and start fresh.
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    if (requestSent) return
+    if (draftSaveTimeout.current) clearTimeout(draftSaveTimeout.current)
+    draftSaveTimeout.current = setTimeout(() => {
+      const draft: ConfirmDraft = {
+        editing,
+        pickupTime,
+        messageOnCake,
+        specialRequirements,
+        customerComments,
+        governorate,
+        area,
+        block,
+        street,
+        houseNo,
+        extraNotes,
+        locationLink,
+      }
+      sessionStorage.setItem(draftKey, JSON.stringify(draft))
+    }, 400)
+    return () => {
+      if (draftSaveTimeout.current) clearTimeout(draftSaveTimeout.current)
+    }
+  }, [
+    editing,
+    pickupTime,
+    messageOnCake,
+    specialRequirements,
+    customerComments,
+    governorate,
+    area,
+    block,
+    street,
+    houseNo,
+    extraNotes,
+    locationLink,
+    requestSent,
+    draftKey,
+  ])
+
+  // Move focus to the success panel when the form is replaced by it, so
+  // screen-reader users get an announcement instead of silence.
+  useEffect(() => {
+    if (requestSent) requestSentHeadingRef.current?.focus()
+  }, [requestSent])
 
   function clearFieldError(key: string) {
     setFieldErrors((prev) => {
@@ -117,6 +217,31 @@ export default function ConfirmForm({
   function submit(action: ConfirmAction) {
     setError(null)
 
+    if (action === 'request_changes') {
+      const addressChanged =
+        deliveryType === 'delivery' &&
+        (governorate !== (existingAddress?.governorate ?? '') ||
+          area !== (existingAddress?.area ?? '') ||
+          block !== (existingAddress?.block ?? '') ||
+          street !== (existingAddress?.street ?? '') ||
+          houseNo !== (existingAddress?.house_no ?? '') ||
+          extraNotes !== (existingAddress?.extra_notes ?? '') ||
+          locationLink !== (existingAddress?.location_link ?? ''))
+      const hasChange =
+        customerComments.trim().length > 0 ||
+        pickupTime !== (currentPickupTime ?? '') ||
+        messageOnCake !== currentMessageOnCake ||
+        specialRequirements !== currentSpecialRequirements ||
+        addressChanged
+      if (!hasChange) {
+        setFieldErrors({ customer_comments: "Let us know what you'd like changed, or add a message for us." })
+        requestAnimationFrame(() => {
+          document.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()
+        })
+        return
+      }
+    }
+
     const parsed = customerConfirmSchema.safeParse(buildPayload(action))
     if (!parsed.success) {
       const next: Record<string, string> = {}
@@ -132,24 +257,54 @@ export default function ConfirmForm({
     }
 
     setFieldErrors({})
+    setPendingAction(action)
+    const startedAt = Date.now()
     startTransition(async () => {
       const result = await confirmInquiry(token, parsed.data)
       if (result.error) {
+        // Errors surface immediately — never held back to let the loader finish.
+        setPendingAction(null)
         setError(result.error)
         return
       }
       if (result.fieldErrors) {
+        setPendingAction(null)
         setError('Please check your details and try again.')
         return
       }
       if (action === 'request_changes') {
+        await holdMinimumVisible(startedAt, 1400)
+        sessionStorage.removeItem(draftKey)
+        setPendingAction(null)
         setRequestSent(true)
         return
       }
       if (result.data?.order?.tracking_token) {
+        await holdMinimumVisible(startedAt, 1400)
+        sessionStorage.removeItem(draftKey)
         router.push(`/track/${result.data.order.tracking_token}`)
       }
     })
+  }
+
+  if (pendingAction) {
+    return (
+      <div
+        className="rounded-2xl border flex flex-col items-center justify-center gap-2 text-center"
+        style={{
+          borderColor: 'var(--color-border)',
+          backgroundColor: 'var(--color-surface)',
+          minHeight: 320,
+        }}
+        aria-live="polite"
+        aria-busy="true"
+      >
+        <CakeLoader
+          size={110}
+          label={pendingAction === 'confirm' ? 'Confirming your order…' : 'Sending your request…'}
+        />
+      </div>
+    )
   }
 
   if (requestSent) {
@@ -157,20 +312,61 @@ export default function ConfirmForm({
       <div
         className="rounded-2xl border p-6 flex flex-col items-center gap-3 text-center"
         style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
+        aria-live="polite"
       >
         <CheckCircle size={40} weight="fill" style={{ color: 'var(--color-success)' }} />
-        <p className="font-semibold" style={{ fontFamily: 'var(--font-display)', color: 'var(--color-ink)' }}>
+        <p
+          ref={requestSentHeadingRef}
+          tabIndex={-1}
+          className="font-semibold outline-none"
+          style={{ fontFamily: 'var(--font-display)', color: 'var(--color-ink)' }}
+        >
           Request Sent
         </p>
         <p className="text-sm" style={{ color: 'var(--color-ink-muted)' }}>
           We've been notified of your request and will get back to you shortly on WhatsApp.
         </p>
+        {waNumber && (
+          <Button
+            href={`https://wa.me/${waNumber}`}
+            variant="primary"
+            size="lg"
+            className="w-full mt-1"
+          >
+            <WhatsappLogo size={16} weight="fill" />
+            Message us on WhatsApp
+          </Button>
+        )}
       </div>
     )
   }
 
   return (
     <div className="flex flex-col gap-4">
+      {/* Draft restored notice */}
+      {draftRestored && (
+        <div
+          className="rounded-xl px-4 py-3 flex items-start gap-2 text-sm"
+          style={{
+            backgroundColor: 'var(--color-surface-raised)',
+            border: '1px solid var(--color-border)',
+            color: 'var(--color-ink-secondary)',
+          }}
+        >
+          <ArrowClockwise size={16} className="shrink-0 mt-0.5" />
+          <span className="flex-1">Draft restored. Your changes are still here.</span>
+          <button
+            type="button"
+            onClick={() => setDraftRestored(false)}
+            aria-label="Dismiss"
+            className="shrink-0 inline-flex items-center justify-center min-h-11 min-w-11 -mr-2 -my-2"
+            style={{ color: 'var(--color-ink-muted)' }}
+          >
+            <X size={14} weight="bold" />
+          </button>
+        </div>
+      )}
+
       {/* Editable fields */}
       <section
         className="rounded-2xl border p-5 flex flex-col gap-4"
@@ -186,8 +382,8 @@ export default function ConfirmForm({
           <button
             type="button"
             onClick={() => (editing ? cancelEdit() : setEditing(true))}
-            className="inline-flex items-center gap-1 text-xs font-medium shrink-0"
-            style={{ color: 'var(--color-teal)' }}
+            className="inline-flex items-center gap-1 text-xs font-medium shrink-0 min-h-11 px-2 -mx-2 -my-2"
+            style={{ color: 'var(--color-ink-secondary)' }}
           >
             {editing ? (
               <>
@@ -207,20 +403,24 @@ export default function ConfirmForm({
             or ambiguous about what's actually set vs. just rendered in an input. */}
         {!editing && (
           <div className="flex flex-col gap-3">
-            <PreferenceRow
-              label="Pickup / Delivery Time"
-              value={pickupTime ? formatTime(pickupTime) : 'Not set'}
-            />
-            <PreferenceRow label="Message on Cake" value={messageOnCake || 'Not set'} />
-            <PreferenceRow label="Special Requirements" value={specialRequirements || 'Not set'} />
+            {pickupTime && (
+              <DetailRow label="Pickup / Delivery Time" value={formatTime(pickupTime)} layout="stacked" />
+            )}
+            {messageOnCake && (
+              <DetailRow label="Message on Cake" value={messageOnCake} layout="stacked" />
+            )}
+            {specialRequirements && (
+              <DetailRow label="Special Requirements" value={specialRequirements} layout="stacked" />
+            )}
             {deliveryType === 'delivery' && (
-              <PreferenceRow
+              <DetailRow
                 label="Delivery Address"
                 value={
                   governorate
                     ? formatAddress({ governorate, area, block, street, house_no: houseNo })
-                    : 'Not provided yet'
+                    : 'Add your delivery address'
                 }
+                layout="stacked"
               />
             )}
           </div>
@@ -243,6 +443,7 @@ export default function ConfirmForm({
               clearFieldError('pickup_time')
             }}
             aria-invalid={fieldErrors['pickup_time'] ? true : undefined}
+            size="base"
           />
         </Field>
 
@@ -262,8 +463,9 @@ export default function ConfirmForm({
               clearFieldError('message_on_cake')
             }}
             maxLength={255}
-            placeholder="e.g. Happy Birthday Sarah!"
             aria-invalid={fieldErrors['message_on_cake'] ? true : undefined}
+            dir="auto"
+            size="base"
           />
         </Field>
 
@@ -285,6 +487,8 @@ export default function ConfirmForm({
             rows={3}
             placeholder="Any dietary requirements or special requests?"
             aria-invalid={fieldErrors['special_requirements'] ? true : undefined}
+            dir="auto"
+            size="base"
           />
         </Field>
 
@@ -307,6 +511,7 @@ export default function ConfirmForm({
                   clearFieldError('delivery_address.governorate')
                 }}
                 aria-invalid={fieldErrors['delivery_address.governorate'] ? true : undefined}
+                size="base"
               >
                 <option value="">Select governorate</option>
                 {GOVERNORATES.map(([val, label]) => (
@@ -327,8 +532,8 @@ export default function ConfirmForm({
                   setArea(e.target.value)
                   clearFieldError('delivery_address.area')
                 }}
-                placeholder="e.g. Salmiya"
                 aria-invalid={fieldErrors['delivery_address.area'] ? true : undefined}
+                size="base"
               />
             </Field>
             <div className="grid grid-cols-2 gap-3">
@@ -346,6 +551,7 @@ export default function ConfirmForm({
                     clearFieldError('delivery_address.block')
                   }}
                   aria-invalid={fieldErrors['delivery_address.block'] ? true : undefined}
+                  size="base"
                 />
               </Field>
               <Field
@@ -362,6 +568,7 @@ export default function ConfirmForm({
                     clearFieldError('delivery_address.street')
                   }}
                   aria-invalid={fieldErrors['delivery_address.street'] ? true : undefined}
+                  size="base"
                 />
               </Field>
             </div>
@@ -379,6 +586,7 @@ export default function ConfirmForm({
                   clearFieldError('delivery_address.house_no')
                 }}
                 aria-invalid={fieldErrors['delivery_address.house_no'] ? true : undefined}
+                size="base"
               />
             </Field>
             <Field
@@ -397,6 +605,8 @@ export default function ConfirmForm({
                 }}
                 placeholder="Landmark, gate colour, etc."
                 aria-invalid={fieldErrors['delivery_address.extra_notes'] ? true : undefined}
+                dir="auto"
+                size="base"
               />
             </Field>
             <Field
@@ -415,6 +625,7 @@ export default function ConfirmForm({
                 }}
                 placeholder="https://maps.app.goo.gl/…"
                 aria-invalid={fieldErrors['delivery_address.location_link'] ? true : undefined}
+                size="base"
               />
             </Field>
           </div>
@@ -446,6 +657,8 @@ export default function ConfirmForm({
           placeholder="Any questions or changes you'd like to discuss?"
           aria-labelledby="confirm-comments-label"
           aria-invalid={fieldErrors['customer_comments'] ? true : undefined}
+          dir="auto"
+          size="base"
         />
         {fieldErrors['customer_comments'] && (
           <p className="mt-1 text-xs text-[var(--color-danger)]">
@@ -467,12 +680,13 @@ export default function ConfirmForm({
 
       {/* Actions */}
       <div className="flex flex-col gap-3">
-        <button
+        <Button
           type="button"
           onClick={() => submit('confirm')}
           disabled={pending}
-          className="flex items-center justify-center gap-2 py-3.5 rounded-xl text-sm font-semibold transition-colors disabled:opacity-60"
-          style={{ backgroundColor: 'var(--color-teal)', color: 'var(--color-cream)' }}
+          variant="primary"
+          size="lg"
+          className="rounded-xl w-full py-3.5 font-semibold"
         >
           {pending ? (
             <>
@@ -485,7 +699,10 @@ export default function ConfirmForm({
               Confirm Order
             </>
           )}
-        </button>
+        </Button>
+        <p className="text-xs text-center -mt-1.5" style={{ color: 'var(--color-ink-muted)' }}>
+          Need to change something after confirming? Message us on WhatsApp and we'll sort it out.
+        </p>
 
         <button
           type="button"
@@ -501,17 +718,6 @@ export default function ConfirmForm({
           Request Changes
         </button>
       </div>
-    </div>
-  )
-}
-
-function PreferenceRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <p className="text-xs" style={{ color: 'var(--color-ink-muted)' }}>{label}</p>
-      <p className="text-sm mt-0.5 whitespace-pre-wrap" style={{ color: 'var(--color-ink-secondary)' }}>
-        {value}
-      </p>
     </div>
   )
 }

@@ -1,35 +1,56 @@
 import Link from 'next/link'
-import { PageHeader } from '@/components/admin/PageHeader'
+import { CaretRight, SlidersHorizontal } from '@phosphor-icons/react/dist/ssr'
 import type { Metadata } from 'next'
+import { SETTINGS_SECTIONS } from './_components/sections'
 
 export const metadata: Metadata = { title: 'Settings' }
 
-const SETTINGS_SECTIONS = [
-  { href: '/admin/settings/business', title: 'Business Info', description: 'Phone number, Instagram handle' },
-  { href: '/admin/settings/operating-rules', title: 'Operating Rules', description: 'Minimum booking lead time' },
-  { href: '/admin/settings/pricing', title: 'Pricing', description: 'Base prices, rush multiplier, minimum' },
-  { href: '/admin/settings/blackout-dates', title: 'Blackout Dates', description: 'Blocked date ranges for holidays' },
-  { href: '/admin/settings/whatsapp-templates', title: 'WhatsApp Templates', description: 'Message templates for customer notifications' },
-  { href: '/admin/settings/options', title: 'Options', description: 'Manage occasions, themes, decoration styles' },
-]
-
 export default function SettingsPage() {
   return (
-    <div className="px-4 py-6 md:px-8 md:py-8">
-      <PageHeader title="Settings" subtitle="Configure your ZMade Cakes workspace" />
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-6">
-        {SETTINGS_SECTIONS.map((section) => (
-          <Link
-            key={section.href}
-            href={section.href}
-            className="flex flex-col gap-1 rounded-xl border p-4 transition-colors hover:bg-[color:var(--color-surface-raised)]"
-            style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
-          >
-            <span className="text-sm font-semibold" style={{ color: 'var(--color-ink)' }}>{section.title}</span>
-            <span className="text-xs" style={{ color: 'var(--color-ink-muted)' }}>{section.description}</span>
-          </Link>
-        ))}
+    <>
+      {/* Mobile: the card grid is the settings hub (sidebar is hidden < md) */}
+      <div className="md:hidden px-4 py-6">
+        <h1 className="text-xl font-semibold tracking-tight" style={{ color: 'var(--color-ink)' }}>
+          Settings
+        </h1>
+        <p className="text-sm mt-0.5 mb-5" style={{ color: 'var(--color-ink-muted)' }}>
+          Configure your ZMade Cakes workspace
+        </p>
+
+        <div className="flex flex-col gap-2">
+          {SETTINGS_SECTIONS.map(({ href, title, description, Icon }) => (
+            <Link
+              key={href}
+              href={href}
+              className="flex items-center gap-3 rounded-xl border p-4 transition-colors active:bg-[color:var(--color-surface-raised)]"
+              style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
+            >
+              <span
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
+                style={{ backgroundColor: 'var(--color-teal-light)', color: 'var(--color-teal)' }}
+              >
+                <Icon size={20} />
+              </span>
+              <span className="flex-1 min-w-0">
+                <span className="block text-sm font-semibold" style={{ color: 'var(--color-ink)' }}>{title}</span>
+                <span className="block text-xs truncate" style={{ color: 'var(--color-ink-muted)' }}>{description}</span>
+              </span>
+              <CaretRight size={16} style={{ color: 'var(--color-ink-muted)' }} aria-hidden="true" />
+            </Link>
+          ))}
+        </div>
       </div>
-    </div>
+
+      {/* Desktop: sidebar already lists sections, so the index is a quiet prompt */}
+      <div className="hidden md:flex flex-col items-center justify-center h-svh gap-3 text-center px-6" style={{ color: 'var(--color-ink-muted)' }}>
+        <SlidersHorizontal size={40} weight="thin" />
+        <div>
+          <p className="text-sm font-medium" style={{ color: 'var(--color-ink-secondary)' }}>
+            Choose a settings section
+          </p>
+          <p className="text-xs mt-1">Pick one from the list on the left to start editing.</p>
+        </div>
+      </div>
+    </>
   )
 }

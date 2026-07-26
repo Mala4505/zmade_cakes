@@ -1,6 +1,7 @@
 'use client'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useId } from 'react'
 import { CaretDown } from '@phosphor-icons/react'
+import { cn } from '@/lib/utils'
 
 const COUNTRIES = [
   { code: '+965', label: 'Kuwait', flag: '🇰🇼' },
@@ -31,6 +32,8 @@ function parseValue(value: string): { country: typeof COUNTRIES[0]; local: strin
   return { country: DEFAULT_COUNTRY, local: value }
 }
 
+type PhoneInputSize = 'sm' | 'base'
+
 interface PhoneInputProps {
   value?: string
   onChange: (value: string) => void
@@ -40,6 +43,8 @@ interface PhoneInputProps {
   id?: string
   'aria-invalid'?: boolean
   'aria-describedby'?: string
+  /** Text size variant. Defaults to 'sm' (14px, admin default). Pass 'base' on customer routes to prevent iOS zoom. */
+  size?: PhoneInputSize
 }
 
 export default function PhoneInput({
@@ -51,12 +56,24 @@ export default function PhoneInput({
   id,
   'aria-invalid': ariaInvalid,
   'aria-describedby': ariaDescribedBy,
+  size = 'sm',
 }: PhoneInputProps) {
+  const textSizeClass = size === 'base' ? 'text-base' : 'text-sm'
   const parsed = parseValue(value ?? '')
   const [country, setCountry] = useState(parsed.country)
   const [local, setLocal] = useState(parsed.local)
   const [open, setOpen] = useState(false)
+  const [activeIndex, setActiveIndex] = useState(() =>
+    Math.max(0, COUNTRIES.findIndex(c => c.code === parsed.country.code))
+  )
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const optionRefs = useRef<(HTMLButtonElement | null)[]>([])
+  const typeaheadRef = useRef<{ query: string; timer: ReturnType<typeof setTimeout> | null }>({
+    query: '',
+    timer: null,
+  })
+  const listboxId = useId()
 
   useEffect(() => {
     const p = parseValue(value ?? '')
@@ -74,10 +91,28 @@ export default function PhoneInput({
     return () => document.removeEventListener('mousedown', handleOutside)
   }, [open])
 
-  function handleCountrySelect(c: typeof COUNTRIES[0]) {
+  // Keep the highlighted option scrolled into view as it changes via keyboard.
+  useEffect(() => {
+    if (open) optionRefs.current[activeIndex]?.scrollIntoView({ block: 'nearest' })
+  }, [open, activeIndex])
+
+  function selectedIndex() {
+    const idx = COUNTRIES.findIndex(c => c.code === country.code)
+    return idx === -1 ? 0 : idx
+  }
+
+  function openDropdown() {
+    setActiveIndex(selectedIndex())
+    setOpen(true)
+  }
+
+  function selectCountry(c: typeof COUNTRIES[0]) {
     setCountry(c)
     setOpen(false)
     onChange(c.code + local)
+    // Return focus to the trigger — matches native <select> behavior and keeps
+    // keyboard users anchored after Enter/Space or a mouse click on an option.
+    triggerRef.current?.focus()
   }
 
   function handleLocalChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -86,32 +121,126 @@ export default function PhoneInput({
     onChange(country.code + val)
   }
 
-  const borderColor = ariaInvalid ? 'var(--color-danger)' : 'var(--color-border)'
-  const bg = 'var(--color-surface)'
-  const ink = 'var(--color-ink)'
-  const inkMuted = 'var(--color-ink-muted)'
+  // Typeahead: jump to (or cycle through) countries whose name starts with the
+  // typed letters, same behavior as a native <select>. When the listbox is open
+  // this only moves the highlight; when closed it selects immediately.
+  function handleTypeahead(char: string) {
+    const state = typeaheadRef.current
+    if (state.timer) clearTimeout(state.timer)
+    state.query += char.toLowerCase()
+    state.timer = setTimeout(() => {
+      state.query = ''
+    }, 500)
+
+    const n = COUNTRIES.length
+    const start = open ? activeIndex : selectedIndex()
+
+    let match = -1
+    for (let i = 1; i <= n; i++) {
+      const idx = (start + i) % n
+      if (COUNTRIES[idx].label.toLowerCase().startsWith(state.query)) {
+        match = idx
+        break
+      }
+    }
+    // Fall back to a single-character match if the accumulated buffer has no hits
+    // (e.g. user is typing quickly toward a country that doesn't share a prefix).
+    if (match === -1 && state.query.length > 1) {
+      const single = char.toLowerCase()
+      for (let i = 1; i <= n; i++) {
+        const idx = (start + i) % n
+        if (COUNTRIES[idx].label.toLowerCase().startsWith(single)) {
+          match = idx
+          state.query = single
+          break
+        }
+      }
+    }
+    if (match === -1) return
+    if (open) setActiveIndex(match)
+    else selectCountry(COUNTRIES[match])
+  }
+
+  function handleTriggerKeyDown(e: React.KeyboardEvent<HTMLButtonElement>) {
+    const n = COUNTRIES.length
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault()
+        if (!open) openDropdown()
+        else setActiveIndex(i => Math.min(i + 1, n - 1))
+        break
+      case 'ArrowUp':
+        e.preventDefault()
+        if (!open) openDropdown()
+        else setActiveIndex(i => Math.max(i - 1, 0))
+        break
+      case 'Home':
+        if (open) {
+          e.preventDefault()
+          setActiveIndex(0)
+        }
+        break
+      case 'End':
+        if (open) {
+          e.preventDefault()
+          setActiveIndex(n - 1)
+        }
+        break
+      case 'Enter':
+      case ' ':
+        e.preventDefault()
+        if (open) selectCountry(COUNTRIES[activeIndex])
+        else openDropdown()
+        break
+      case 'Escape':
+        if (open) {
+          e.preventDefault()
+          e.stopPropagation()
+          setOpen(false)
+          // Focus already lives on the trigger (keydown fired here), so it
+          // stays put — no extra .focus() call needed.
+        }
+        break
+      case 'Tab':
+        if (open) setOpen(false)
+        break
+      default:
+        if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey && /[a-z]/i.test(e.key)) {
+          e.preventDefault()
+          handleTypeahead(e.key)
+        }
+    }
+  }
+
+  const focusRing =
+    'focus:border-[var(--color-teal)] focus-visible:border-[var(--color-teal)] focus:shadow-[0_0_0_2px_var(--color-teal-light)] focus-visible:shadow-[0_0_0_2px_var(--color-teal-light)]'
 
   return (
-    <div className={`relative flex${className ? ' ' + className : ''}`} ref={dropdownRef}>
+    <div className={cn('relative flex', className)} ref={dropdownRef}>
       <button
+        ref={triggerRef}
         type="button"
         disabled={disabled}
-        onClick={() => setOpen(o => !o)}
-        onKeyDown={(e) => { if (e.key === 'Escape' && open) { e.stopPropagation(); setOpen(false) } }}
+        onClick={() => (open ? setOpen(false) : openDropdown())}
+        onKeyDown={handleTriggerKeyDown}
+        role="combobox"
         aria-haspopup="listbox"
         aria-expanded={open}
-        className="flex items-center gap-1.5 shrink-0 border rounded-l-lg px-3 py-2.5 text-sm font-medium outline-none transition-all disabled:opacity-60 disabled:cursor-not-allowed"
-        style={{
-          borderColor,
-          backgroundColor: bg,
-          color: ink,
-          borderRight: 'none',
-          minWidth: '88px',
-        }}
+        aria-controls={listboxId}
+        aria-activedescendant={open ? `${listboxId}-option-${activeIndex}` : undefined}
+        className={cn(
+          'flex min-h-11 shrink-0 items-center gap-1.5 rounded-l-lg border px-3 py-2.5 outline-none transition-all',
+          textSizeClass,
+          'font-medium bg-[var(--color-surface)] text-[var(--color-ink)] border-r-0',
+          ariaInvalid ? 'border-[var(--color-danger)]' : 'border-[var(--color-border)]',
+          focusRing,
+          'disabled:opacity-60 disabled:cursor-not-allowed'
+        )}
+        style={{ minWidth: '88px' }}
       >
         <span>{country.flag}</span>
-        <span style={{ color: inkMuted }}>{country.code}</span>
-        <CaretDown size={12} style={{ color: inkMuted }} />
+        <span className="text-[var(--color-ink-muted)]">{country.code}</span>
+        <CaretDown size={12} className="text-[var(--color-ink-muted)]" />
       </button>
 
       <input
@@ -123,53 +252,60 @@ export default function PhoneInput({
         disabled={disabled}
         aria-invalid={ariaInvalid || undefined}
         aria-describedby={ariaDescribedBy}
-        className="flex-1 min-w-0 border rounded-r-lg px-3.5 py-2.5 text-sm outline-none transition-all"
-        style={{
-          borderColor,
-          backgroundColor: bg,
-          color: ink,
-        }}
-        onFocus={e => {
-          e.currentTarget.style.boxShadow = '0 0 0 2px var(--color-teal)'
-          e.currentTarget.style.borderColor = 'var(--color-teal)'
-        }}
-        onBlur={e => {
-          e.currentTarget.style.boxShadow = ''
-          e.currentTarget.style.borderColor = borderColor
-        }}
+        className={cn(
+          'min-h-11 flex-1 min-w-0 rounded-r-lg border px-3.5 py-2.5 outline-none transition-all',
+          textSizeClass,
+          'bg-[var(--color-surface)] text-[var(--color-ink)]',
+          ariaInvalid ? 'border-[var(--color-danger)]' : 'border-[var(--color-border)]',
+          focusRing,
+          'disabled:opacity-60 disabled:cursor-not-allowed'
+        )}
       />
 
       {open && (
         <div
+          id={listboxId}
           role="listbox"
-          className="absolute top-full left-0 z-50 mt-1 rounded-lg border shadow-lg overflow-auto"
+          aria-label="Country code"
+          tabIndex={-1}
+          className="absolute top-full left-0 z-50 mt-1 max-h-60 overflow-auto rounded-lg border shadow-lg"
           style={{
             borderColor: 'var(--color-border)',
-            backgroundColor: bg,
+            backgroundColor: 'var(--color-surface)',
             minWidth: '200px',
-            maxHeight: '240px',
           }}
         >
-          {COUNTRIES.map(c => (
-            <button
-              key={c.code}
-              type="button"
-              role="option"
-              aria-selected={c.code === country.code}
-              onClick={() => handleCountrySelect(c)}
-              className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-left transition-colors"
-              style={{
-                color: ink,
-                backgroundColor: c.code === country.code ? 'var(--color-teal-light)' : 'transparent',
-              }}
-              onMouseEnter={e => { if (c.code !== country.code) (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--color-cream)' }}
-              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = c.code === country.code ? 'var(--color-teal-light)' : 'transparent' }}
-            >
-              <span>{c.flag}</span>
-              <span className="flex-1">{c.label}</span>
-              <span style={{ color: inkMuted }}>{c.code}</span>
-            </button>
-          ))}
+          {COUNTRIES.map((c, index) => {
+            const isSelected = c.code === country.code
+            const isActive = index === activeIndex
+            return (
+              <button
+                key={c.code}
+                ref={el => {
+                  optionRefs.current[index] = el
+                }}
+                id={`${listboxId}-option-${index}`}
+                type="button"
+                role="option"
+                aria-selected={isSelected}
+                tabIndex={-1}
+                onMouseEnter={() => setActiveIndex(index)}
+                onClick={() => selectCountry(c)}
+                className={cn(
+                  'flex min-h-11 w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-[var(--color-ink)] transition-colors',
+                  isSelected
+                    ? 'bg-[var(--color-teal-light)]'
+                    : isActive
+                      ? 'bg-[var(--color-cream)]'
+                      : 'bg-transparent'
+                )}
+              >
+                <span>{c.flag}</span>
+                <span className="flex-1">{c.label}</span>
+                <span className="text-[var(--color-ink-muted)]">{c.code}</span>
+              </button>
+            )
+          })}
         </div>
       )}
     </div>

@@ -8,14 +8,13 @@ import { createOption, updateOption, deleteOption } from '@/lib/actions/options'
 import type { OptionRow } from '@/lib/supabase/types'
 
 interface Props {
-  sizes: OptionRow[]
-  onChanged: (sizes: OptionRow[]) => void
-  /** When rendered inside the Sizes tab (beside the base-price panel), the
-   *  parent owns the page padding and width, so drop the outer wrapper. */
-  embedded?: boolean
+  items: OptionRow[]
+  onChanged: (items: OptionRow[]) => void
 }
 
-export function SizeList({ sizes, onChanged, embedded = false }: Props) {
+/** Catalog of non-cake "other items" (jars, brownies…). Name + active only;
+ *  each item's price is set per order on the inquiry, not here. */
+export function ItemList({ items, onChanged }: Props) {
   const [adding, setAdding] = useState(false)
   const [newName, setNewName] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -30,21 +29,21 @@ export function SizeList({ sizes, onChanged, embedded = false }: Props) {
   const handleAdd = () => {
     const trimmed = newName.trim()
     if (!trimmed) {
-      setError('Enter a size name')
+      setError('Enter an item name')
       return
     }
     startAddTransition(async () => {
-      const result = await createOption('size_options', { name: trimmed, sort_order: sizes.length, is_active: true })
+      const result = await createOption('item_options', { name: trimmed, sort_order: items.length, is_active: true })
       if (result.error !== null) {
         setError(result.error)
         return
       }
       if (result.fieldErrors !== null) {
-        setError(result.fieldErrors.name?.[0] ?? 'Could not add size')
+        setError(result.fieldErrors.name?.[0] ?? 'Could not add item')
         return
       }
-      onChanged([...sizes, result.data])
-      toast.success('Size added')
+      onChanged([...items, result.data])
+      toast.success('Item added')
       setNewName('')
       setError(null)
       setAdding(false)
@@ -52,30 +51,30 @@ export function SizeList({ sizes, onChanged, embedded = false }: Props) {
   }
 
   return (
-    <div className={embedded ? undefined : 'px-4 md:px-8 py-6 md:py-8'} style={embedded ? undefined : { maxWidth: 560 }}>
+    <div className="px-4 md:px-8 py-6 md:py-8" style={{ maxWidth: 560 }}>
       <h2 className="text-sm font-semibold mb-1" style={{ color: 'var(--color-ink)' }}>
-        Sizes
+        Items
       </h2>
       <p className="text-xs mb-4" style={{ color: 'var(--color-ink-muted)' }}>
-        Sizes are shared across every flavor. Each flavor sets its own price per size.
+        Non-cake items customers can request (jars, brownie boxes…). Price is set per order.
       </p>
 
       <div className="flex flex-col gap-1 mb-3">
-        {sizes.map((size) => (
-          <SizeRow
-            key={size.id}
-            size={size}
+        {items.map((item) => (
+          <ItemRow
+            key={item.id}
+            item={item}
             onChanged={(updated) =>
               updated
-                ? onChanged(sizes.map((s) => (s.id === size.id ? updated : s)))
-                : onChanged(sizes.filter((s) => s.id !== size.id))
+                ? onChanged(items.map((it) => (it.id === item.id ? updated : it)))
+                : onChanged(items.filter((it) => it.id !== item.id))
             }
           />
         ))}
 
-        {sizes.length === 0 && !adding && (
+        {items.length === 0 && !adding && (
           <p className="text-xs py-2" style={{ color: 'var(--color-ink-muted)' }}>
-            No sizes yet. Add one below.
+            No items yet. Add one below.
           </p>
         )}
       </div>
@@ -94,10 +93,10 @@ export function SizeList({ sizes, onChanged, embedded = false }: Props) {
                 if (e.key === 'Enter') { e.preventDefault(); handleAdd() }
                 if (e.key === 'Escape') { e.preventDefault(); cancelAdd() }
               }}
-              placeholder="Size name…"
+              placeholder="Item name…"
               disabled={isAddPending}
               aria-invalid={error ? true : undefined}
-              aria-label="New size name"
+              aria-label="New item name"
             />
             <Button size="sm" onClick={handleAdd} loading={isAddPending} disabled={!newName.trim()}>
               Add
@@ -116,20 +115,20 @@ export function SizeList({ sizes, onChanged, embedded = false }: Props) {
           style={{ minHeight: 48, borderColor: 'var(--color-border)', color: 'var(--color-ink-muted)' }}
         >
           <Plus size={16} weight="bold" />
-          <span>Add size</span>
+          <span>Add item</span>
         </button>
       )}
     </div>
   )
 }
 
-function SizeRow({ size, onChanged }: { size: OptionRow; onChanged: (updated: OptionRow | null) => void }) {
+function ItemRow({ item, onChanged }: { item: OptionRow; onChanged: (updated: OptionRow | null) => void }) {
   const [isPending, startTransition] = useTransition()
   const [confirmDelete, setConfirmDelete] = useState(false)
 
   const handleToggle = () => {
     startTransition(async () => {
-      const result = await updateOption(size.id, 'size_options', { is_active: !size.is_active })
+      const result = await updateOption(item.id, 'item_options', { is_active: !item.is_active })
       if (result.error) toast.error('Failed to update', { description: result.error })
       else if (result.data) onChanged(result.data)
     })
@@ -137,13 +136,13 @@ function SizeRow({ size, onChanged }: { size: OptionRow; onChanged: (updated: Op
 
   const handleDelete = () => {
     startTransition(async () => {
-      const result = await deleteOption(size.id, 'size_options')
+      const result = await deleteOption(item.id, 'item_options')
       if (result.error) {
         toast.error('Failed to deactivate', { description: result.error })
         setConfirmDelete(false)
       } else {
         onChanged(null)
-        toast.success('Size deactivated')
+        toast.success('Item deactivated')
       }
     })
   }
@@ -151,10 +150,10 @@ function SizeRow({ size, onChanged }: { size: OptionRow; onChanged: (updated: Op
   return (
     <div
       className="flex items-center gap-3 rounded-lg px-3"
-      style={{ minHeight: 48, opacity: size.is_active ? 1 : 0.55 }}
+      style={{ minHeight: 48, opacity: item.is_active ? 1 : 0.55 }}
     >
       <span className="flex-1 min-w-0 truncate text-sm" style={{ color: 'var(--color-ink)' }}>
-        {size.name}
+        {item.name}
       </span>
 
       {isPending ? (
@@ -180,20 +179,20 @@ function SizeRow({ size, onChanged }: { size: OptionRow; onChanged: (updated: Op
             onClick={handleToggle}
             className="text-[11px] font-medium rounded-full px-2.5 py-1 border transition-colors"
             style={{
-              borderColor: size.is_active ? 'var(--color-success)' : 'var(--color-border)',
-              color: size.is_active ? 'var(--color-success)' : 'var(--color-ink-muted)',
+              borderColor: item.is_active ? 'var(--color-success)' : 'var(--color-border)',
+              color: item.is_active ? 'var(--color-success)' : 'var(--color-ink-muted)',
             }}
           >
-            {size.is_active ? 'Active' : 'Inactive'}
+            {item.is_active ? 'Active' : 'Inactive'}
           </button>
-          {size.is_active && (
+          {item.is_active && (
             <button
               type="button"
               onClick={() => setConfirmDelete(true)}
               className="flex h-8 w-8 items-center justify-center rounded-lg transition-colors hover:bg-[color:var(--color-surface-raised)]"
               style={{ color: 'var(--color-ink-muted)' }}
-              title="Deactivate size"
-              aria-label={`Deactivate ${size.name}`}
+              title="Deactivate item"
+              aria-label={`Deactivate ${item.name}`}
             >
               <Trash size={14} />
             </button>

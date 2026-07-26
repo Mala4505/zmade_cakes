@@ -1,11 +1,15 @@
 import { notFound, redirect } from 'next/navigation'
 import { createServiceClient } from '@/lib/supabase/server'
-import { isValidUUID, formatDate, formatTime, formatKWD, formatAddress, orderSummary } from '@/lib/utils'
+import { getBusinessContactSettings } from '@/lib/supabase/business-settings'
+import { isValidToken, formatDate, formatTime, formatKWD, formatAddress, orderSummary } from '@/lib/utils'
 import ConfirmForm from './_components/ConfirmForm'
 import CustomerPhotoUpload from './_components/CustomerPhotoUpload'
 import { Navbar } from '@/components/public/Navbar'
+import { DetailRow } from '@/components/ui'
 import { BRAND_NAME } from '@/lib/brand'
+import { Info } from '@phosphor-icons/react/dist/ssr'
 import type { Metadata } from 'next'
+import type { Inquiry } from '@/lib/supabase/types'
 
 interface Props { params: Promise<{ token: string }> }
 
@@ -14,32 +18,36 @@ export const metadata: Metadata = { title: `Confirm Your Order — ${BRAND_NAME}
 export default async function ConfirmPage({ params }: Props) {
   const { token } = await params
 
-  if (!isValidUUID(token)) notFound()
+  if (!isValidToken(token)) notFound()
 
   const supabase = createServiceClient()
 
-  const [{ data: rawInquiry, error }, { data: phoneRow }, { data: igRow }] = await Promise.all([
+  const [{ data: rawInquiry, error }, { businessPhone, businessInstagram }] = await Promise.all([
     supabase
       .from('inquiries')
       .select('*, delivery_address:delivery_addresses(*)')
       .eq('confirmation_token', token)
       .single(),
-    supabase.from('business_settings').select('value').eq('key', 'business_phone').single(),
-    supabase.from('business_settings').select('value').eq('key', 'business_instagram').single(),
+    getBusinessContactSettings(),
   ])
 
   if (error || !rawInquiry) notFound()
 
-  const businessPhone = (phoneRow?.value as string) ?? ''
-  const businessInstagram = (igRow?.value as string) ?? ''
   const waNumber = businessPhone
     ? businessPhone.replace(/\D/g, '').replace(/^(?!965)/, '965')
     : ''
 
-  const inquiry = rawInquiry as any
+  const inquiry = rawInquiry as unknown as Inquiry
 
   if (inquiry.status === 'cancelled') {
-    return <StatusPage title="Order Cancelled" message="This order has been cancelled. Please contact us for details." />
+    return (
+      <StatusPage
+        title="Order Cancelled"
+        message="This order has been cancelled. Please contact us for details."
+        businessInstagram={businessInstagram}
+        waNumber={waNumber}
+      />
+    )
   }
 
   if (inquiry.customer_confirmed) {
@@ -48,9 +56,15 @@ export default async function ConfirmPage({ params }: Props) {
       .select('tracking_token')
       .eq('inquiry_id', inquiry.id)
       .single()
-    const orderData = order as any
-    if (orderData?.tracking_token) redirect(`/track/${orderData.tracking_token}`)
-    return <StatusPage title="Already Confirmed" message="Your order has been confirmed. You'll receive a tracking link from us." />
+    if (order?.tracking_token) redirect(`/track/${order.tracking_token}`)
+    return (
+      <StatusPage
+        title="Already Confirmed"
+        message="Your order has been confirmed. You'll receive a tracking link from us."
+        businessInstagram={businessInstagram}
+        waNumber={waNumber}
+      />
+    )
   }
 
   const addr = inquiry.delivery_address ?? null
@@ -66,26 +80,32 @@ export default async function ConfirmPage({ params }: Props) {
       <div className="max-w-lg mx-auto px-4 py-8 flex flex-col gap-5">
         {/* 3-step progress */}
         <div className="flex items-center gap-2 text-sm mb-6">
-          <span className="font-medium" style={{ color: 'var(--color-teal)' }}>Review</span>
+          <span className="font-medium" style={{ color: 'var(--color-ink)' }}>Review</span>
           <span style={{ color: 'var(--color-border)' }}>—</span>
           <span style={{ color: 'var(--color-ink-muted)' }}>Confirm</span>
           <span style={{ color: 'var(--color-border)' }}>—</span>
           <span style={{ color: 'var(--color-ink-muted)' }}>Track</span>
         </div>
 
-        {/* Intro */}
-        <div>
+        {/* Intro — cover band, matches the "Atelier Cover" treatment on /my-orders */}
+        <div
+          className="zm-cover-texture rounded-2xl px-5 py-6"
+          style={{ backgroundColor: 'var(--color-surface-raised)', border: '1px solid var(--color-border)' }}
+        >
+          <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--color-teal-deep)' }}>
+            Review &amp; Confirm
+          </p>
           <h1
-            className="text-3xl font-bold leading-tight"
+            className="text-2xl font-bold leading-tight mt-1.5"
             style={{ fontFamily: 'var(--font-display)', color: 'var(--color-ink)' }}
           >
             Hi {inquiry.customer_name.split(' ')[0]},
           </h1>
-          <p className="text-lg font-medium mt-1" style={{ fontFamily: 'var(--font-display)', color: 'var(--color-ink-secondary)' }}>
+          <p className="text-lg font-medium mt-0.5" style={{ fontFamily: 'var(--font-display)', color: 'var(--color-ink-secondary)' }}>
             your bespoke cake is ready to confirm.
           </p>
-          <p className="text-sm mt-3" style={{ color: 'var(--color-ink-muted)' }}>
-            Review the details below — this is exactly what we've noted for your order. Confirm when you're happy, or message us directly if anything needs changing.
+          <p className="text-sm mt-2.5" style={{ color: 'var(--color-ink-muted)' }}>
+            Review the details below — this is exactly what we&apos;ve noted for your order. Confirm when you&apos;re happy, or message us directly if anything needs changing.
           </p>
         </div>
 
@@ -94,11 +114,13 @@ export default async function ConfirmPage({ params }: Props) {
           className="rounded-2xl border overflow-hidden"
           style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
         >
-          {/* Highlighted header — the cake itself and every selection made for it */}
-          <div className="p-5" style={{ backgroundColor: 'var(--color-teal-light)' }}>
+          {/* Highlighted header — the cake itself and every selection made for it.
+              Kept neutral so the Confirm Order button stays the one teal moment
+              on this screen. */}
+          <div className="p-5" style={{ backgroundColor: 'var(--color-surface-raised)' }}>
             <h2
               className="text-xs font-semibold uppercase tracking-widest"
-              style={{ color: 'var(--color-teal-deep)' }}
+              style={{ color: 'var(--color-ink-muted)' }}
             >
               Your Bespoke Order
             </h2>
@@ -123,16 +145,16 @@ export default async function ConfirmPage({ params }: Props) {
           </div>
 
           <div className="p-5 flex flex-col gap-2.5">
-            <SummaryRow label="Event Date" value={formatDate(inquiry.event_date)} mono />
+            <DetailRow label="Event Date" value={formatDate(inquiry.event_date)} mono />
             {inquiry.pickup_time && (
-              <SummaryRow label="Time" value={formatTime(inquiry.pickup_time)} mono />
+              <DetailRow label="Time" value={formatTime(inquiry.pickup_time)} mono />
             )}
-            <SummaryRow
+            <DetailRow
               label="Delivery"
               value={inquiry.delivery_type === 'delivery' ? 'Delivery to your address' : 'Pickup from us'}
             />
             {inquiry.delivery_type === 'delivery' && addr && (
-              <SummaryRow label="Address" value={formatAddress(addr)} />
+              <DetailRow label="Address" value={formatAddress(addr)} />
             )}
             {inquiry.admin_price && (
               <div className="pt-2 border-t" style={{ borderColor: 'var(--color-border)' }}>
@@ -142,7 +164,7 @@ export default async function ConfirmPage({ params }: Props) {
                   </span>
                   <span
                     className="text-lg font-bold"
-                    style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-teal)' }}
+                    style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-ink)' }}
                   >
                     {formatKWD(inquiry.admin_price)}
                   </span>
@@ -150,7 +172,7 @@ export default async function ConfirmPage({ params }: Props) {
                 {inquiry.deposit_amount && (
                   <p className="text-xs mt-1" style={{ color: 'var(--color-ink-muted)' }}>
                     Security Deposit: {formatKWD(inquiry.deposit_amount)}
-                    {inquiry.payment_method === 'wamd' ? ' via WAMD' : ' cash'}
+                    {inquiry.payment_method === 'wamd' ? ' via WAMD (bank transfer by phone number)' : ' cash'}
                   </p>
                 )}
               </div>
@@ -162,26 +184,28 @@ export default async function ConfirmPage({ params }: Props) {
         {(inquiry.allergen_nut_free || inquiry.allergen_dairy_free || inquiry.allergen_egg_free || inquiry.allergen_raw_sugar || inquiry.allergen_other) && (
           <section
             className="rounded-2xl border p-4"
-            style={{ borderColor: 'var(--color-danger)', backgroundColor: 'var(--color-danger-light)' }}
+            style={{ borderColor: 'var(--color-warning)', backgroundColor: 'var(--color-warning-light)' }}
           >
-            <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: 'var(--color-danger)' }}>
-              Dietary Requirements
+            <p className="flex items-center gap-1.5 text-sm font-semibold mb-3" style={{ color: 'var(--color-warning)' }}>
+              <Info size={15} weight="bold" />
+              Dietary requirements
             </p>
             <div className="flex flex-wrap gap-2">
               {inquiry.allergen_nut_free && <AllergenPill label="Nut-free" />}
               {inquiry.allergen_dairy_free && <AllergenPill label="Dairy-free" />}
               {inquiry.allergen_egg_free && <AllergenPill label="Egg-free" />}
-              {inquiry.allergen_raw_sugar && <AllergenPill label="Raw sugar" />}
+              {inquiry.allergen_raw_sugar && <AllergenPill label="Raw sugar (no refined sugar)" />}
               {inquiry.allergen_other && (
                 <span
+                  dir="auto"
                   className="text-xs font-medium px-3 py-1.5 rounded-full"
-                  style={{ backgroundColor: 'var(--color-warning-light)', color: 'var(--color-warning)', border: '1px solid var(--color-warning)' }}
+                  style={{ backgroundColor: 'var(--color-surface)', color: 'var(--color-warning)', border: '1px solid var(--color-warning)' }}
                 >
                   {inquiry.allergen_other}
                 </span>
               )}
             </div>
-            <p className="text-xs mt-3" style={{ color: 'var(--color-danger)' }}>
+            <p className="text-xs mt-3" style={{ color: 'var(--color-ink-secondary)' }}>
               These requirements will be confirmed with us before your cake is prepared.
             </p>
           </section>
@@ -191,73 +215,41 @@ export default async function ConfirmPage({ params }: Props) {
         <CustomerPhotoUpload token={token} />
 
         {/* Confirmation form */}
-        <ConfirmForm
-          token={token}
-          inquiryId={inquiry.id}
-          deliveryType={inquiry.delivery_type}
-          currentPickupTime={inquiry.pickup_time}
-          currentMessageOnCake={inquiry.message_on_cake}
-          currentSpecialRequirements={inquiry.special_requirements}
-          existingAddress={addr}
-        />
-      </div>
-
-      {/* Footer */}
-      <footer className="text-center py-6 px-4 flex flex-col items-center gap-3">
-        <p className="text-xs" style={{ color: 'var(--color-ink-muted)' }}>
-          Need to make a change? Message us on WhatsApp before confirming.
-        </p>
-        {waNumber && (
-          <a
-            href={`https://wa.me/${waNumber}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 text-xs font-medium"
-            style={{ color: 'var(--color-teal)' }}
+        {inquiry.admin_price ? (
+          <ConfirmForm
+            token={token}
+            inquiryId={inquiry.id}
+            deliveryType={inquiry.delivery_type}
+            currentPickupTime={inquiry.pickup_time}
+            currentMessageOnCake={inquiry.message_on_cake}
+            currentSpecialRequirements={inquiry.special_requirements}
+            existingAddress={addr}
+            waNumber={waNumber}
+          />
+        ) : (
+          <section
+            className="rounded-2xl border p-5"
+            style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
           >
-            Message us →
-          </a>
+            <p className="text-sm font-medium" style={{ color: 'var(--color-ink)' }}>
+              Price pending — we'll send you an updated link once your quote is ready.
+            </p>
+          </section>
         )}
-      </footer>
+      </div>
     </main>
-  )
-}
-
-function SummaryRow({
-  label,
-  value,
-  mono,
-}: {
-  label: string
-  value: string
-  mono?: boolean
-}) {
-  return (
-    <div className="flex items-start justify-between gap-4">
-      <span className="text-xs pt-0.5 shrink-0" style={{ color: 'var(--color-ink-muted)' }}>
-        {label}
-      </span>
-      <span
-        className="text-sm text-right"
-        style={{
-          color: 'var(--color-ink-secondary)',
-          fontFamily: mono ? 'var(--font-mono)' : undefined,
-        }}
-      >
-        {value}
-      </span>
-    </div>
   )
 }
 
 function SelectionPill({ label }: { label: string }) {
   return (
     <span
+      dir="auto"
       className="text-xs font-medium px-3 py-1.5 rounded-full"
       style={{
         backgroundColor: 'var(--color-surface)',
-        color: 'var(--color-teal-deep)',
-        border: '1px solid var(--color-teal)',
+        color: 'var(--color-ink-secondary)',
+        border: '1px solid var(--color-border-strong)',
       }}
     >
       {label}
@@ -268,29 +260,54 @@ function SelectionPill({ label }: { label: string }) {
 function AllergenPill({ label }: { label: string }) {
   return (
     <span
-      className="text-xs font-bold px-3 py-1.5 rounded-full uppercase tracking-wide"
-      style={{ backgroundColor: 'var(--color-danger)', color: '#fff' }}
+      className="text-xs font-medium px-3 py-1.5 rounded-full"
+      style={{ backgroundColor: 'var(--color-surface)', color: 'var(--color-warning)', border: '1px solid var(--color-warning)' }}
     >
       {label}
     </span>
   )
 }
 
-function StatusPage({ title, message }: { title: string; message: string }) {
+function StatusPage({
+  title,
+  message,
+  businessInstagram,
+  waNumber,
+}: {
+  title: string
+  message: string
+  businessInstagram: string
+  waNumber: string
+}) {
   return (
     <main
-      className="min-h-svh flex flex-col items-center justify-center px-5 text-center"
+      className="min-h-svh"
       style={{ backgroundColor: 'var(--color-cream)' }}
     >
-      <p
-        className="text-xl font-bold mb-2"
-        style={{ fontFamily: 'var(--font-display)', color: 'var(--color-ink)' }}
-      >
-        {title}
-      </p>
-      <p className="text-sm max-w-xs" style={{ color: 'var(--color-ink-muted)' }}>
-        {message}
-      </p>
+      <Navbar businessInstagram={businessInstagram} />
+
+      <div className="flex flex-col items-center justify-center px-5 py-16 text-center gap-3">
+        <p
+          className="text-xl font-bold"
+          style={{ fontFamily: 'var(--font-display)', color: 'var(--color-ink)' }}
+        >
+          {title}
+        </p>
+        <p className="text-sm max-w-xs" style={{ color: 'var(--color-ink-muted)' }}>
+          {message}
+        </p>
+        {waNumber && (
+          <a
+            href={`https://wa.me/${waNumber}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 text-xs font-medium mt-2"
+            style={{ color: 'var(--color-ink-secondary)' }}
+          >
+            Message us →
+          </a>
+        )}
+      </div>
     </main>
   )
 }

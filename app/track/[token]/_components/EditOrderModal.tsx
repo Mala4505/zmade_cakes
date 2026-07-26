@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { PencilSimple, WhatsappLogo } from '@phosphor-icons/react'
 import { Modal } from '@/components/ui/Modal'
+import { Button } from '@/components/ui/Button'
 import { whatsappUrl } from '@/lib/whatsapp'
 
 interface EditOrderModalProps {
@@ -29,7 +30,7 @@ export function EditOrderModal({ businessPhone, cakeSummary, eventDate }: EditOr
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="inline-flex items-center gap-1 text-xs font-medium shrink-0"
+        className="inline-flex items-center gap-1 text-xs font-medium shrink-0 min-h-11 px-2 -mx-2 -my-2"
         style={{ color: 'var(--color-teal)' }}
       >
         <PencilSimple size={13} weight="bold" />
@@ -51,17 +52,16 @@ export function EditOrderModal({ businessPhone, cakeSummary, eventDate }: EditOr
             >
               Cancel
             </button>
-            <a
+            <Button
               href={href}
-              target="_blank"
-              rel="noopener noreferrer"
               onClick={() => setOpen(false)}
-              className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium"
-              style={{ backgroundColor: '#25D366', color: '#fff' }}
+              variant="primary"
+              size="md"
+              className="px-5"
             >
               <WhatsappLogo size={16} weight="fill" />
               Continue to WhatsApp
-            </a>
+            </Button>
           </>
         }
       >

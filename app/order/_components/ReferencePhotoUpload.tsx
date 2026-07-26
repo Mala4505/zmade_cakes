@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { Plus, Image as ImageIcon, X } from 'lucide-react'
+import { PhotoThumb, AddPhotoTile } from '@/components/PhotoTile'
 
 export interface ReferenceImage {
   url_original: string
@@ -21,26 +21,60 @@ export default function ReferencePhotoUpload({ images, onChange, max = 6 }: Prop
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setUploading(true)
-    setError(null)
-    try {
-      const fd = new FormData()
-      fd.append('file', file)
-      const res = await fetch('/api/upload/order', { method: 'POST', body: fd })
-      const json = await res.json()
-      if (res.ok) {
-        onChange([...images, { url_original: json.url_original, url_medium: json.url_medium, url_thumb: json.url_thumb }])
-      } else {
-        setError(json.error ?? 'Upload failed. Please try again.')
-      }
-    } catch {
-      setError('Upload failed. Please check your connection.')
-    } finally {
-      setUploading(false)
+    const selected = Array.from(e.target.files ?? [])
+    if (selected.length === 0) return
+
+    const remaining = max - images.length
+    const filesToUpload = selected.slice(0, remaining)
+    const overflow = selected.length - filesToUpload.length
+    const overflowMessage = `Only ${remaining} more photo${remaining === 1 ? '' : 's'} can be added`
+
+    if (filesToUpload.length === 0) {
+      setError(overflowMessage)
       if (fileInputRef.current) fileInputRef.current.value = ''
+      return
     }
+
+    setUploading(true)
+    setError(overflow > 0 ? overflowMessage : null)
+
+    // Track the running list locally so each upload's result can be merged in
+    // as soon as it resolves, without waiting on (or being blocked by) the others.
+    let current = images
+    let lastError: string | null = null
+
+    await Promise.all(
+      filesToUpload.map(async (file) => {
+        try {
+          const fd = new FormData()
+          fd.append('file', file)
+          const res = await fetch('/api/upload/order', { method: 'POST', body: fd })
+          const json = await res.json()
+          if (res.ok) {
+            const uploaded: ReferenceImage = {
+              url_original: json.url_original,
+              url_medium: json.url_medium,
+              url_thumb: json.url_thumb,
+            }
+            current = [...current, uploaded]
+            onChange(current)
+          } else {
+            lastError = json.error ?? 'Upload failed. Please try again.'
+          }
+        } catch {
+          lastError = 'Upload failed. Please check your connection.'
+        }
+      })
+    )
+
+    if (lastError) {
+      setError(lastError)
+    } else if (overflow > 0) {
+      setError(overflowMessage)
+    }
+
+    setUploading(false)
+    if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
   const handleRemove = (index: number) => {
@@ -51,52 +85,21 @@ export default function ReferencePhotoUpload({ images, onChange, max = 6 }: Prop
     <div>
       <div className="flex flex-wrap gap-2">
         {images.map((img, i) => (
-          <div
+          <PhotoThumb
             key={img.url_thumb}
-            className="relative rounded-xl overflow-hidden border"
-            style={{ width: 72, height: 72, flexShrink: 0, borderColor: 'var(--color-border)' }}
-          >
-            <img src={img.url_thumb} alt={`Reference photo ${i + 1}`} className="w-full h-full object-cover" />
-            <button
-              type="button"
-              onClick={() => handleRemove(i)}
-              aria-label={`Remove reference photo ${i + 1}`}
-              className="absolute top-1 right-1 w-5 h-5 rounded-full flex items-center justify-center"
-              style={{ backgroundColor: 'rgba(0,0,0,0.6)', color: '#fff' }}
-            >
-              <X size={12} />
-            </button>
-          </div>
+            src={img.url_thumb}
+            alt={`Reference photo ${i + 1}`}
+            removeLabel={`Remove reference photo ${i + 1}`}
+            onRemove={() => handleRemove(i)}
+          />
         ))}
 
         {images.length < max && (
-          <button
-            type="button"
+          <AddPhotoTile
             onClick={() => fileInputRef.current?.click()}
-            disabled={uploading}
-            className="rounded-xl border-2 border-dashed flex flex-col items-center justify-center gap-1 transition-opacity"
-            style={{
-              width: 72,
-              height: 72,
-              flexShrink: 0,
-              borderColor: 'var(--color-border)',
-              color: 'var(--color-ink-muted)',
-              opacity: uploading ? 0.6 : 1,
-              cursor: uploading ? 'not-allowed' : 'pointer',
-            }}
-            aria-label="Add reference photo"
-          >
-            {uploading ? (
-              <span className="text-[10px] text-center px-1">Uploading…</span>
-            ) : images.length === 0 ? (
-              <>
-                <ImageIcon size={16} />
-                <span className="text-[10px] text-center">Add photo</span>
-              </>
-            ) : (
-              <Plus size={16} />
-            )}
-          </button>
+            uploading={uploading}
+            hasPhotos={images.length > 0}
+          />
         )}
       </div>
 
@@ -110,6 +113,7 @@ export default function ReferencePhotoUpload({ images, onChange, max = 6 }: Prop
         ref={fileInputRef}
         type="file"
         accept="image/jpeg,image/png,image/webp,image/heic"
+        multiple
         className="hidden"
         onChange={handleFileChange}
       />

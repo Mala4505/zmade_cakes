@@ -2,12 +2,16 @@
 import { useState, useEffect, Suspense } from 'react'
 import Link from 'next/link'
 import { useSearchParams, useRouter } from 'next/navigation'
+import { motion, useReducedMotion } from 'framer-motion'
 import PhoneInput from '@/components/PhoneInput'
+import { Button, CakeLoader } from '@/components/ui'
+import { Truck, Receipt } from '@phosphor-icons/react'
 import { Navbar } from '@/components/public/Navbar'
 import { appUrl } from '@/lib/links'
+import { EASE_OUT_QUART, holdMinimumVisible } from '@/lib/motion'
 import { KUWAIT_PHONE_REGEX } from '@/lib/validations/inquiry'
 import { StatusBadge } from '@/components/admin/StatusBadge'
-import { orderSummary } from '@/lib/utils'
+import { orderSummary, formatKWD } from '@/lib/utils'
 import type { InquiryStatus, OrderStatus } from '@/lib/supabase/types'
 
 interface OrderResult {
@@ -59,6 +63,7 @@ function MyOrdersContent({ businessPhone, businessInstagram }: Props) {
   const [portalToken, setPortalToken] = useState<string | null>(null)
   const [tokenMode, setTokenMode] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [customerName, setCustomerName] = useState<string | null>(null)
 
   useEffect(() => {
     const token = searchParams.get('token')
@@ -69,25 +74,29 @@ function MyOrdersContent({ businessPhone, businessInstagram }: Props) {
     setLoading(true)
     setError(null)
     setPortalToken(null)
+    const startedAt = Date.now()
 
     fetch(`/api/my-orders?token=${encodeURIComponent(token)}`, { signal: controller.signal })
       .then(async (res) => {
         if (!res.ok) {
+          // Errors surface immediately — never held back to let the loader finish.
           const body = await res.json().catch(() => ({}))
           setError(body?.error ?? 'Something went wrong. Please try again.')
           setTokenMode(false)
+          setLoading(false)
           return
         }
         const data = await res.json()
+        await holdMinimumVisible(startedAt, 1400)
         setOrders(data.orders ?? [])
+        setCustomerName(data.customer_name ?? null)
         setSearched(true)
+        setLoading(false)
       })
       .catch((err: unknown) => {
         if (err instanceof Error && err.name === 'AbortError') return
         setError('Could not connect. Please check your connection and try again.')
         setTokenMode(false)
-      })
-      .finally(() => {
         setLoading(false)
       })
 
@@ -128,6 +137,7 @@ function MyOrdersContent({ businessPhone, businessInstagram }: Props) {
       const data = await res.json()
       setOrders(data.orders ?? [])
       setPortalToken(data.portal_token ?? null)
+      setCustomerName(data.customer_name ?? null)
       setSearched(true)
     } catch {
       setError('Could not connect. Please check your connection and try again.')
@@ -141,6 +151,7 @@ function MyOrdersContent({ businessPhone, businessInstagram }: Props) {
     setSearched(false)
     setTokenMode(false)
     setPortalToken(null)
+    setCustomerName(null)
     setError(null)
     setLoading(false)
     router.replace('/my-orders')
@@ -153,21 +164,34 @@ function MyOrdersContent({ businessPhone, businessInstagram }: Props) {
       .catch(() => { setError('Could not copy link. Please copy it manually.') })
   }
 
+  const reduceMotion = useReducedMotion()
+
   return (
     <main className="min-h-svh" style={{ backgroundColor: 'var(--color-cream)' }}>
       <Navbar businessInstagram={businessInstagram} />
 
       <div className="max-w-lg mx-auto px-4 py-8 flex flex-col gap-6">
-        {/* Title */}
-        <div>
-          <h1
-            className="text-3xl font-bold leading-tight"
-            style={{ fontFamily: 'var(--font-display)', color: 'var(--color-ink)' }}
+        {/* Cover — introduces the page like a chapter opener rather than a plain title */}
+        <div
+          className="zm-cover-texture rounded-2xl px-5 py-6"
+          style={{ backgroundColor: 'var(--color-surface-raised)', border: '1px solid var(--color-border)' }}
+        >
+          <p
+            className="text-xs font-semibold uppercase tracking-widest"
+            style={{ color: 'var(--color-teal-deep)' }}
           >
             Your Orders
+          </p>
+          <h1
+            className="text-3xl font-bold leading-tight mt-1.5"
+            style={{ fontFamily: 'var(--font-display)', color: 'var(--color-ink)' }}
+          >
+            {customerName ? `Hi, ${customerName.split(' ')[0]}` : 'Find Your Orders'}
           </h1>
-          <p className="text-sm mt-1" style={{ color: 'var(--color-ink-muted)' }}>
-            Enter your name and phone number to view your cake orders
+          <p className="text-sm mt-2" style={{ color: 'var(--color-ink-secondary)' }}>
+            {customerName
+              ? "Everything you've asked us to bake."
+              : 'Enter your name and phone number below to find them.'}
           </p>
         </div>
 
@@ -197,7 +221,7 @@ function MyOrdersContent({ businessPhone, businessInstagram }: Props) {
                 placeholder="As you gave when ordering"
                 aria-invalid={fieldErrors.name ? true : undefined}
                 aria-describedby={fieldErrors.name ? 'customer-name-error' : undefined}
-                className="rounded-lg border px-3 py-2 text-sm w-full outline-none transition-all"
+                className="rounded-lg border px-3 py-2 text-base w-full outline-none transition-all"
                 style={{
                   borderColor: fieldErrors.name ? 'var(--color-danger)' : 'var(--color-border)',
                   backgroundColor: 'var(--color-surface)',
@@ -234,18 +258,11 @@ function MyOrdersContent({ businessPhone, businessInstagram }: Props) {
                   className="flex-1"
                   aria-invalid={fieldErrors.phone ? true : undefined}
                   aria-describedby={fieldErrors.phone ? 'customer-phone-error' : undefined}
+                  size="base"
                 />
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="px-4 py-2 rounded-lg text-sm font-medium shrink-0 transition-opacity disabled:opacity-60"
-                  style={{
-                    backgroundColor: 'var(--color-teal)',
-                    color: 'var(--color-cream)',
-                  }}
-                >
+                <Button type="submit" loading={loading} className="shrink-0">
                   {loading ? 'Searching…' : 'Search'}
-                </button>
+                </Button>
               </div>
               {fieldErrors.phone && (
                 <p id="customer-phone-error" className="text-xs" style={{ color: 'var(--color-danger)' }}>
@@ -263,11 +280,11 @@ function MyOrdersContent({ businessPhone, businessInstagram }: Props) {
           </p>
         )}
 
-        {/* Loading indicator */}
-        {loading && (
-          <p className="text-sm text-center" style={{ color: 'var(--color-ink-muted)' }}>
-            Searching…
-          </p>
+        {/* Loading indicator — only for the tokenMode auto-lookup (no form/button
+            visible in that case); the name+phone search already shows its own
+            spinner on the Search button, so this would otherwise double up. */}
+        {loading && tokenMode && (
+          <CakeLoader size={88} label="Finding your orders…" className="py-4" />
         )}
 
         {/* Empty state */}
@@ -309,58 +326,77 @@ function MyOrdersContent({ businessPhone, businessInstagram }: Props) {
         {/* Results */}
         {!loading && orders.length > 0 && (
           <div className="flex flex-col gap-3">
-            {orders.map((item) => (
-              <div
+            <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--color-ink-muted)' }}>
+              {orders.length} {orders.length === 1 ? 'Order' : 'Orders'}
+            </p>
+            {orders.map((item, index) => (
+              <motion.div
                 key={item.id}
-                className="rounded-2xl border p-5 flex flex-col gap-3"
-                style={{
-                  borderColor: 'var(--color-border)',
-                  backgroundColor: 'var(--color-surface)',
-                }}
+                className="zm-ticket"
+                initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 10, scale: 0.97 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                transition={{ duration: reduceMotion ? 0 : 0.32, delay: reduceMotion ? 0 : index * 0.06, ease: EASE_OUT_QUART }}
               >
                 {/* Headline + badge */}
                 <div className="flex items-start justify-between gap-2">
-                  <p className="text-sm font-semibold" style={{ color: 'var(--color-ink)' }}>
-                    {orderSummary(item)}
-                  </p>
+                  <div>
+                    <p className="text-sm font-semibold" style={{ fontFamily: 'var(--font-display)', color: 'var(--color-ink)' }}>
+                      {orderSummary(item)}
+                    </p>
+                    {item.occasion && (
+                      <p className="text-xs mt-0.5" style={{ color: 'var(--color-ink-muted)' }}>
+                        {item.occasion}
+                      </p>
+                    )}
+                  </div>
                   <StatusBadge
                     status={(item.order?.status ?? item.status) as OrderStatus | InquiryStatus}
                     context="customer"
                   />
                 </div>
 
-                {/* Meta */}
-                <div className="flex flex-col gap-1">
-                  {item.occasion && (
-                    <p className="text-xs" style={{ color: 'var(--color-ink-secondary)' }}>
-                      {item.occasion}
-                    </p>
-                  )}
-                  <p className="text-xs" style={{ color: 'var(--color-ink-muted)' }}>
-                    Event: {formatEventDate(item.event_date)}
-                  </p>
+                <div className="zm-ticket-perf" />
+
+                {/* Meta grid */}
+                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
+                  <div>
+                    <span className="block" style={{ color: 'var(--color-ink-muted)' }}>Event</span>
+                    <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-ink-secondary)' }}>
+                      {formatEventDate(item.event_date)}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="block" style={{ color: 'var(--color-ink-muted)' }}>Total</span>
+                    {item.order?.final_price ? (
+                      <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--color-ink)' }}>
+                        {formatKWD(item.order.final_price)}
+                      </span>
+                    ) : (
+                      <span style={{ color: 'var(--color-ink-muted)' }}>Price pending</span>
+                    )}
+                  </div>
                 </div>
 
                 {/* Order links */}
                 {item.order?.tracking_token && (
-                  <div className="flex gap-3 pt-1 border-t" style={{ borderColor: 'var(--color-border)' }}>
+                  <div className="flex gap-2 mt-3">
                     <Link
                       href={`/track/${item.order.tracking_token}`}
-                      className="text-xs font-medium"
-                      style={{ color: 'var(--color-teal)' }}
+                      className="flex-1 flex items-center justify-center gap-1.5 min-h-11 px-3 py-2 rounded-lg text-xs font-medium border border-transparent transition-colors bg-[var(--color-surface-raised)] text-[var(--color-ink-secondary)] hover:border-[var(--color-border-strong)]"
                     >
-                      Track Order →
+                      <Truck size={14} weight="bold" />
+                      Track Order
                     </Link>
                     <Link
                       href={`/invoice/${item.order.tracking_token}`}
-                      className="text-xs font-medium"
-                      style={{ color: 'var(--color-ink-secondary)' }}
+                      className="flex-1 flex items-center justify-center gap-1.5 min-h-11 px-3 py-2 rounded-lg text-xs font-medium transition-colors bg-transparent text-[var(--color-ink-secondary)] hover:bg-[var(--color-surface-raised)]"
                     >
-                      View Invoice →
+                      <Receipt size={14} weight="bold" />
+                      View Invoice
                     </Link>
                   </div>
                 )}
-              </div>
+              </motion.div>
             ))}
           </div>
         )}

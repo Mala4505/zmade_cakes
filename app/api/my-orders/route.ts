@@ -95,8 +95,11 @@ export async function GET(request: NextRequest) {
     const customerId = verifyPortalToken(token)
     if (!customerId) return NextResponse.json({ orders: [] })
     const supabase = createServiceClient()
-    const orders = await fetchOrdersForCustomer(supabase, customerId)
-    return NextResponse.json({ orders })
+    const [orders, { data: customerRow }] = await Promise.all([
+      fetchOrdersForCustomer(supabase, customerId),
+      supabase.from('customers').select('name').eq('id', customerId).maybeSingle() as unknown as Promise<{ data: { name: string } | null }>,
+    ])
+    return NextResponse.json({ orders, customer_name: customerRow?.name ?? null })
   }
 
   // Mode B — name + phone lookup
@@ -154,5 +157,5 @@ export async function GET(request: NextRequest) {
   const orders = await fetchOrdersForCustomer(supabase, customer.id)
   const portal_token = generatePortalToken(customer.id)
 
-  return NextResponse.json({ orders, portal_token })
+  return NextResponse.json({ orders, portal_token, customer_name: customer.name })
 }

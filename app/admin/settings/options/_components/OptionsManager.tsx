@@ -70,9 +70,9 @@ export default function OptionsManager({ optionTypes, activeType, options }: Pro
 
   return (
     <div>
-      {/* Type tabs */}
+      {/* Type tabs — hidden when only one type is managed here */}
       <div
-        className="flex gap-1 overflow-x-auto pb-1 mb-6 -mx-1 px-1"
+        className={cn('gap-1 overflow-x-auto pb-1 mb-6 -mx-1 px-1', optionTypes.length > 1 ? 'flex' : 'hidden')}
         style={{ scrollbarWidth: 'none' }}
       >
         {optionTypes.map(({ type, label }) => {

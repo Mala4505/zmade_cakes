@@ -1,23 +1,14 @@
 import { Skeleton } from '@/components/ui'
-import { BRAND_NAME } from '@/lib/brand'
+import { Navbar } from '@/components/public/Navbar'
 
-/** Mirrors the confirmation page: branded header band, progress row,
- *  order summary card, and the confirm action. */
+/** Mirrors the confirmation page: left-aligned Navbar, progress row, intro
+ *  greeting, the teal-wash order summary hero, and the confirm action.
+ *  Shape must match `page.tsx` exactly so there's no layout jump when the
+ *  real content mounts. */
 export default function ConfirmLoading() {
   return (
     <main className="min-h-svh" style={{ backgroundColor: 'var(--color-cream)' }}>
-      {/* Static branded header (matches the real page) */}
-      <header
-        className="border-b px-5 py-5 text-center"
-        style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
-      >
-        <p
-          className="text-2xl font-bold tracking-tight"
-          style={{ fontFamily: 'var(--font-display)', color: 'var(--color-teal)' }}
-        >
-          {BRAND_NAME}
-        </p>
-      </header>
+      <Navbar />
 
       <div className="max-w-lg mx-auto px-4 py-8 flex flex-col gap-5">
         {/* Progress row */}
@@ -29,18 +20,43 @@ export default function ConfirmLoading() {
           <Skeleton className="h-3.5 w-14" />
         </div>
 
-        {/* Order summary card */}
-        <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 flex flex-col gap-3">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="flex items-center justify-between">
-              <Skeleton className="h-3 w-24" />
-              <Skeleton className="h-3.5 w-32" />
+        {/* Intro greeting */}
+        <div className="flex flex-col gap-2">
+          <Skeleton className="h-8 w-40" />
+          <Skeleton className="h-6 w-64" />
+          <Skeleton className="h-3.5 w-full mt-1" />
+          <Skeleton className="h-3.5 w-5/6" />
+        </div>
+
+        {/* Order summary: teal-wash hero + detail rows (matches the real
+            highlighted header block over `--color-teal-light`) */}
+        <div
+          className="rounded-2xl border overflow-hidden"
+          style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
+        >
+          <div className="p-5" style={{ backgroundColor: 'var(--color-teal-light)' }}>
+            <Skeleton className="h-3 w-32 mb-3" style={{ backgroundColor: 'rgba(0, 104, 96, 0.16)' }} />
+            <Skeleton className="h-7 w-52" style={{ backgroundColor: 'rgba(0, 104, 96, 0.16)' }} />
+            <div className="flex flex-wrap gap-1.5 mt-3">
+              <Skeleton className="h-6 w-20 rounded-full" style={{ backgroundColor: 'rgba(0, 104, 96, 0.16)' }} />
+              <Skeleton className="h-6 w-16 rounded-full" style={{ backgroundColor: 'rgba(0, 104, 96, 0.16)' }} />
             </div>
-          ))}
+          </div>
+          <div className="p-5 flex flex-col gap-3">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="flex items-center justify-between">
+                <Skeleton className="h-3 w-24" />
+                <Skeleton className="h-3.5 w-32" />
+              </div>
+            ))}
+          </div>
         </div>
 
         {/* Delivery details card */}
-        <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 flex flex-col gap-3">
+        <div
+          className="rounded-2xl border p-5 flex flex-col gap-3"
+          style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
+        >
           {Array.from({ length: 3 }).map((_, i) => (
             <div key={i} className="flex items-center justify-between">
               <Skeleton className="h-3 w-20" />

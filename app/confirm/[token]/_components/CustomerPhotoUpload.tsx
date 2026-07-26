@@ -1,42 +1,86 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { Plus, Image as ImageIcon } from '@phosphor-icons/react'
+import { PhotoThumb, AddPhotoTile } from '@/components/PhotoTile'
 
 interface Props {
   token: string
 }
 
+interface UploadedPhoto {
+  id: string
+  thumb: string
+}
+
+const MAX_PHOTOS = 6
+
 export default function CustomerPhotoUpload({ token }: Props) {
-  const [uploadedThumbs, setUploadedThumbs] = useState<string[]>([])
+  const [photos, setPhotos] = useState<UploadedPhoto[]>([])
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [removingId, setRemovingId] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  const uploadOne = async (file: File) => {
+    const fd = new FormData()
+    fd.append('file', file)
+    fd.append('confirmation_token', token)
+    const res = await fetch('/api/upload/public', { method: 'POST', body: fd })
+    if (res.ok) {
+      const json = await res.json()
+      if (json.id && json.thumb) {
+        setPhotos((prev) => [...prev, { id: json.id, thumb: json.thumb }])
+      }
+    } else {
+      const json = await res.json().catch(() => ({}))
+      setError(json.error ?? 'Upload failed. Please try again.')
+    }
+  }
+
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
+    const files = Array.from(e.target.files ?? [])
+    if (files.length === 0) return
+
+    const remaining = MAX_PHOTOS - photos.length
+    const toUpload = files.slice(0, remaining)
+    if (files.length > remaining) {
+      setError(`You can add up to ${MAX_PHOTOS} photos.`)
+    } else {
+      setError(null)
+    }
+
     setUploading(true)
-    setError(null)
     try {
-      const fd = new FormData()
-      fd.append('file', file)
-      fd.append('confirmation_token', token)
-      const res = await fetch('/api/upload/public', { method: 'POST', body: fd })
-      if (res.ok) {
-        const json = await res.json()
-        if (json.thumb) {
-          setUploadedThumbs((prev) => [...prev, json.thumb])
-        }
-      } else {
-        const json = await res.json().catch(() => ({}))
-        setError(json.error ?? 'Upload failed. Please try again.')
+      for (const file of toUpload) {
+        await uploadOne(file)
       }
     } catch {
       setError('Upload failed. Please check your connection.')
     } finally {
       setUploading(false)
       if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  const handleRemove = async (photo: UploadedPhoto) => {
+    setRemovingId(photo.id)
+    setError(null)
+    try {
+      const res = await fetch('/api/upload/public', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: photo.id, confirmation_token: token }),
+      })
+      if (res.ok) {
+        setPhotos((prev) => prev.filter((p) => p.id !== photo.id))
+      } else {
+        const json = await res.json().catch(() => ({}))
+        setError(json.error ?? 'Could not remove photo. Please try again.')
+      }
+    } catch {
+      setError('Could not remove photo. Please check your connection.')
+    } finally {
+      setRemovingId(null)
     }
   }
 
@@ -56,46 +100,25 @@ export default function CustomerPhotoUpload({ token }: Props) {
       </p>
 
       <div className="flex flex-wrap gap-2">
-        {uploadedThumbs.map((thumb, i) => (
-          <div
-            key={i}
-            className="rounded-xl overflow-hidden border"
-            style={{ width: 80, height: 80, flexShrink: 0, borderColor: 'var(--color-border)' }}
-          >
-            <img src={thumb} alt={`Reference photo ${i + 1}`} className="w-full h-full object-cover" />
-          </div>
+        {photos.map((photo, i) => (
+          <PhotoThumb
+            key={photo.id}
+            src={photo.thumb}
+            alt={`Reference photo ${i + 1}`}
+            removeLabel={`Remove reference photo ${i + 1}`}
+            onRemove={() => handleRemove(photo)}
+            removing={removingId === photo.id}
+          />
         ))}
 
-        <button
-          type="button"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={uploading}
-          className="rounded-xl border-2 border-dashed flex flex-col items-center justify-center gap-1 transition-opacity"
-          style={{
-            width: 80,
-            height: 80,
-            flexShrink: 0,
-            borderColor: 'var(--color-border)',
-            color: 'var(--color-ink-muted)',
-            opacity: uploading ? 0.6 : 1,
-            cursor: uploading ? 'not-allowed' : 'pointer',
-          }}
-          aria-label="Add reference photo"
-        >
-          {uploading ? (
-            <span className="text-[10px] text-center px-1">Uploading…</span>
-          ) : uploadedThumbs.length === 0 ? (
-            <>
-              <ImageIcon size={18} />
-              <span className="text-[10px] text-center">Add photo</span>
-            </>
-          ) : (
-            <>
-              <Plus size={18} />
-              <span className="text-[10px] text-center">Add more</span>
-            </>
-          )}
-        </button>
+        {photos.length < MAX_PHOTOS && (
+          <AddPhotoTile
+            onClick={() => fileInputRef.current?.click()}
+            uploading={uploading}
+            hasPhotos={photos.length > 0}
+            addMoreLabel="Add more"
+          />
+        )}
       </div>
 
       {error && (
@@ -108,6 +131,7 @@ export default function CustomerPhotoUpload({ token }: Props) {
         ref={fileInputRef}
         type="file"
         accept="image/jpeg,image/png,image/webp,image/heic"
+        multiple
         className="hidden"
         onChange={handleFileChange}
       />

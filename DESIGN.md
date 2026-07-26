@@ -13,7 +13,7 @@ colors:
   border-strong: "#d4cec7"
   ink: "#191614"
   ink-secondary: "#3d3936"
-  ink-muted: "#7a7370"
+  ink-muted: "#6b6461"
   success: "#2e7d52"
   warning: "#92600f"
   danger: "#c13434"
@@ -141,7 +141,7 @@ A restrained two-tone foundation: deep teal and warm off-white. Everything else 
 - **Firm Border** (`#d4cec7`, oklch(82% 0.009 80)): Emphasized borders, focused input outlines.
 - **Ink** (`#191614`, oklch(15% 0.007 80)): Headlines, primary labels, the highest-contrast text. Never pure black.
 - **Secondary Ink** (`#3d3936`, oklch(30% 0.006 80)): Body text, form values.
-- **Muted Ink** (`#7a7370`, oklch(52% 0.006 80)): Labels, hints, metadata, timestamps.
+- **Muted Ink** (`#6b6461`, oklch(47% 0.006 80)): Labels, hints, metadata, timestamps. Darkened one notch from `#7a7370` (4.43:1 on cream) to ~5.5:1, comfortably clear of the 4.5:1 AA floor for the 12-13px sizes it's used at throughout the app.
 
 ### Status
 - **Grove** (`#2e7d52`): Success states, "delivered" badges.
@@ -228,7 +228,7 @@ Restrained, functional. The admin fills these often; they should have no frictio
 
 - **Style:** Cream background (`#fcf9f5`), hairline border (`#e8e3dd`), 8px radius, 10px/14px padding
 - **Focus:** Border color shifts to Firm Border (`#d4cec7`). Subtle teal-light glow (`box-shadow: 0 0 0 3px #e6f5f4`).
-- **Label:** 13px Geist 500, ink-muted (`#7a7370`), 6px gap above input.
+- **Label:** 13px Geist 500, ink-muted (`#6b6461`), 6px gap above input.
 - **Error:** Border shifts to terracotta (`#c13434`). 12px Geist 400 error text below in terracotta.
 - **Disabled:** Elevated surface bg, muted ink text, no border change. `cursor: not-allowed`.
 - **Select/Dropdown:** Same base style. Chevron icon in muted ink. Options rendered as native or headless (not styled-components dropdown).
@@ -265,7 +265,7 @@ The brand-forward surface. Uses Cabinet Grotesk for headings.
 - **Do** reserve teal (`#006860`) for the single highest-priority action per screen (confirm order, primary CTA, active nav item).
 - **Do** render all KWD prices and order IDs in Geist Mono for visual alignment.
 - **Do** use Cabinet Grotesk only on customer-facing pages (`/confirm/*`, `/track/*`). Keep it off the admin panel.
-- **Do** keep transitions under 200ms and always use ease-out-quart (`cubic-bezier(0.76, 0, 0.24, 1)`). Ease-in curves are prohibited.
+- **Do** keep transitions under 200ms and always use ease-out-quart (`cubic-bezier(0.25, 1, 0.5, 1)`, matching `lib/motion.ts`'s `EASE_OUT_QUART` and `app/globals.css`'s `--ease-out-quart`). Ease-in curves are prohibited.
 - **Do** use touch targets of at minimum 44px tall on all interactive elements (mobile-first admin).
 - **Do** communicate active navigation state with background fill + text color only — no side-stripe border.
 - **Do** use tonal background shifts (cream → warm surface → elevated surface) for depth. Shadows are for floating elements only.

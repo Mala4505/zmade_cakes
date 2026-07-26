@@ -1,14 +1,17 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 import { createServiceClient } from '@/lib/supabase/server'
-import { isValidUUID, formatDate, formatTime, formatKWD, formatDateLong, orderSummary } from '@/lib/utils'
+import { getBusinessContactSettings } from '@/lib/supabase/business-settings'
+import { isValidToken, formatDate, formatTime, formatKWD, formatDateLong, orderSummary } from '@/lib/utils'
 import { balanceOwed } from '@/lib/payments'
 import type { Metadata } from 'next'
-import type { OrderStatus } from '@/lib/supabase/types'
-import { CheckCircle, Circle, Receipt, ShieldCheck } from '@phosphor-icons/react/dist/ssr'
+import type { Order, OrderStatus } from '@/lib/supabase/types'
+import { CheckCircle, Circle, Receipt, ShieldCheck, WhatsappLogo } from '@phosphor-icons/react/dist/ssr'
 import { BRAND_NAME } from '@/lib/brand'
 import { Navbar } from '@/components/public/Navbar'
-import { Field, Input } from '@/components/ui'
+import { Button } from '@/components/ui/Button'
+import { DetailRow } from '@/components/ui'
 import { EditOrderModal } from './_components/EditOrderModal'
 
 interface Props { params: Promise<{ token: string }> }
@@ -31,29 +34,26 @@ const STATUS_ORDER: Record<OrderStatus, number> = {
 export default async function TrackPage({ params }: Props) {
   const { token } = await params
 
-  if (!isValidUUID(token)) notFound()
+  if (!isValidToken(token)) notFound()
 
   const supabase = createServiceClient()
 
-  const [{ data: order, error }, { data: phoneRow }, { data: igRow }] = await Promise.all([
+  const [{ data: order, error }, { businessPhone, businessInstagram }] = await Promise.all([
     supabase
       .from('orders')
       .select('*, inquiry:inquiries(*, delivery_address:delivery_addresses(*))')
       .eq('tracking_token', token)
       .single(),
-    supabase.from('business_settings').select('value').eq('key', 'business_phone').single(),
-    supabase.from('business_settings').select('value').eq('key', 'business_instagram').single(),
+    getBusinessContactSettings(),
   ])
 
   if (error || !order) notFound()
 
-  const businessPhone = (phoneRow?.value as string) ?? ''
-  const businessInstagram = (igRow?.value as string) ?? ''
   const waNumber = businessPhone
     ? businessPhone.replace(/\D/g, '').replace(/^(?!965)/, '965')
     : ''
 
-  const o = order as any
+  const o = order as unknown as Order
   const inq = o.inquiry
   const currentStep = STATUS_ORDER[o.status as OrderStatus] ?? -1
   const isCancelled = o.status === 'cancelled'
@@ -107,15 +107,15 @@ export default async function TrackPage({ params }: Props) {
                 This order has been cancelled. If you have questions or would like to rebook, we're just a message away.
               </p>
               {waNumber && (
-                <a
+                <Button
                   href={`https://wa.me/${waNumber}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-4 inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium"
-                  style={{ backgroundColor: '#25D366', color: '#fff' }}
+                  variant="primary"
+                  size="md"
+                  className="mt-4 px-5"
                 >
+                  <WhatsappLogo size={16} weight="fill" />
                   Message us on WhatsApp
-                </a>
+                </Button>
               )}
             </div>
           )}
@@ -153,21 +153,23 @@ export default async function TrackPage({ params }: Props) {
                           backgroundColor: i === 0
                             ? 'transparent'
                             : isPrevDone
-                            ? 'var(--color-teal)'
+                            ? 'var(--color-border-strong)'
                             : 'var(--color-border)',
                         }}
                       />
                       <div
                         className="w-7 h-7 rounded-full flex items-center justify-center shrink-0"
                         style={{
-                          backgroundColor: isDone || isCurrent
+                          backgroundColor: isCurrent
                             ? 'var(--color-teal)'
+                            : isDone
+                            ? 'var(--color-teal-light)'
                             : 'var(--color-surface-raised)',
-                          border: `2px solid ${isDone || isCurrent ? 'var(--color-teal)' : 'var(--color-border)'}`,
+                          border: `2px solid ${isCurrent ? 'var(--color-teal)' : isDone ? 'var(--color-teal-light)' : 'var(--color-border)'}`,
                         }}
                       >
                         {isDone ? (
-                          <CheckCircle size={16} weight="fill" color="#fcf9f5" />
+                          <CheckCircle size={16} weight="fill" color="var(--color-teal-deep)" />
                         ) : isCurrent ? (
                           <Circle size={10} weight="fill" color="#fcf9f5" />
                         ) : (
@@ -180,7 +182,7 @@ export default async function TrackPage({ params }: Props) {
                           backgroundColor: i === STEPS.length - 1
                             ? 'transparent'
                             : isDone
-                            ? 'var(--color-teal)'
+                            ? 'var(--color-border-strong)'
                             : 'var(--color-border)',
                         }}
                       />
@@ -190,7 +192,6 @@ export default async function TrackPage({ params }: Props) {
                     <div className="mt-2 px-1 flex flex-col items-center gap-1 text-center">
                       <p
                         className="text-sm font-semibold leading-tight"
-                        title={isDone ? step.sublabel : undefined}
                         style={{
                           color: isCurrent
                             ? 'var(--color-teal)'
@@ -252,9 +253,12 @@ export default async function TrackPage({ params }: Props) {
                     flexShrink: 0,
                   }}
                 >
-                  <img
+                  <Image
                     src={img.url_medium}
                     alt="Finished cake photo"
+                    width={120}
+                    height={120}
+                    sizes="120px"
                     className="w-full h-full object-cover"
                   />
                 </a>
@@ -263,18 +267,19 @@ export default async function TrackPage({ params }: Props) {
           </section>
         )}
 
-        {/* ETA callout */}
+        {/* ETA callout — kept neutral so the stepper's current-step circle
+            stays the one teal moment on this screen. */}
         {o.eta_date ? (
           <div
             className="rounded-xl border px-4 py-4 flex flex-col gap-1"
-            style={{ borderColor: 'var(--color-teal-light)', backgroundColor: 'var(--color-teal-light)' }}
+            style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface-raised)' }}
           >
-            <p className="text-sm font-semibold" style={{ color: 'var(--color-teal-deep)' }}>
+            <p className="text-sm font-semibold" style={{ color: 'var(--color-ink)' }}>
               Expected by {formatDateLong(o.eta_date)}
               {o.eta_time ? `, ${formatTime(o.eta_time)}` : ''}
             </p>
             {o.eta_note && (
-              <p className="text-xs" style={{ color: 'var(--color-teal-deep)', opacity: 0.8 }}>
+              <p className="text-xs" style={{ color: 'var(--color-ink-secondary)' }}>
                 {o.eta_note}
               </p>
             )}
@@ -313,40 +318,40 @@ export default async function TrackPage({ params }: Props) {
             )}
           </div>
 
-          <TrackRow label="Cake" value={inq ? orderSummary(inq) : '—'} />
+          <DetailRow label="Cake" value={inq ? orderSummary(inq) : '—'} />
           {inq?.theme && inq.theme !== '' && (
-            <TrackRow label="Theme" value={inq.theme} />
+            <DetailRow label="Theme" value={inq.theme} dir="auto" />
           )}
           {inq?.occasion && inq.occasion !== '' && (
-            <TrackRow label="Occasion" value={inq.occasion} />
+            <DetailRow label="Occasion" value={inq.occasion} />
           )}
           {inq?.message_on_cake && inq.message_on_cake !== '' && (
-            <TrackRow label="Message" value={`"${inq.message_on_cake}"`} />
+            <DetailRow label="Message" value={`"${inq.message_on_cake}"`} dir="auto" />
           )}
-          <TrackRow label="Event Date" value={formatDate(inq?.event_date)} mono />
+          <DetailRow label="Event Date" value={formatDate(inq?.event_date ?? '')} mono />
           {inq?.pickup_time && (
-            <TrackRow label="Time" value={formatTime(inq.pickup_time)} mono />
+            <DetailRow label="Time" value={formatTime(inq.pickup_time)} mono />
           )}
-          <TrackRow
+          <DetailRow
             label="Delivery"
             value={o.delivery_type === 'delivery' ? 'Delivery' : 'Pickup'}
           />
 
           <div style={{ borderTop: '1px dashed var(--color-border)', margin: '2px 0' }} />
 
-          <TrackRow label="Subtotal" value={formatKWD(inq?.admin_price)} mono />
+          <DetailRow label="Subtotal" value={formatKWD(inq?.admin_price)} mono />
           {hasDiscount && (
-            <TrackRow label="Discount" value={`- ${formatKWD(inq.discount)}`} mono />
+            <DetailRow label="Discount" value={`- ${formatKWD(inq?.discount)}`} mono />
           )}
-          <TrackRow label="Total" value={formatKWD(o.final_price)} mono />
+          <DetailRow label="Total" value={formatKWD(o.final_price)} mono emphasize />
           {isPartiallyPaid && (
-            <TrackRow label="Amount Paid" value={formatKWD(o.amount_paid)} mono />
+            <DetailRow label="Amount Paid" value={formatKWD(o.amount_paid)} mono />
           )}
           {hasBalanceDue && (
-            <TrackRow label="Balance Due" value={formatKWD(String(balance))} mono />
+            <DetailRow label="Balance Due" value={formatKWD(String(balance))} mono emphasize />
           )}
-          {inq?.payment_method && inq.payment_method !== '' && (
-            <TrackRow label="Payment" value={inq.payment_method === 'wamd' ? 'WAMD' : 'Cash'} />
+          {inq?.payment_method && (
+            <DetailRow label="Payment" value={inq.payment_method === 'wamd' ? 'WAMD' : 'Cash'} />
           )}
         </section>
 
@@ -387,26 +392,5 @@ export default async function TrackPage({ params }: Props) {
         </Link>
       </div>
     </main>
-  )
-}
-
-function TrackRow({
-  label,
-  value,
-  mono,
-}: {
-  label: string
-  value: string
-  mono?: boolean
-}) {
-  return (
-    <Field label={label}>
-      <Input
-        value={value}
-        disabled
-        readOnly
-        style={{ fontFamily: mono ? 'var(--font-mono)' : undefined }}
-      />
-    </Field>
   )
 }

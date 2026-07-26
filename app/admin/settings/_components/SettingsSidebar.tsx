@@ -2,24 +2,8 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import {
-  Buildings,
-  Clock,
-  CurrencyDollar,
-  CalendarX,
-  WhatsappLogo,
-  ToggleRight,
-} from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
-
-const NAV_ITEMS = [
-  { href: '/admin/settings/business', label: 'Business Info', Icon: Buildings },
-  { href: '/admin/settings/operating-rules', label: 'Operating Rules', Icon: Clock },
-  { href: '/admin/settings/pricing', label: 'Pricing', Icon: CurrencyDollar },
-  { href: '/admin/settings/blackout-dates', label: 'Blackout Dates', Icon: CalendarX },
-  { href: '/admin/settings/whatsapp-templates', label: 'WhatsApp Templates', Icon: WhatsappLogo },
-  { href: '/admin/settings/options', label: 'Options', Icon: ToggleRight },
-] as const
+import { SETTINGS_SECTIONS } from './sections'
 
 export function SettingsSidebar() {
   const pathname = usePathname()
@@ -45,7 +29,7 @@ export function SettingsSidebar() {
       </div>
 
       <nav className="flex-1 overflow-y-auto px-3 py-4 flex flex-col gap-1">
-        {NAV_ITEMS.map(({ href, label, Icon }) => {
+        {SETTINGS_SECTIONS.map(({ href, title, Icon }) => {
           const active = pathname.startsWith(href)
           return (
             <Link
@@ -58,9 +42,10 @@ export function SettingsSidebar() {
                   : 'text-[color:var(--color-ink-muted)] hover:text-[color:var(--color-ink-secondary)]'
               )}
               style={active ? { backgroundColor: 'var(--color-teal-light)' } : undefined}
+              aria-current={active ? 'page' : undefined}
             >
               <Icon size={18} weight={active ? 'fill' : 'regular'} aria-hidden="true" />
-              <span>{label}</span>
+              <span>{title}</span>
             </Link>
           )
         })}

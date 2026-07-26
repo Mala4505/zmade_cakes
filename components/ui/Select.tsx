@@ -1,17 +1,25 @@
 import { forwardRef } from 'react'
 import { CaretDown } from '@phosphor-icons/react/dist/ssr'
 import { cn } from '@/lib/utils'
-import { inputBaseClass } from './Input'
+import { inputBaseClass, type InputSize } from './Input'
 
-export type SelectProps = React.SelectHTMLAttributes<HTMLSelectElement>
+const sizeClass: Record<InputSize, string> = {
+  sm: 'text-sm',
+  base: 'text-base',
+}
+
+export type SelectProps = Omit<React.SelectHTMLAttributes<HTMLSelectElement>, 'size'> & {
+  /** Text size variant. Defaults to 'sm' (14px, admin default). Pass 'base' on customer routes to prevent iOS zoom. */
+  size?: InputSize
+}
 
 export const Select = forwardRef<HTMLSelectElement, SelectProps>(
-  function Select({ className, children, ...props }, ref) {
+  function Select({ className, children, size = 'sm', ...props }, ref) {
     return (
       <div className="relative w-full">
         <select
           ref={ref}
-          className={cn(inputBaseClass, 'appearance-none pr-9', className)}
+          className={cn(inputBaseClass, sizeClass[size], 'appearance-none pr-9', className)}
           {...props}
         >
           {children}

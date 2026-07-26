@@ -10,6 +10,7 @@ import {
 import { customerConfirmSchema } from '@/lib/validations/confirm'
 import { subtotalAfterDiscount } from '@/lib/payments'
 import { orderSummary, buildCustomerEditDiff, type CustomerEditDiffEntry } from '@/lib/format'
+import { generateShortToken } from '@/lib/tokens'
 import type { Inquiry, Order, InquiryStatus, Json } from '@/lib/supabase/types'
 
 type FieldErrors = Record<string, string[]>
@@ -44,7 +45,7 @@ export async function createInquiry(
 
   const { data: inquiry, error: inquiryError } = await supabase
     .from('inquiries')
-    .insert({ ...inquiryData, status: 'pending' as const })
+    .insert({ ...inquiryData, status: 'pending' as const, confirmation_token: generateShortToken() })
     .select()
     .single()
 
@@ -278,6 +279,7 @@ export async function confirmInquiry(
         .insert({
           inquiry_id: inquiry.id,
           status: 'confirmed',
+          tracking_token: generateShortToken(),
           final_price: subtotalAfterDiscount(inquiry.admin_price, inquiry.discount),
           deposit_amount: inquiry.deposit_amount,
           amount_paid: inquiry.amount_paid,
@@ -398,6 +400,7 @@ export async function updateInquiryStatus(
     const { error: orderError } = await supabase.from('orders').insert({
       inquiry_id: id,
       status: 'confirmed',
+      tracking_token: generateShortToken(),
       final_price: subtotalAfterDiscount(inquiry.admin_price, inquiry.discount),
       deposit_amount: inquiry.deposit_amount,
       amount_paid: inquiry.amount_paid,

@@ -238,7 +238,13 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
     return blackouts.some((b) => new Date(b.date_from) <= d && d <= new Date(b.date_to))
   }
 
-  const suggestedBase = pricingMatrix && watchedCakeSize ? pricingMatrix[watchedCakeSize] : undefined
+  // cake_size is stored as the size name; pricing is keyed by size id, so
+  // resolve name -> id before the base-price lookup.
+  const suggestedBase = (() => {
+    if (!pricingMatrix || !watchedCakeSize) return undefined
+    const sizeId = options.sizes.find((s) => s.name === watchedCakeSize)?.id
+    return sizeId ? pricingMatrix[sizeId] : undefined
+  })()
   const isRush = suggestedBase !== undefined && watchedEventDate ? (() => {
     const d = new Date(watchedEventDate)
     const cutoff = new Date()

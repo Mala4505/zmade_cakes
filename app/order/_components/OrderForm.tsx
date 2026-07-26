@@ -1,10 +1,11 @@
 'use client'
-import { useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useForm, type FieldPath } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useRouter } from 'next/navigation'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
-import { EASE_OUT_QUART } from '@/lib/motion'
+import { EASE_OUT_QUART, holdMinimumVisible } from '@/lib/motion'
+import { formatDate } from '@/lib/format'
 import PhoneInput from '@/components/PhoneInput'
 import ReferencePhotoUpload, { type ReferenceImage } from './ReferencePhotoUpload'
 import {
@@ -12,7 +13,8 @@ import {
   type PublicInquiryInput,
   type PublicInquiryData,
 } from '@/lib/validations/publicInquiry'
-import { Button, Checkbox, Field, Input, RadioGroup, Select, Textarea } from '@/components/ui'
+import { Button, CakeLoader, Checkbox, DetailRow, Field, Input, RadioGroup, Select, Textarea } from '@/components/ui'
+import { Check, PencilSimple, X } from '@phosphor-icons/react'
 
 interface Option { id: string; name: string }
 interface FlavorOption extends Option {
@@ -37,7 +39,13 @@ function isDateBlackedOut(date: string, blackouts: Blackout[]): boolean {
 function getMinDate(minLeadDays: number): string {
   const d = new Date()
   d.setDate(d.getDate() + minLeadDays)
-  return d.toISOString().split('T')[0]
+  // Build the date string from local parts — toISOString() converts to UTC, which
+  // shifts the date backward by a day for local times between 00:00 and 03:00 Kuwait
+  // time (UTC+3).
+  const year = d.getFullYear()
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
 }
 
 const GOVERNORATES = [
@@ -49,12 +57,36 @@ const GOVERNORATES = [
   { value: 'mubarak_al_kabeer', label: 'Mubarak Al-Kabeer' },
 ]
 
-// Fields validated before each step may advance.
-const STEP_FIELDS: Record<number, FieldPath<PublicInquiryInput>[]> = {
-  1: ['customer_name', 'customer_phone'],
-  2: ['cake_size', 'flavor', 'occasion', 'cake_type', 'theme', 'message_on_cake', 'special_requirements', 'allergen_other'],
-  3: ['event_date', 'pickup_time', 'delivery_type', 'address_governorate', 'address_area', 'address_block', 'address_street', 'address_house_no', 'address_extra_notes'],
+const DRAFT_STORAGE_KEY = 'zmade-order-draft-v1'
+
+interface OrderDraft {
+  step: number
+  values: Partial<PublicInquiryInput>
+  referenceImages: ReferenceImage[]
 }
+
+// Step labels/field-groups for the pickup branch (5 steps — no dedicated address step).
+const STEP_LABELS_PICKUP = ['About You', 'Cake Basics', 'Details', 'When & How', 'Review']
+// Step labels for the delivery branch (6 steps — address gets its own step between
+// "When & How" and Review).
+const STEP_LABELS_DELIVERY = ['About You', 'Cake Basics', 'Details', 'When & How', 'Delivery Address', 'Review']
+
+// The delivery-address step is always step 5 when it exists (it only exists in the
+// delivery branch, immediately after "When & How").
+const ADDRESS_STEP = 5
+
+// Fields validated before each step may advance. Shared for steps 1-4; step 5 differs
+// by branch (address fields for delivery, unused for pickup since step 4 skips
+// straight to Review).
+const STEP_FIELDS_BASE: Record<number, FieldPath<PublicInquiryInput>[]> = {
+  1: ['customer_name', 'customer_phone'],
+  2: ['cake_size', 'flavor', 'occasion', 'cake_type', 'theme'],
+  3: ['message_on_cake', 'special_requirements', 'allergen_other'],
+  4: ['event_date', 'pickup_time', 'delivery_type'],
+}
+const ADDRESS_STEP_FIELDS: FieldPath<PublicInquiryInput>[] = [
+  'address_governorate', 'address_area', 'address_block', 'address_street', 'address_house_no', 'address_extra_notes',
+]
 
 export default function OrderForm({ flavors, sizes, occasions, blackouts, minLeadDays }: Props) {
   const router = useRouter()
@@ -63,12 +95,42 @@ export default function OrderForm({ flavors, sizes, occasions, blackouts, minLea
   const [direction, setDirection] = useState(1)
   const [serverError, setServerError] = useState<string | null>(null)
   const [referenceImages, setReferenceImages] = useState<ReferenceImage[]>([])
+  const [draftRestored, setDraftRestored] = useState(false)
   const reduceMotion = useReducedMotion()
+  const isFirstStepRender = useRef(true)
 
   const stepVariants = {
     enter: (dir: number) => (reduceMotion ? { opacity: 0 } : { opacity: 0, x: dir * 16 }),
     center: { opacity: 1, x: 0 },
     exit: (dir: number) => (reduceMotion ? { opacity: 0 } : { opacity: 0, x: dir * -16 }),
+  }
+
+  const defaultValues: PublicInquiryInput = {
+    customer_name: '',
+    customer_phone: '',
+    cake_size: '',
+    flavor: '',
+    occasion: '',
+    cake_type: 'normal',
+    theme: '',
+    message_on_cake: '',
+    special_requirements: '',
+    allergen_nut_free: false,
+    allergen_dairy_free: false,
+    allergen_egg_free: false,
+    allergen_raw_sugar: false,
+    allergen_other: '',
+    event_date: '',
+    pickup_time: '',
+    delivery_type: 'pickup',
+    source: 'public_form',
+    address_governorate: 'capital',
+    address_area: '',
+    address_block: '',
+    address_street: '',
+    address_house_no: '',
+    address_extra_notes: '',
+    address_location_link: '',
   }
 
   const {
@@ -79,37 +141,12 @@ export default function OrderForm({ flavors, sizes, occasions, blackouts, minLea
     setError,
     clearErrors,
     trigger,
+    reset,
     formState: { errors, isSubmitting },
   } = useForm<PublicInquiryInput, unknown, PublicInquiryData>({
     resolver: zodResolver(publicInquirySchema),
     mode: 'onTouched',
-    defaultValues: {
-      customer_name: '',
-      customer_phone: '',
-      cake_size: '',
-      flavor: '',
-      occasion: '',
-      cake_type: 'normal',
-      theme: '',
-      message_on_cake: '',
-      special_requirements: '',
-      allergen_nut_free: false,
-      allergen_dairy_free: false,
-      allergen_egg_free: false,
-      allergen_raw_sugar: false,
-      allergen_other: '',
-      event_date: '',
-      pickup_time: '',
-      delivery_type: 'pickup',
-      source: 'public_form',
-      address_governorate: 'capital',
-      address_area: '',
-      address_block: '',
-      address_street: '',
-      address_house_no: '',
-      address_extra_notes: '',
-      address_location_link: '',
-    },
+    defaultValues,
   })
 
   const form = watch()
@@ -117,12 +154,120 @@ export default function OrderForm({ flavors, sizes, occasions, blackouts, minLea
   const deliveryType = form.delivery_type
   const dateBlackedOut = isDateBlackedOut(form.event_date ?? '', blackouts)
 
+  // Total step count is conditional: delivery adds a dedicated address step (6),
+  // pickup skips straight from "When & How" to Review (5).
+  const totalSteps = deliveryType === 'delivery' ? 6 : 5
+  const reviewStep = totalSteps
+  const STEP_LABELS = deliveryType === 'delivery' ? STEP_LABELS_DELIVERY : STEP_LABELS_PICKUP
+  const STEP_FIELDS: Record<number, FieldPath<PublicInquiryInput>[]> = deliveryType === 'delivery'
+    ? { ...STEP_FIELDS_BASE, [ADDRESS_STEP]: ADDRESS_STEP_FIELDS }
+    : STEP_FIELDS_BASE
+
   const selectedFlavor = flavors.find(f => f.name === form.flavor) ?? null
   // A flavor with no priced sizes hasn't been restricted yet — offer every size.
   const availableSizes = selectedFlavor && selectedFlavor.prices.length > 0
     ? sizes.filter(s => selectedFlavor.prices.some(p => p.size_id === s.id))
     : sizes
   const themeDisabled = selectedFlavor !== null && !selectedFlavor.theme_available
+
+  const draftSaveTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Mirrors `step` for the popstate handler below, which needs the step we're
+  // navigating *from* to compute slide direction, without re-subscribing on
+  // every step change.
+  const stepRef = useRef(step)
+  useEffect(() => {
+    stepRef.current = step
+  }, [step])
+
+  // Restore an in-progress draft (e.g. after WhatsApp's in-app browser evicts the tab),
+  // then establish the browser-history entry matching wherever the wizard starts
+  // (step 1, or a restored mid-wizard step). We use `replaceState`, not `pushState`,
+  // because this is annotating the history entry that already exists for the initial
+  // page load with step info — not adding a new entry (which would give an extra,
+  // no-op Back press). Note this only tags the *current* entry; it doesn't
+  // synthesize a full stack of entries for steps below a restored one, so Back
+  // from a restored mid-wizard position leaves /order rather than stepping down
+  // through the wizard — an accepted gap since sessionStorage restore-on-refresh
+  // is a separate, already-solved concern from history navigation.
+  useEffect(() => {
+    let initialStep = 1
+    try {
+      const raw = sessionStorage.getItem(DRAFT_STORAGE_KEY)
+      if (raw) {
+        const draft: OrderDraft = JSON.parse(raw)
+        reset({ ...defaultValues, ...draft.values })
+        initialStep = draft.step
+        setStep(draft.step)
+        setReferenceImages(draft.referenceImages ?? [])
+        setDraftRestored(true)
+      }
+    } catch {
+      // Corrupt or stale draft — ignore and start fresh.
+    }
+    window.history.replaceState({ step: initialStep }, '', `${window.location.pathname}?step=${initialStep}`)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Listen for the browser/OS Back (and Forward) button so it steps the wizard
+  // instead of leaving /order. This uses the native History API directly rather
+  // than next/navigation's router: per the Next.js docs (see
+  // node_modules/next/dist/docs/01-app/01-getting-started/04-linking-and-navigating.md,
+  // "Native History API" section), `window.history.pushState`/`replaceState` are
+  // the documented way to sync browser history with pure client-side state
+  // changes on the current route, without going through the App Router (which
+  // would treat a `router.push`/`replace` as a navigation and risk an RSC
+  // round-trip for a change that's purely internal to this client component).
+  // We only ever *read* history.state here, never push — every popstate already
+  // consumed exactly one entry, so pushing again would break the Back button.
+  useEffect(() => {
+    function onPopState(event: PopStateEvent) {
+      const target = (event.state as { step?: number } | null)?.step
+      if (typeof target === 'number' && target >= 1) {
+        setDirection(target < stepRef.current ? -1 : 1)
+        setStep(target)
+      }
+    }
+    window.addEventListener('popstate', onPopState)
+    return () => window.removeEventListener('popstate', onPopState)
+  }, [])
+
+  // Navigate to a step, both updating local state and pushing a matching
+  // history entry so the browser Back button can step back out of it later.
+  const goToStep = useCallback((target: number, dir: number) => {
+    setDirection(dir)
+    setStep(target)
+    window.history.pushState({ step: target }, '', `${window.location.pathname}?step=${target}`)
+  }, [])
+
+  // Focus the new step's heading as soon as it mounts, so screen-reader users get
+  // an announcement and low-vision users get the new step scrolled into view.
+  // A ref *callback* (not a useEffect keyed on `step`) is required here: with
+  // AnimatePresence's mode="wait", the incoming step's heading doesn't mount
+  // until the outgoing one finishes its ~160ms exit animation, so a
+  // requestAnimationFrame-timed focus() call would land on the stale, exiting
+  // node instead. The callback must also be memoized — an inline arrow function
+  // gets a new identity on every render (including every keystroke, since
+  // `watch()` re-renders the form), which would re-fire on each render and
+  // steal focus out of whatever field the user is typing in.
+  const focusStepHeading = useCallback((node: HTMLHeadingElement | null) => {
+    if (!node) return
+    if (isFirstStepRender.current) {
+      isFirstStepRender.current = false
+      return
+    }
+    node.focus()
+  }, [])
+
+  useEffect(() => {
+    if (draftSaveTimeout.current) clearTimeout(draftSaveTimeout.current)
+    draftSaveTimeout.current = setTimeout(() => {
+      const draft: OrderDraft = { step, values: form, referenceImages }
+      sessionStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draft))
+    }, 400)
+    return () => {
+      if (draftSaveTimeout.current) clearTimeout(draftSaveTimeout.current)
+    }
+  }, [form, step, referenceImages])
 
   const handleFlavorChange = (flavorName: string) => {
     const nextFlavor = flavors.find(f => f.name === flavorName) ?? null
@@ -143,6 +288,7 @@ export default function OrderForm({ flavors, sizes, occasions, blackouts, minLea
 
   const onValid = async (data: PublicInquiryData) => {
     setServerError(null)
+    const startedAt = Date.now()
     try {
       const res = await fetch('/api/inquiries', {
         method: 'POST',
@@ -151,14 +297,29 @@ export default function OrderForm({ flavors, sizes, occasions, blackouts, minLea
       })
       const json = await res.json()
       if (!res.ok) {
+        // Errors surface immediately — never held back to let the loader finish.
         if (json.fieldErrors) {
-          Object.entries(json.fieldErrors).forEach(([field, msgs]) => {
-            setError(field as FieldPath<PublicInquiryInput>, { message: (msgs as string[])[0] })
+          const erroredFields = Object.keys(json.fieldErrors)
+          erroredFields.forEach(field => {
+            setError(field as FieldPath<PublicInquiryInput>, { message: (json.fieldErrors[field] as string[])[0] })
           })
+
+          const dataSteps = Array.from({ length: reviewStep - 1 }, (_, i) => i + 1)
+          const earliestStep = dataSteps.find(s =>
+            (STEP_FIELDS[s] ?? []).some(field => erroredFields.includes(field))
+          )
+          if (earliestStep && earliestStep !== step) {
+            goToStep(earliestStep, earliestStep < step ? -1 : 1)
+            setTimeout(() => {
+              document.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()
+            }, 200)
+          }
         }
         setServerError(json.error ?? 'Something went wrong. Please try again.')
         return
       }
+      sessionStorage.removeItem(DRAFT_STORAGE_KEY)
+      await holdMinimumVisible(startedAt, 1400)
       router.push('/order/success')
     } catch {
       setServerError('Network error. Please try again.')
@@ -169,38 +330,115 @@ export default function OrderForm({ flavors, sizes, occasions, blackouts, minLea
     setServerError(null)
     const valid = await trigger(STEP_FIELDS[step])
     if (!valid) return
-    if (step === 3 && dateBlackedOut) {
+    if (step === 4 && dateBlackedOut) {
       setError('event_date', { type: 'manual', message: 'This date is not available. Please choose another date.' })
       return
     }
-    setDirection(1)
-    setStep(s => s + 1)
+    // Always the next step number, not a hardcoded target: step 5 naturally
+    // renders as the delivery-address step when `deliveryType === 'delivery'`
+    // and as Review when 'pickup' (see the step-5/reviewStep render branches
+    // below), so incrementing by one lands correctly for either branch.
+    goToStep(step + 1, 1)
+  }
+
+  // Jump directly to a step from the review screen's edit affordances.
+  const jumpToStep = (target: number) => {
+    goToStep(target, -1)
+  }
+
+  if (isSubmitting) {
+    return (
+      <div
+        className="rounded-2xl border flex flex-col items-center justify-center gap-2 text-center"
+        style={{
+          borderColor: 'var(--color-border)',
+          backgroundColor: 'var(--color-surface)',
+          minHeight: 320,
+        }}
+        aria-live="polite"
+        aria-busy="true"
+      >
+        <CakeLoader size={110} label="Sending your order…" />
+      </div>
+    )
   }
 
   return (
     <form onSubmit={handleSubmit(onValid)} noValidate>
-      {/* Progress bar */}
+      {/* Page heading — the customer's first brand moment, in the /confirm hero's voice */}
+      <div className="mb-7">
+        <h1
+          className="text-3xl font-bold leading-tight"
+          style={{ fontFamily: 'var(--font-display)', color: 'var(--color-ink)' }}
+        >
+          Tell us what you&apos;re celebrating
+        </h1>
+        <p className="text-lg font-medium mt-1" style={{ fontFamily: 'var(--font-display)', color: 'var(--color-ink-secondary)' }}>
+          we&apos;ll bring the cake to match.
+        </p>
+        <p className="text-sm mt-3" style={{ color: 'var(--color-ink-muted)' }}>
+          A few quick steps, then we&apos;ll confirm every detail with you before anything is final.
+        </p>
+      </div>
+
+      {/* Draft-restored acknowledgment — dismissed only by deliberate user action, no auto-hide */}
+      {draftRestored && (
+        <div
+          className="mb-6 flex items-center justify-between gap-3 rounded-xl px-4 py-3"
+          style={{ backgroundColor: 'var(--color-surface-raised)', color: 'var(--color-ink-secondary)' }}
+        >
+          <p className="text-sm">Draft restored. Pick up where you left off.</p>
+          <button
+            type="button"
+            onClick={() => setDraftRestored(false)}
+            aria-label="Dismiss"
+            className="inline-flex items-center justify-center shrink-0 min-h-11 min-w-11 -my-2 -mr-2"
+            style={{ color: 'var(--color-ink-muted)' }}
+          >
+            <X size={16} weight="bold" />
+          </button>
+        </div>
+      )}
+
+      {/* Progress bar — only the current step reads as teal; done steps are a quiet ink/wash signal */}
       <div className="mb-8">
         <div className="flex items-center gap-0">
-          {[1, 2, 3, 4].map((s, i) => (
-            <div key={s} className="flex items-center flex-1 last:flex-none">
-              <div
-                className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 transition-all"
-                style={{
-                  backgroundColor: s <= step ? 'var(--color-teal)' : 'var(--color-border)',
-                  color: s <= step ? 'var(--color-cream)' : 'var(--color-ink-muted)',
-                }}
-              >
-                {s}
+          {Array.from({ length: totalSteps }, (_, i) => i + 1).map((s, i) => {
+            const isDone = s < step
+            const isCurrent = s === step
+            return (
+              <div key={s} className="flex items-center flex-1 last:flex-none">
+                <div
+                  className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 transition-all"
+                  style={
+                    isCurrent
+                      ? {
+                          backgroundColor: 'var(--color-cream)',
+                          color: 'var(--color-teal)',
+                          border: '2px solid var(--color-teal)',
+                        }
+                      : isDone
+                      ? { backgroundColor: 'var(--color-teal-light)', color: 'var(--color-teal-deep)' }
+                      : { backgroundColor: 'var(--color-border)', color: 'var(--color-ink-muted)' }
+                  }
+                >
+                  {isDone ? <Check size={14} weight="bold" /> : s}
+                </div>
+                {i < totalSteps - 1 && (
+                  <div
+                    className="flex-1 h-0.5 mx-1"
+                    style={{ backgroundColor: s < step ? 'var(--color-border-strong)' : 'var(--color-border)' }}
+                  />
+                )}
               </div>
-              {i < 3 && (
-                <div className="flex-1 h-0.5 mx-1" style={{ backgroundColor: s < step ? 'var(--color-teal)' : 'var(--color-border)' }} />
-              )}
-            </div>
-          ))}
+            )
+          })}
         </div>
-        <p className="mt-2 text-xs" style={{ color: 'var(--color-ink-muted)' }}>
-          Step {step} of 4 — {['Who are you?', 'Your Cake', 'When & How?', 'Review'][step - 1]}
+        <p className="mt-2.5 text-xs" style={{ color: 'var(--color-ink-muted)' }} aria-live="polite">
+          <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-ink-secondary)', fontWeight: 600 }}>
+            Step {step}
+          </span>{' '}
+          of {totalSteps} · {STEP_LABELS[step - 1]}
         </p>
       </div>
 
@@ -218,35 +456,40 @@ export default function OrderForm({ flavors, sizes, occasions, blackouts, minLea
       {/* Step 1 — Who are you? */}
       {step === 1 && (
         <div className="flex flex-col gap-5">
-          <h2 className="text-lg font-semibold mb-4" style={{ color: 'var(--color-ink)' }}>Let&apos;s start with you</h2>
-          <Field label="Your Name" error={errors.customer_name?.message} required>
+          <h2 ref={focusStepHeading} tabIndex={-1} className="text-lg font-semibold mb-4 outline-none" style={{ color: 'var(--color-ink)' }}>Let&apos;s start with you</h2>
+          <Field label="Full Name" htmlFor="order-customer-name" error={errors.customer_name?.message} required>
             <Input
+              id="order-customer-name"
               {...register('customer_name')}
-              placeholder="e.g. Sara Al-Qatami"
               autoComplete="name"
               required
               aria-invalid={errors.customer_name ? true : undefined}
+              size="base"
             />
           </Field>
-          <Field label="Phone Number" error={errors.customer_phone?.message} required>
+          <Field label="Phone Number" htmlFor="order-customer-phone" error={errors.customer_phone?.message} required>
             <PhoneInput
+              id="order-customer-phone"
               value={form.customer_phone}
               onChange={value => setValue('customer_phone', value, { shouldValidate: true })}
+              size="base"
             />
           </Field>
         </div>
       )}
 
-      {/* Step 2 — Your Cake */}
+      {/* Step 2 — Cake Basics */}
       {step === 2 && (
         <div className="flex flex-col gap-5">
-          <h2 className="text-lg font-semibold mb-4" style={{ color: 'var(--color-ink)' }}>Tell us about your cake</h2>
+          <h2 ref={focusStepHeading} tabIndex={-1} className="text-lg font-semibold mb-4 outline-none" style={{ color: 'var(--color-ink)' }}>Tell us about your cake</h2>
 
-          <Field label="Flavor" error={errors.flavor?.message} required>
+          <Field label="Flavor" htmlFor="order-flavor" error={errors.flavor?.message} required>
             <Select
+              id="order-flavor"
               {...register('flavor', { onChange: e => handleFlavorChange(e.target.value) })}
               required
               aria-invalid={errors.flavor ? true : undefined}
+              size="base"
             >
               <option value="">Select a flavor…</option>
               {flavors.map(f => <option key={f.id} value={f.name}>{f.name}</option>)}
@@ -268,8 +511,8 @@ export default function OrderForm({ flavors, sizes, occasions, blackouts, minLea
             />
           </Field>
 
-          <Field label="Occasion" error={errors.occasion?.message}>
-            <Select {...register('occasion')}>
+          <Field label="Occasion" htmlFor="order-occasion" error={errors.occasion?.message}>
+            <Select id="order-occasion" {...register('occasion')} size="base">
               <option value="">Select an occasion…</option>
               {occasions.map(o => <option key={o.id} value={o.name}>{o.name}</option>)}
             </Select>
@@ -296,26 +539,36 @@ export default function OrderForm({ flavors, sizes, occasions, blackouts, minLea
           </Field>
 
           {cakeType === 'theme' && (
-            <Field label="Your Theme" error={errors.theme?.message} required>
+            <Field label="Your Theme" htmlFor="order-theme" error={errors.theme?.message} required>
               <Input
+                id="order-theme"
                 {...register('theme')}
-                placeholder="e.g. Butterfly garden, football, unicorn…"
+                dir="auto"
                 required
                 aria-invalid={errors.theme ? true : undefined}
+                size="base"
               />
             </Field>
           )}
+        </div>
+      )}
 
-          <Field label="Message on Cake" error={errors.message_on_cake?.message}>
-            <Input {...register('message_on_cake')} placeholder="e.g. Happy Birthday Sara!" />
+      {/* Step 3 — Details */}
+      {step === 3 && (
+        <div className="flex flex-col gap-5">
+          <h2 ref={focusStepHeading} tabIndex={-1} className="text-lg font-semibold mb-4 outline-none" style={{ color: 'var(--color-ink)' }}>A few more details</h2>
+
+          <Field label="Message on Cake" htmlFor="order-message-on-cake" error={errors.message_on_cake?.message}>
+            <Input id="order-message-on-cake" {...register('message_on_cake')} dir="auto" size="base" />
           </Field>
 
           <Field
             label="Cake Details"
+            htmlFor="order-special-requirements"
             error={errors.special_requirements?.message}
             hint="Colours, tiers, decoration ideas — anything that helps us picture it."
           >
-            <Textarea {...register('special_requirements')} rows={3} placeholder="e.g. Two tiers, pastel pink, fresh flowers on top…" />
+            <Textarea id="order-special-requirements" {...register('special_requirements')} rows={3} dir="auto" size="base" />
           </Field>
 
           <div>
@@ -331,10 +584,10 @@ export default function OrderForm({ flavors, sizes, occasions, blackouts, minLea
               <Checkbox {...register('allergen_nut_free')} label="Nut-free" />
               <Checkbox {...register('allergen_dairy_free')} label="Dairy-free" />
               <Checkbox {...register('allergen_egg_free')} label="Egg-free" />
-              <Checkbox {...register('allergen_raw_sugar')} label="Raw sugar" />
+              <Checkbox {...register('allergen_raw_sugar')} label="Raw sugar (no refined sugar)" />
             </div>
             <div className="mt-2">
-              <Input {...register('allergen_other')} placeholder="Other dietary notes…" aria-label="Other dietary notes" />
+              <Input {...register('allergen_other')} placeholder="Other dietary notes…" aria-label="Other dietary notes" size="base" />
               {errors.allergen_other && (
                 <p className="mt-1 text-xs" style={{ color: 'var(--color-danger)' }}>{errors.allergen_other.message}</p>
               )}
@@ -343,13 +596,14 @@ export default function OrderForm({ flavors, sizes, occasions, blackouts, minLea
         </div>
       )}
 
-      {/* Step 3 — When & How? */}
-      {step === 3 && (
+      {/* Step 4 — When & How? */}
+      {step === 4 && (
         <div className="flex flex-col gap-5">
-          <h2 className="text-lg font-semibold mb-4" style={{ color: 'var(--color-ink)' }}>When do you need it?</h2>
+          <h2 ref={focusStepHeading} tabIndex={-1} className="text-lg font-semibold mb-4 outline-none" style={{ color: 'var(--color-ink)' }}>When do you need it?</h2>
 
-          <Field label="Event Date" error={errors.event_date?.message} required>
+          <Field label="Event Date" htmlFor="order-event-date" error={errors.event_date?.message} required>
             <Input
+              id="order-event-date"
               {...register('event_date', {
                 onChange: () => clearErrors('event_date'),
               })}
@@ -357,6 +611,7 @@ export default function OrderForm({ flavors, sizes, occasions, blackouts, minLea
               min={getMinDate(minLeadDays)}
               required
               aria-invalid={errors.event_date || dateBlackedOut ? true : undefined}
+              size="base"
             />
             {!errors.event_date && form.event_date && dateBlackedOut && (
               <p className="mt-1 text-xs" style={{ color: 'var(--color-danger)' }}>
@@ -365,8 +620,8 @@ export default function OrderForm({ flavors, sizes, occasions, blackouts, minLea
             )}
           </Field>
 
-          <Field label="Preferred Pickup / Delivery Time" error={errors.pickup_time?.message}>
-            <Input {...register('pickup_time')} type="time" />
+          <Field label="Preferred Pickup / Delivery Time" htmlFor="order-pickup-time" error={errors.pickup_time?.message}>
+            <Input id="order-pickup-time" {...register('pickup_time')} type="time" size="base" />
           </Field>
 
           <Field label="Collection Method" error={errors.delivery_type?.message} required>
@@ -380,114 +635,134 @@ export default function OrderForm({ flavors, sizes, occasions, blackouts, minLea
               aria-label="Collection method"
             />
           </Field>
-
-          {deliveryType === 'delivery' && (
-            <div className="flex flex-col gap-4 pt-1">
-              <Field label="Governorate" error={errors.address_governorate?.message}>
-                <Select {...register('address_governorate')}>
-                  {GOVERNORATES.map(g => <option key={g.value} value={g.value}>{g.label}</option>)}
-                </Select>
-              </Field>
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="Area" error={errors.address_area?.message} required>
-                  <Input {...register('address_area')} placeholder="Area" required aria-invalid={errors.address_area ? true : undefined} />
-                </Field>
-                <Field label="Block" error={errors.address_block?.message} required>
-                  <Input {...register('address_block')} placeholder="Block" required aria-invalid={errors.address_block ? true : undefined} />
-                </Field>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="Street" error={errors.address_street?.message} required>
-                  <Input {...register('address_street')} placeholder="Street" required aria-invalid={errors.address_street ? true : undefined} />
-                </Field>
-                <Field label="House / Apartment No." error={errors.address_house_no?.message} required>
-                  <Input {...register('address_house_no')} placeholder="No." required aria-invalid={errors.address_house_no ? true : undefined} />
-                </Field>
-              </div>
-              <Field label="Extra Notes" error={errors.address_extra_notes?.message}>
-                <Input {...register('address_extra_notes')} placeholder="Floor, apartment name, landmark…" />
-              </Field>
-              <Field
-                label="Google Maps Pin"
-                error={errors.address_location_link?.message}
-                hint="Open Google Maps, drop a pin on your location, tap Share, and paste the link here."
-              >
-                <Input {...register('address_location_link')} placeholder="https://maps.app.goo.gl/…" />
-              </Field>
-            </div>
-          )}
         </div>
       )}
 
-      {/* Step 4 — Review & Submit */}
-      {step === 4 && (
+      {/* Step 5 — Delivery Address (only inserted into the sequence when delivery_type === 'delivery') */}
+      {step === ADDRESS_STEP && deliveryType === 'delivery' && (
         <div className="flex flex-col gap-5">
-          <h2 className="text-lg font-semibold mb-4" style={{ color: 'var(--color-ink)' }}>Review your order</h2>
+          <h2 ref={focusStepHeading} tabIndex={-1} className="text-lg font-semibold mb-4 outline-none" style={{ color: 'var(--color-ink)' }}>Where should we deliver it?</h2>
+
+          <Field label="Governorate" htmlFor="order-address-governorate" error={errors.address_governorate?.message}>
+            <Select id="order-address-governorate" {...register('address_governorate')} size="base">
+              {GOVERNORATES.map(g => <option key={g.value} value={g.value}>{g.label}</option>)}
+            </Select>
+          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Area" htmlFor="order-address-area" error={errors.address_area?.message} required>
+              <Input id="order-address-area" {...register('address_area')} required aria-invalid={errors.address_area ? true : undefined} size="base" />
+            </Field>
+            <Field label="Block" htmlFor="order-address-block" error={errors.address_block?.message} required>
+              <Input id="order-address-block" {...register('address_block')} required aria-invalid={errors.address_block ? true : undefined} size="base" />
+            </Field>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Street" htmlFor="order-address-street" error={errors.address_street?.message} required>
+              <Input id="order-address-street" {...register('address_street')} required aria-invalid={errors.address_street ? true : undefined} size="base" />
+            </Field>
+            <Field label="House / Apartment No." htmlFor="order-address-house-no" error={errors.address_house_no?.message} required>
+              <Input id="order-address-house-no" {...register('address_house_no')} required aria-invalid={errors.address_house_no ? true : undefined} size="base" />
+            </Field>
+          </div>
+          <Field label="Extra Notes" htmlFor="order-address-extra-notes" error={errors.address_extra_notes?.message}>
+            <Input id="order-address-extra-notes" {...register('address_extra_notes')} placeholder="Floor, apartment name, landmark…" dir="auto" size="base" />
+          </Field>
+          <Field
+            label="Google Maps Pin"
+            htmlFor="order-address-location-link"
+            error={errors.address_location_link?.message}
+            hint="Open Google Maps, drop a pin on your location, tap Share, and paste the link here."
+          >
+            <Input id="order-address-location-link" {...register('address_location_link')} placeholder="https://maps.app.goo.gl/…" size="base" />
+          </Field>
+        </div>
+      )}
+
+      {/* Review & Submit — the wizard's final step, whichever step number that is for the current branch */}
+      {step === reviewStep && (
+        <div className="flex flex-col gap-5">
+          <h2 ref={focusStepHeading} tabIndex={-1} className="text-lg font-semibold mb-4 outline-none" style={{ color: 'var(--color-ink)' }}>Review your order</h2>
 
           {/* Customer summary */}
           <section className="rounded-xl border p-4 flex flex-col gap-2" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
-            <p className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: 'var(--color-ink-muted)' }}>Customer</p>
-            <SummaryRow label="Name" value={form.customer_name ?? ''} />
-            <SummaryRow label="Phone" value={form.customer_phone ?? ''} />
+            <SummaryHeader label="Customer" onEdit={() => jumpToStep(1)} />
+            <DetailRow label="Name" value={form.customer_name ?? ''} />
+            <DetailRow label="Phone" value={form.customer_phone ?? ''} mono />
           </section>
 
-          {/* Cake summary */}
+          {/* Cake Basics summary */}
           <section className="rounded-xl border p-4 flex flex-col gap-2" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
-            <p className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: 'var(--color-ink-muted)' }}>Cake</p>
-            <SummaryRow label="Size" value={form.cake_size ?? ''} />
-            <SummaryRow label="Flavor" value={form.flavor ?? ''} />
-            {form.occasion && <SummaryRow label="Occasion" value={form.occasion} />}
-            <SummaryRow label="Type" value={cakeType === 'theme' ? `Theme cake — ${form.theme || ''}` : 'Normal cake'} />
-            {form.message_on_cake && <SummaryRow label="Message" value={form.message_on_cake} />}
-            {form.special_requirements && <SummaryRow label="Details" value={form.special_requirements} />}
+            <SummaryHeader label="Cake Basics" onEdit={() => jumpToStep(2)} />
+            <DetailRow label="Size" value={form.cake_size ?? ''} />
+            <DetailRow label="Flavor" value={form.flavor ?? ''} />
+            {form.occasion && <DetailRow label="Occasion" value={form.occasion} />}
+            <DetailRow label="Type" value={cakeType === 'theme' ? `Theme cake — ${form.theme || ''}` : 'Normal cake'} dir="auto" />
+          </section>
+
+          {/* Details summary */}
+          <section className="rounded-xl border p-4 flex flex-col gap-2" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
+            <SummaryHeader label="Details" onEdit={() => jumpToStep(3)} />
+            {form.message_on_cake && <DetailRow label="Message" value={form.message_on_cake} dir="auto" />}
+            {form.special_requirements && <DetailRow label="Details" value={form.special_requirements} dir="auto" />}
             {referenceImages.length > 0 && (
-              <SummaryRow label="Reference Photos" value={`${referenceImages.length} attached`} />
+              <DetailRow label="Reference Photos" value={`${referenceImages.length} attached`} />
             )}
             {(form.allergen_nut_free || form.allergen_dairy_free || form.allergen_egg_free || form.allergen_raw_sugar || form.allergen_other) && (
-              <SummaryRow
+              <DetailRow
                 label="Dietary"
                 value={[
                   form.allergen_nut_free && 'Nut-free',
                   form.allergen_dairy_free && 'Dairy-free',
                   form.allergen_egg_free && 'Egg-free',
-                  form.allergen_raw_sugar && 'Raw sugar',
+                  form.allergen_raw_sugar && 'Raw sugar (no refined sugar)',
                   form.allergen_other || '',
                 ].filter(Boolean).join(', ')}
               />
             )}
-          </section>
-
-          {/* Delivery summary */}
-          <section className="rounded-xl border p-4 flex flex-col gap-2" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
-            <p className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: 'var(--color-ink-muted)' }}>Delivery</p>
-            <SummaryRow label="Event Date" value={form.event_date ?? ''} />
-            {form.pickup_time && <SummaryRow label="Time" value={form.pickup_time} />}
-            <SummaryRow label="Method" value={deliveryType === 'delivery' ? 'Delivery' : 'Pickup'} />
-            {deliveryType === 'delivery' && (
-              <>
-                {form.address_governorate && <SummaryRow label="Governorate" value={GOVERNORATES.find(g => g.value === form.address_governorate)?.label ?? form.address_governorate} />}
-                {form.address_area && <SummaryRow label="Area" value={form.address_area} />}
-                {form.address_block && <SummaryRow label="Block" value={form.address_block} />}
-                {form.address_street && <SummaryRow label="Street" value={form.address_street} />}
-                {form.address_house_no && <SummaryRow label="House No." value={form.address_house_no} />}
-                {form.address_extra_notes && <SummaryRow label="Notes" value={form.address_extra_notes} />}
-                {form.address_location_link && <SummaryRow label="Maps Pin" value={form.address_location_link} />}
-              </>
+            {!form.message_on_cake && !form.special_requirements && referenceImages.length === 0 &&
+              !form.allergen_nut_free && !form.allergen_dairy_free && !form.allergen_egg_free && !form.allergen_raw_sugar && !form.allergen_other && (
+              <p className="text-sm" style={{ color: 'var(--color-ink-muted)' }}>No extra details added.</p>
             )}
           </section>
+
+          {/* When & How summary */}
+          <section className="rounded-xl border p-4 flex flex-col gap-2" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
+            <SummaryHeader label="When & How" onEdit={() => jumpToStep(4)} />
+            <DetailRow label="Event Date" value={form.event_date ? formatDate(form.event_date) : ''} mono />
+            {form.pickup_time && <DetailRow label="Time" value={form.pickup_time} />}
+            <DetailRow label="Method" value={deliveryType === 'delivery' ? 'Delivery' : 'Pickup'} />
+          </section>
+
+          {/* Delivery Address summary — only exists as its own step (and section) when delivering */}
+          {deliveryType === 'delivery' && (
+            <section className="rounded-xl border p-4 flex flex-col gap-2" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
+              <SummaryHeader label="Delivery Address" onEdit={() => jumpToStep(ADDRESS_STEP)} />
+              {form.address_governorate && <DetailRow label="Governorate" value={GOVERNORATES.find(g => g.value === form.address_governorate)?.label ?? form.address_governorate} />}
+              {form.address_area && <DetailRow label="Area" value={form.address_area} />}
+              {form.address_block && <DetailRow label="Block" value={form.address_block} />}
+              {form.address_street && <DetailRow label="Street" value={form.address_street} />}
+              {form.address_house_no && <DetailRow label="House No." value={form.address_house_no} />}
+              {form.address_extra_notes && <DetailRow label="Notes" value={form.address_extra_notes} dir="auto" />}
+              {form.address_location_link && <DetailRow label="Maps Pin" value={form.address_location_link} />}
+            </section>
+          )}
 
           {serverError && (
             <p className="text-sm rounded-lg px-4 py-3" style={{ backgroundColor: 'var(--color-danger-light)', color: 'var(--color-danger)' }}>
               {serverError}
             </p>
           )}
+
+          <p className="text-xs" style={{ color: 'var(--color-ink-muted)' }}>
+            We&apos;ll review your order and send a confirmation link on WhatsApp, usually within a few hours.
+          </p>
         </div>
       )}
         </motion.div>
       </AnimatePresence>
 
-      {/* Error display (steps 1-3) */}
-      {serverError && step < 4 && (
+      {/* Error display (data-entry steps, before Review) */}
+      {serverError && step < reviewStep && (
         <p className="mt-4 text-sm rounded-lg px-4 py-3" style={{ backgroundColor: 'var(--color-danger-light)', color: 'var(--color-danger)' }}>
           {serverError}
         </p>
@@ -501,12 +776,12 @@ export default function OrderForm({ flavors, sizes, occasions, blackouts, minLea
             variant="secondary"
             size="lg"
             className="flex-1 rounded-xl"
-            onClick={() => { setServerError(null); setDirection(-1); setStep(s => s - 1) }}
+            onClick={() => { setServerError(null); goToStep(step - 1, -1) }}
           >
             Back
           </Button>
         )}
-        {step < 4 ? (
+        {step < reviewStep ? (
           <Button type="button" size="lg" className="flex-1 rounded-xl" onClick={advanceStep}>
             Next
           </Button>
@@ -520,11 +795,19 @@ export default function OrderForm({ flavors, sizes, occasions, blackouts, minLea
   )
 }
 
-function SummaryRow({ label, value }: { label: string; value: string }) {
+function SummaryHeader({ label, onEdit }: { label: string; onEdit: () => void }) {
   return (
-    <div className="flex items-start justify-between gap-4">
-      <span className="text-xs pt-0.5 shrink-0" style={{ color: 'var(--color-ink-muted)' }}>{label}</span>
-      <span className="text-sm text-right" style={{ color: 'var(--color-ink-secondary)' }}>{value}</span>
+    <div className="flex items-center justify-between gap-3 mb-1">
+      <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--color-ink-muted)' }}>{label}</p>
+      <button
+        type="button"
+        onClick={onEdit}
+        className="inline-flex items-center gap-1 text-xs font-medium shrink-0 min-h-11 px-2 -my-2"
+        style={{ color: 'var(--color-ink-secondary)' }}
+      >
+        <PencilSimple size={13} weight="bold" />
+        Edit
+      </button>
     </div>
   )
 }

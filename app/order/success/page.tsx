@@ -1,18 +1,15 @@
 import { CheckCircle, WhatsappLogo } from '@phosphor-icons/react/dist/ssr'
-import { createServiceClient } from '@/lib/supabase/server'
+import { getBusinessContactSettings } from '@/lib/supabase/business-settings'
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import { BRAND_NAME } from '@/lib/brand'
+import { Button } from '@/components/ui/Button'
 
 export const metadata: Metadata = { title: `Order Received — ${BRAND_NAME}` }
 
 export default async function OrderSuccessPage() {
-  const supabase = createServiceClient()
-  const { data: phoneRow } = await supabase.from('business_settings').select('value').eq('key', 'business_phone').single()
-  const { data: igRow } = await supabase.from('business_settings').select('value').eq('key', 'business_instagram').single()
+  const { businessPhone: phone, businessInstagram: instagram } = await getBusinessContactSettings()
 
-  const phone = (phoneRow?.value as string) ?? ''
-  const instagram = (igRow?.value as string) ?? ''
   const cleaned = phone.replace(/\D/g, '')
   const waNumber = cleaned ? (cleaned.startsWith('965') ? cleaned : `965${cleaned}`) : ''
 
@@ -29,16 +26,15 @@ export default async function OrderSuccessPage() {
       </div>
       <div className="w-full flex flex-col gap-3">
         {waNumber && (
-          <a
+          <Button
             href={`https://wa.me/${waNumber}?text=${encodeURIComponent(`Hi, I just submitted a cake order on ${BRAND_NAME}!`)}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-medium"
-            style={{ backgroundColor: '#25D366', color: '#fff' }}
+            variant="primary"
+            size="lg"
+            className="rounded-xl w-full"
           >
             <WhatsappLogo size={18} weight="fill" />
             Message Us on WhatsApp
-          </a>
+          </Button>
         )}
         {instagram && (
           <p className="text-sm" style={{ color: 'var(--color-ink-muted)' }}>{instagram} on Instagram</p>

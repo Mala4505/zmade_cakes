@@ -4,7 +4,7 @@ import OrderForm from './_components/OrderForm'
 export default async function OrderPage() {
   const supabase = createServiceClient()
 
-  const [flavorsRes, sizesRes, occasionsRes, blackoutsRes, phoneRow] = await Promise.all([
+  const [flavorsRes, sizesRes, occasionsRes, blackoutsRes, minLeadDaysRow] = await Promise.all([
     supabase
       .from('flavor_options')
       .select('id, name, theme_available, prices:flavor_size_prices(size_id)')
@@ -26,7 +26,7 @@ export default async function OrderPage() {
     if (res.error) throw new Error(`Order form: failed to load ${name} — ${res.error.message}`)
   }
 
-  const minLeadDays = parseInt((phoneRow.data?.value as string) ?? '3')
+  const minLeadDays = parseInt((minLeadDaysRow.data?.value as string) ?? '3')
 
   return (
     <OrderForm

@@ -18,7 +18,7 @@
   /* Neutral: Ink */
   --color-ink: #191614;
   --color-ink-secondary: #3d3936;
-  --color-ink-muted: #7a7370;
+  --color-ink-muted: #6b6461;
 
   /* Status */
   --color-success: #2e7d52;
@@ -50,6 +50,12 @@
   /* ---- Transitions ---- */
   --transition-fast: 120ms var(--ease-out-quart);
   --transition-base: 160ms var(--ease-out-quart);
+
+  /* A faster spin than Tailwind's 1s default — a quicker-spinning spinner
+     reads as a faster load at the same actual wait time. Applies everywhere
+     `animate-spin` is used (the shared Spinner and inline icon spinners
+     alike), so the whole app stays on one spin speed. */
+  --animate-spin: spin 0.7s linear infinite;
 }
 
 /* ---- Base ---- */
@@ -76,7 +82,7 @@ body {
 
 /* ---- Focus visible: override browser default ---- */
 :focus-visible {
-  outline: 2px solid var(--color-teal-light);
+  outline: 2px solid var(--color-teal);
   outline-offset: 2px;
   border-radius: var(--radius-sm);
 }
@@ -135,6 +141,59 @@ body {
 .print-only {
   display: none;
 }
+
+/* ---- Customer routes: "Atelier Cover" band + ticket cards ----
+   Cover band introduces /my-orders and /confirm like a chapter opener: a warm
+   surface-raised panel with a faint dot texture, fading out toward the bottom
+   so it reads as atmosphere, not a hard block. Ticket cards borrow the
+   perforated-stub cut of a real receipt — the notches sit on the dashed
+   divider regardless of card height, since they're positioned off that
+   divider's own box, not the card's total height. */
+.zm-cover-texture {
+  position: relative;
+  overflow: hidden;
+}
+.zm-cover-texture::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: 0.5;
+  background-image: radial-gradient(var(--color-border-strong) 1px, transparent 1px);
+  background-size: 16px 16px;
+  -webkit-mask-image: linear-gradient(to bottom, black, transparent 85%);
+  mask-image: linear-gradient(to bottom, black, transparent 85%);
+}
+.zm-cover-texture > * {
+  position: relative;
+}
+
+.zm-ticket {
+  position: relative;
+  overflow: hidden;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 1.1rem 1.15rem 1.15rem;
+}
+.zm-ticket-perf {
+  position: relative;
+  margin: 0.9rem -1.15rem;
+  border-top: 1px dashed var(--color-border-strong);
+}
+.zm-ticket-perf::before,
+.zm-ticket-perf::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  width: 16px;
+  height: 16px;
+  background: var(--color-cream);
+  border: 1px solid var(--color-border);
+  border-radius: 50%;
+  transform: translateY(-50%);
+}
+.zm-ticket-perf::before { left: -8px; }
+.zm-ticket-perf::after { right: -8px; }
 
 /* ---- Admin content area: card depth ---- */
 /* Cards sit on white main, so --color-surface bg reads as warm-tinted vs. white.

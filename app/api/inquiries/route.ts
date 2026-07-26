@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
 import { publicInquirySchema } from '@/lib/validations/publicInquiry'
 import { normalizePhone } from '@/lib/utils'
+import { generateShortToken } from '@/lib/tokens'
 
 async function getRatelimit() {
   if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN) return null
@@ -56,6 +57,7 @@ export async function POST(req: NextRequest) {
         admin_notes: '',
         customer_id: customer?.id ?? null,
         status: 'pending',
+        confirmation_token: generateShortToken(),
       })
       .select('id, customer_name')
       .single()

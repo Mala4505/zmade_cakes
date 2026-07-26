@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { ImagePlus, X, Loader2 } from 'lucide-react'
+import { ImageSquare, X } from '@phosphor-icons/react'
 import { toast } from 'sonner'
+import { Spinner } from '@/components/ui'
 import { uploadFlavorImage, removeFlavorImage } from '@/lib/actions/products'
 
 interface Props {
@@ -69,21 +70,21 @@ export function FlavorImageUpload({ flavorId, currentUrl, onChanged }: Props) {
         <img src={currentUrl} alt="" className="w-full h-full object-cover" />
         {uploading ? (
           <div
-            className="absolute inset-0 flex items-center justify-center"
-            style={{ backgroundColor: 'rgba(0,0,0,0.45)' }}
+            className="absolute inset-0 flex items-center justify-center text-[color:var(--color-cream)]"
+            style={{ backgroundColor: 'rgba(25,22,20,0.45)' }}
           >
-            <Loader2 size={24} className="animate-spin text-white" />
+            <Spinner size={24} />
           </div>
         ) : (
           <div
-            className="absolute inset-0 flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity"
-            style={{ backgroundColor: 'rgba(0,0,0,0.45)' }}
+            className="absolute inset-0 flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity"
+            style={{ backgroundColor: 'rgba(25,22,20,0.45)' }}
           >
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
               className="text-xs font-semibold rounded-lg px-3 py-1.5"
-              style={{ backgroundColor: 'rgba(255,255,255,0.9)', color: '#1a1a1a' }}
+              style={{ backgroundColor: 'rgba(252,249,245,0.92)', color: 'var(--color-ink)' }}
             >
               Change
             </button>
@@ -91,7 +92,7 @@ export function FlavorImageUpload({ flavorId, currentUrl, onChanged }: Props) {
               type="button"
               onClick={handleRemove}
               className="rounded-lg p-1.5"
-              style={{ backgroundColor: 'rgba(255,255,255,0.9)', color: 'var(--color-danger)' }}
+              style={{ backgroundColor: 'rgba(252,249,245,0.92)', color: 'var(--color-danger)' }}
               aria-label="Remove photo"
             >
               <X size={14} />
@@ -129,10 +130,10 @@ export function FlavorImageUpload({ flavorId, currentUrl, onChanged }: Props) {
       onDrop={handleDrop}
     >
       {uploading ? (
-        <Loader2 size={28} className="animate-spin" />
+        <Spinner size={28} />
       ) : (
         <>
-          <ImagePlus size={28} strokeWidth={1.5} />
+          <ImageSquare size={28} weight="thin" />
           <span className="text-xs text-center px-4">Drop photo or click to upload</span>
         </>
       )}

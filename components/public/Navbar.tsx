@@ -14,7 +14,7 @@ export function Navbar({ businessInstagram }: Props) {
       <div>
         <p
           className="text-2xl font-bold tracking-tight"
-          style={{ fontFamily: 'var(--font-display)', color: 'var(--color-teal)' }}
+          style={{ fontFamily: 'var(--font-display)', color: 'var(--color-ink)' }}
         >
           {BRAND_NAME}
         </p>
