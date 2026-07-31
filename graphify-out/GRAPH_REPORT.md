@@ -1,218 +1,357 @@
-# Graph Report - C:\Users\Lenovo T470s\Desktop\Aliasger\Projects\ZMade\zmade-new  (2026-05-25)
+# Graph Report - .  (2026-08-01)
 
 ## Corpus Check
-- Corpus is ~32,693 words - fits in a single context window. You may not need a graph.
+- 189 files · ~81,327 words
+- Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 443 nodes · 757 edges · 54 communities (27 shown, 27 thin omitted)
-- Extraction: 91% EXTRACTED · 9% INFERRED · 0% AMBIGUOUS · INFERRED: 69 edges (avg confidence: 0.88)
-- Token cost: 320 input · 280 output
+- 997 nodes · 2395 edges · 89 communities (45 shown, 44 thin omitted)
+- Extraction: 96% EXTRACTED · 4% INFERRED · 0% AMBIGUOUS · INFERRED: 103 edges (avg confidence: 0.8)
+- Token cost: 707,062 input · 124,772 output
 
 ## Community Hubs (Navigation)
-- [[_COMMUNITY_Settings Module Pages|Settings Module Pages]]
-- [[_COMMUNITY_Server Actions Layer|Server Actions Layer]]
-- [[_COMMUNITY_Supabase Auth Patterns|Supabase Auth Patterns]]
-- [[_COMMUNITY_Settings CRUD Actions|Settings CRUD Actions]]
-- [[_COMMUNITY_Customer & Inquiry Actions|Customer & Inquiry Actions]]
-- [[_COMMUNITY_Auth & Navigation|Auth & Navigation]]
-- [[_COMMUNITY_Customer-Facing Flows|Customer-Facing Flows]]
-- [[_COMMUNITY_Inquiry Feature Flags|Inquiry Feature Flags]]
-- [[_COMMUNITY_Options CRUD|Options CRUD]]
-- [[_COMMUNITY_Product Principles & Users|Product Principles & Users]]
-- [[_COMMUNITY_Invoice & Image Utilities|Invoice & Image Utilities]]
-- [[_COMMUNITY_Admin UI Components|Admin UI Components]]
-- [[_COMMUNITY_Public Submission Flow|Public Submission Flow]]
-- [[_COMMUNITY_Login Module|Login Module]]
-- [[_COMMUNITY_Rate Limiting Layer|Rate Limiting Layer]]
-- [[_COMMUNITY_DB Option Tables|DB Option Tables]]
-- [[_COMMUNITY_Order Form Logic|Order Form Logic]]
-- [[_COMMUNITY_Design System Rules|Design System Rules]]
-- [[_COMMUNITY_Proxy Rate Limiter|Proxy Rate Limiter]]
-- [[_COMMUNITY_Settings Layout Shell|Settings Layout Shell]]
-- [[_COMMUNITY_Next.js Boilerplate Assets|Next.js Boilerplate Assets]]
-- [[_COMMUNITY_Pricing Configuration|Pricing Configuration]]
-- [[_COMMUNITY_Agent Config Docs|Agent Config Docs]]
-- [[_COMMUNITY_TS Env Reference|TS Env Reference]]
-- [[_COMMUNITY_Next Config File|Next Config File]]
-- [[_COMMUNITY_PostCSS Tailwind Config|PostCSS Tailwind Config]]
-- [[_COMMUNITY_Root Layout File|Root Layout File]]
-- [[_COMMUNITY_Order Layout File|Order Layout File]]
-- [[_COMMUNITY_Page Header Component|Page Header Component]]
-- [[_COMMUNITY_Create Inquiry Action|Create Inquiry Action]]
-- [[_COMMUNITY_Update Inquiry Action|Update Inquiry Action]]
-- [[_COMMUNITY_Send Confirmation Action|Send Confirmation Action]]
-- [[_COMMUNITY_Cancel Order Action|Cancel Order Action]]
-- [[_COMMUNITY_Update ETA Action|Update ETA Action]]
-- [[_COMMUNITY_Token Schema|Token Schema]]
-- [[_COMMUNITY_Option Form Type|Option Form Type]]
-- [[_COMMUNITY_Business Info Schema|Business Info Schema]]
-- [[_COMMUNITY_Operating Rules Schema|Operating Rules Schema]]
-- [[_COMMUNITY_Blackout Date Type|Blackout Date Type]]
-- [[_COMMUNITY_Business Info Type|Business Info Type]]
-- [[_COMMUNITY_Operating Rules Type|Operating Rules Type]]
-- [[_COMMUNITY_Pricing Data Type|Pricing Data Type]]
-- [[_COMMUNITY_WhatsApp Templates Type|WhatsApp Templates Type]]
-- [[_COMMUNITY_README Boilerplate|README Boilerplate]]
-- [[_COMMUNITY_File SVG Icon|File SVG Icon]]
-- [[_COMMUNITY_Globe SVG Icon|Globe SVG Icon]]
-- [[_COMMUNITY_Next.js Logo SVG|Next.js Logo SVG]]
+- Product Pricing & Flavors
+- Order Status Actions
+- Design System & Brand Tokens
+- Admin Analytics Export
+- My Orders Lookup Flow
+- Admin Calendar & Events
+- Inquiry Image Handling
+- Admin Loading Skeletons
+- Admin Layout & Login Forms
+- Business Info & Pricing Panel
+- TypeScript / Next.js Config
+- Inquiry & Order Status Progression
+- Analytics Dashboard Page
+- Customer & Order Detail Pages
+- Admin Error & Button Component
+- Notify & Upload API Routes
+- Order ETA & Invoice Admin
+- Admin Order List Views
+- Inquiries & My-Orders API Routes
+- Form Field UI Primitives
+- Cancel Inquiry & Customer Changes
+- Runtime NPM Dependencies
+- Invoice Layout & PDF
+- Confirm/Invoice Loading States
+- Dev Tooling Dependencies
+- Input Component Styling
+- Settings Sections Navigation
+- Root Layout & Fonts
+- New Inquiry & Blackout Dates
+- Error Boundaries
+- Impeccable Design Critique Workflow
+- Inquiries List Page Logic
+- PDF Download & Print Buttons
+- Settings Validation Schemas
+- Customer Lookup Rationale (Phone Matching)
+- Package Manifest Scripts
+- Orders Table Columns
+- Rate Limiting Proxy
+- Inquiry Row Actions
+- Public Route Entry Pages
+- Confirm Page Allergen Selection
+- Invoice Print Flow
+- Loading Skeleton Layout Rationale
+- Analytics Loading Bars
+- Motion Easing Curve
+- Admin Font Setup
+- Agent Instructions & Package Manifest
+- Project Instruction Docs
+- Customers List & Loading
+- Global Error Rationale
+- html-to-image Dependency
+- lucide-react Dependency
+- next Dependency
+- Next.js Config Export
+- phosphor-icons Dependency
+- react Dependency
+- react-big-calendar Dependency
+- react-dom Dependency
+- sharp Dependency
+- sonner Dependency
+- supabase-ssr Dependency
+- upstash-ratelimit Dependency
+- upstash-redis Dependency
+- PostCSS Config
+- Admin Dashboard Loading
+- Admin Error Component
+- Analytics Bar List
+- Analytics Summary Card
+- Confirm Error Boundary
+- Confirm Page Server Component
+- Brand Color Token
+- Inquiries Loading Skeleton
+- Order Timeline Component
+- Levenshtein Distance Helper
+- Phone Normalization Helper
+- My Orders Error Page
+- New Inquiry Page
+- Push Notification API
+- Order Detail Loading
+- Order Error Component
+- Order Layout
+- Orders Loading Skeleton
+- Settings Hub Page
+- Track Order Error
+- TypeScript Compiler Config
+- UI Barrel Exports
+- Admin Upload API Route
 
 ## God Nodes (most connected - your core abstractions)
-1. `createClient()` - 19 edges
-2. `lib/supabase/types — Shared DB types (Inquiry, Order, Customer, BlackoutDate, etc.)` - 17 edges
-3. `createServiceClient()` - 15 edges
-4. `DB: inquiries table` - 15 edges
-5. `lib/supabase/server — createClient() Supabase SSR client factory` - 14 edges
-6. `lib/utils — Shared utilities (formatDate, formatKWD, formatTime, cn, GOVERNORATE_LABELS, INQUIRY_STATUS_LABELS, confirmationLink, trackingLink)` - 14 edges
-7. `app/admin/inquiries/[id]/page.tsx — Inquiry Detail Page` - 13 edges
-8. `InquiryForm — Full inquiry create/edit form with react-hook-form + zod` - 13 edges
-9. `components/admin/PageHeader — PageHeader shared component` - 13 edges
-10. `lib/actions/settings — getSettings(), getBlackouts() server actions` - 12 edges
+1. `createClient (server Supabase client)` - 77 edges
+2. `cn()` - 42 edges
+3. `formatKWD` - 32 edges
+4. `createServiceClient (service-role Supabase client)` - 31 edges
+5. `orderSummary` - 30 edges
+6. `formatDate` - 29 edges
+7. `Skeleton` - 23 edges
+8. `derivePaymentStatus` - 23 edges
+9. `getSettings` - 22 edges
+10. `OptionRow interface` - 22 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `WhatsApp-Driven Order Workflow` --conceptually_related_to--> `Tracking Token (UUID per order)`  [INFERRED]
-  PRODUCT.md → lib/supabase/types.ts
-- `Track Order Page` --conceptually_related_to--> `trackingLink Utility`  [INFERRED]
-  app/track/[token]/page.tsx → lib/utils.ts
-- `WhatsApp-Driven Order Workflow` --conceptually_related_to--> `WhatsAppTemplates Interface`  [INFERRED]
-  PRODUCT.md → lib/supabase/types.ts
-- `WhatsApp-Driven Order Workflow` --conceptually_related_to--> `Confirmation Token (UUID per inquiry)`  [INFERRED]
-  PRODUCT.md → lib/supabase/types.ts
-- `formatDate()` --calls--> `formatTime()`  [INFERRED]
-  app/admin/calendar/_components/CalendarView.tsx → lib/utils.ts
+- `Phase 5 â€” Polish & Engineering` --references--> `getBusinessContactSettings`  [EXTRACTED]
+  ACTION-PLAN-customer-routes.md → lib/supabase/business-settings.ts
+- `Flat Corporate Forms Anti-Reference` --semantically_similar_to--> `Do's and Don'ts (Anti-Pattern Rules)`  [INFERRED] [semantically similar]
+  PRODUCT.md → DESIGN.md
+- `Food-Delivery Apps Anti-Reference (Talabat, Careem)` --semantically_similar_to--> `Do's and Don'ts (Anti-Pattern Rules)`  [INFERRED] [semantically similar]
+  PRODUCT.md → DESIGN.md
+- `Generic SaaS Dashboards Anti-Reference (Linear, Notion)` --semantically_similar_to--> `Do's and Don'ts (Anti-Pattern Rules)`  [INFERRED] [semantically similar]
+  PRODUCT.md → DESIGN.md
+- `Over-Designed Pinterest-Core Bakery Anti-Reference` --semantically_similar_to--> `Do's and Don'ts (Anti-Pattern Rules)`  [INFERRED] [semantically similar]
+  PRODUCT.md → DESIGN.md
+
+## Import Cycles
+- None detected.
 
 ## Hyperedges (group relationships)
-- **Admin Auth Guard Pattern — Both admin layouts redirect unauthenticated users to /login** — admin_layout_group, admin_layout, lib_supabase_server, proxy_fn_proxy [EXTRACTED 1.00]
-- **Inquiry CRUD Flow — Pages, form, and server actions for creating/editing inquiries** — admin_inquiries_page, admin_inquiries_new_page, admin_inquiries_detail_page, inquiry_form, lib_actions_inquiries, db_table_inquiries [EXTRACTED 1.00]
-- **Order Lifecycle — Kanban board, detail view, status transitions, ETA, invoice** — admin_orders_page, admin_orders_detail_page, orders_OrderCard, order_detail_actions, order_eta_section, components_admin_InvoicePrint, lib_actions_orders, db_table_orders [EXTRACTED 1.00]
-- **WhatsApp Messaging Pattern — Confirmation link, order ready, balance due messages via wa.me URLs** — inquiry_actions, lib_supabase_types [EXTRACTED 1.00]
-- **Rate Limiting Middleware — Route-specific sliding window limits via Upstash** — proxy_fn_proxy, proxy_ratelimiters, proxy_fn_checkRateLimit, ext_upstash_redis, ext_upstash_ratelimit [EXTRACTED 1.00]
-- **Nav Badge Counts — Admin layout queries pending inquiry + ready order counts for sidebar/bottom nav badges** — admin_layout, components_admin_AdminNav, db_table_inquiries, db_table_orders [EXTRACTED 1.00]
-- **Customer Lookup & Pre-fill — InquiryForm debounces phone lookup, shows CustomerHistoryPanel, prefills cake details** — inquiry_form, customer_history_panel, lib_actions_customers, db_table_customers [EXTRACTED 1.00]
-- **Admin Settings Sub-pages (Business, Operating Rules, Pricing, Blackout Dates, WhatsApp Templates, Options)** — BusinessInfoPage_component, OperatingRulesPage_component, PricingPage_component, BlackoutDatesPage_component, WhatsAppTemplatesPage_component, OptionsPage_component [EXTRACTED 1.00]
-- **Settings Client Forms that call updateSetting/createBlackout/deleteBlackout** — BusinessInfoForm_component, OperatingRulesForm_component, PricingForm_component, WhatsAppTemplatesForm_component, BlackoutDatesManager_component [EXTRACTED 1.00]
-- **Public Inquiry Submission Flow (rate-limit → upsert customer → insert inquiry → insert delivery address → notify)** — api_inquiries_route, upstash_ratelimit, supabase_table_customers, supabase_table_inquiries, supabase_table_delivery_addresses, supabase_table_notifications [EXTRACTED 1.00]
-- **Image Upload Pipeline (sharp resize → Supabase storage → inquiry_images record)** — api_upload_route, api_upload_public_route, supabase_bucket_cake_references, supabase_table_inquiry_images [EXTRACTED 1.00]
-- **Customer Order Confirmation Flow (ConfirmPage → ConfirmForm → confirmInquiry action → redirect to /track)** — ConfirmPage_component, ConfirmForm_component, lib_actions_inquiries, supabase_table_inquiries, supabase_table_orders [EXTRACTED 1.00]
-- **Public Order Submission Flow** — order_page, OrderForm_component, api_inquiries_endpoint, order_success_page [EXTRACTED 1.00]
-- **Admin Navigation System** — AdminSidebar_component, AdminBottomNav_component [EXTRACTED 1.00]
-- **Supabase Client Factory** — supabase_client, supabase_server_createClient, supabase_server_createServiceClient [INFERRED 0.95]
-- **Server Actions Suite** — actions_auth, actions_customers, actions_images, actions_inquiries, actions_options, actions_orders, actions_settings [INFERRED 0.95]
-- **Inquiry Lifecycle Actions** — createInquiry_action, updateInquiry_action, sendConfirmationLink_action, confirmInquiry_action [EXTRACTED 1.00]
-- **Order Lifecycle Actions** — updateOrderStatus_action, cancelOrder_action, updateOrderEta_action [EXTRACTED 1.00]
-- **Public Order Tracking Flow** — track_token_page, db_orders, db_inquiry_images, isValidUUID_fn [EXTRACTED 1.00]
-- **Status Display Components** — StatusBadge_component, PriorityBadge_component [EXTRACTED 1.00]
-- **Formatting Utility Functions** — formatDate_fn, formatKWD_fn, cn_fn, isValidUUID_fn, confirmationLink_fn, trackingLink_fn [EXTRACTED 1.00]
-- **Core Database Schema (Inquiries, Orders, Notifications, Customers)** — db_inquiries, db_orders, db_notifications, db_customers, db_delivery_addresses, db_inquiry_images [EXTRACTED 1.00]
-- **Dropdown Option Tables (Admin-Managed)** — db_flavor_options, db_size_options, db_occasion_options, db_theme_options, db_decoration_style_options [EXTRACTED 1.00]
-- **Business Configuration Tables** — db_business_settings, db_blackout_dates [EXTRACTED 1.00]
-- **Zod Validation Layer (All Schemas)** — validation_inquirySchema, validation_deliveryAddressSchema, validation_customerConfirmSchema, validation_optionSchema, validation_blackoutDateSchema, validation_businessInfoSchema, validation_operatingRulesSchema, validation_pricingSchema, validation_whatsappTemplatesSchema, validation_tokenSchema [INFERRED 0.95]
-- **Supabase Client Layer (Server + Service)** — server_createClient, server_createServiceClient, types_Database [EXTRACTED 1.00]
-- **ZMade Design System Named Rules** — concept_design_one_voice_rule, concept_design_warm_base_rule, concept_design_flat_by_default, concept_design_mono_numbers, concept_design_admin_headline_rule [EXTRACTED 1.00]
-- **Token-Based Public Access (no auth required)** — concept_confirmation_token, concept_tracking_token, concept_token_auth_pattern, concept_service_role_pattern, server_createServiceClient [INFERRED 0.95]
-- **Migration 006: Allergens + Balance Tracking Extension** — concept_allergen_system, concept_balance_tracking, types_AllergenFlags, types_hasAllergens, types_ALLERGEN_LABELS [EXTRACTED 1.00]
+- **Inquiry detail page assembles action, form, image and change-tracking components** — inquirydetailpage_InquiryDetailPage, app_admin_inquiries_id_components_inquiryactions_inquiryactions, app_admin_inquiries_id_components_inquirydetailform_inquirydetailform, app_admin_inquiries_id_components_cancelinquirybutton_cancelinquirybutton, app_admin_inquiries_id_components_collapsibleimages_collapsibleimages, app_admin_inquiries_id_components_customerchangesbanner_customerchangesbanner [EXTRACTED 0.90]
+- **Route loading skeletons mirror their page's layout shape** — analyticsloading_AnalyticsLoading, calendarloading_CalendarLoading, customersloading_CustomersLoading, inquirydetailloading_InquiryDetailLoading [INFERRED 0.80]
+- **Phone-driven customer lookup, match confirmation, and upsert workflow** — app_admin_inquiries_components_inquiryform_inquiryform, app_admin_inquiries_components_customerhistorypanel_customerhistorypanel, lib_actions_customers_lookupcustomerbyphone, lib_actions_customers_upsertcustomer [EXTRACTED 0.90]
+- **Duplicated Order-Status Advance Pattern** — app_admin_orders_id_components_orderdetailactions_orderdetailactions, app_admin_orders_components_orderstatusactions_orderstatusactions, orderspage_OrderCard [INFERRED 0.85]
+- **Shared Payment-Status Computation and Display** — inquiriespage_InquiriesPage, app_admin_orders_components_mobileorderlist_mobileordercard, orderspage_OrderCard, dashboardpage_DashboardPage [INFERRED 0.80]
+- **Multiple Invoice Output Paths (print page, embedded print, image download)** — admininvoicepage_AdminInvoicePage, orderdetailpage_OrderDetailPage, app_admin_orders_id_components_orderdetailactions_orderdetailactions [INFERRED 0.75]
+- **Inline add-new-option UI pattern** — app_admin_products_components_flavorlist_flavorlist, app_admin_products_components_itemlist_itemlist, app_admin_products_components_sizelist_sizelist [INFERRED 0.85]
+- **Sizes tab: size catalog + base pricing flow** — app_admin_products_components_productsclient_productsclient, app_admin_products_components_sizelist_sizelist, app_admin_products_components_pricingpanel_pricingpanel [EXTRACTED 0.90]
+- **Settings section CRUD forms (updateSetting/option actions + toast)** — app_admin_settings_business_components_businessinfoform_businessinfoform, app_admin_settings_operating_rules_components_operatingrulesform_operatingrulesform, app_admin_settings_options_components_optionsmanager_optionsmanager, app_admin_settings_blackout_dates_components_blackoutdatesmanager_blackoutdatesmanager [INFERRED 0.80]
+- **confirmation_token generated, displayed, and validated across inquiry-confirmation flow** — inquiriesRoute_POST, confirmPage_ConfirmPage, app_confirm_token_components_customerphotoupload_customerphotoupload, uploadPublicRoute_POST [INFERRED 0.85]
+- **Three-size sharp image resize pipeline (original/medium/thumb) duplicated across upload routes** — uploadOrderRoute_POST, uploadPublicRoute_POST, uploadRoute_POST [INFERRED 0.90]
+- **Duplicated WhatsApp Number Normalization Logic** — notfound_NotFound, trackpage_TrackPage, ordersuccesspage_OrderSuccessPage [INFERRED 0.85]
+- **Shared Order/Inquiry Data Shape Across Creation, Tracking, and Invoicing** — app_order_components_orderform_orderform, trackpage_TrackPage, components_invoicelayout_invoicelayout [INFERRED 0.75]
+- **Login / Forgot Password / Reset Password Flow** — loginpage_LoginPage, forgotpage_ForgotPage, resetpage_ResetPage [INFERRED 0.85]
+- **Deferred navigation pending/overlay flow** — components_admin_adminnav_navlinkstatus, components_admin_navpendingcontext_navpendingprovider, components_admin_navpendingcontext_usenavpending, components_admin_navigationoverlay_navigationoverlay [EXTRACTED 0.95]
+- **Shared form field primitives (label/control/error wrapper + controls)** — components_ui_field_field, components_ui_input_input, components_ui_checkbox_checkbox, components_phoneinput_phoneinput [INFERRED 0.85]
+- **Status badge/select representation pattern for InquiryStatus/OrderStatus** — components_ui_badge_badge, components_admin_statusbadge_statusbadge, components_admin_inquirystatusselect_inquirystatusselect [INFERRED 0.85]
+- **Consumers of the sync_order_status RPC** — lib_actions_orders_updateorderstatus, lib_actions_orders_cancelorder, lib_actions_inquiries_updateinquirystatus [EXTRACTED 0.90]
+- **Service-role client bypass of RLS for storage/public writes** — lib_actions_images_deleteinquiryimage, lib_actions_products_uploadflavorimage, lib_actions_inquiries_confirminquiry [INFERRED 0.85]
+- **Duplicated order/inquiry status transition logic** — lib_actions_orders_valid_transitions, lib_format_order_status_labels, lib_actions_inquiries_updateinquirystatus [INFERRED 0.80]
+- **Three-tier Supabase client access pattern (browser, server, service-role)** — lib_supabase_client_createclient, lib_supabase_server_createclient, lib_supabase_server_createserviceclient [INFERRED 0.85]
+- **Short-token generation with legacy-UUID-compatible validation** — lib_tokens_generateshorttoken, lib_ui_isvalidtoken, lib_ui_isvaliduuid [EXTRACTED 1.00]
+- **WhatsApp template messaging system (defaults, validation, action selection)** — lib_whatsapp_pickwhatsappaction, lib_supabase_types_default_whatsapp_templates, lib_validations_settings_whatsapptemplatesschema [INFERRED 0.85]
+- **Admin/Customer Duality Across Product & Design Docs** — designmd_atelier_ledger_concept, productmd_admin_is_tool_customer_is_moment, productmd_zainab_persona, productmd_customer_persona [INFERRED 0.85]
+- **Inline Status/Payment Edit Flow** — inquiryredesign_inquiry_status_select, inquiryredesign_inquiry_payment_select, inquiryredesign_payment_status_field, inquiryredesign_update_inquiry_status_action [EXTRACTED 1.00]
+- **Shared Anti-References Between PRODUCT.md and DESIGN.md Don'ts** — productmd_generic_saas_anti_ref, productmd_food_delivery_anti_ref, productmd_pinterest_bakery_anti_ref, designmd_donts_section [INFERRED 0.85]
 
-## Communities (54 total, 27 thin omitted)
+## Communities (89 total, 44 thin omitted)
 
-### Community 0 - "Settings Module Pages"
-Cohesion: 0.05
-Nodes (71): BlackoutDatesManager, Blackout Dates Page, BusinessInfoForm, Business Info Page, OperatingRulesForm, Operating Rules Page, OptionsManager, Options Page (+63 more)
-
-### Community 1 - "Server Actions Layer"
-Cohesion: 0.08
-Nodes (21): deleteInquiryImage(), getInquiryImages(), cancelOrder(), updateOrderEta(), updateOrderStatus(), handleDelete(), PriorityBadge(), StatusBadge() (+13 more)
-
-### Community 2 - "Supabase Auth Patterns"
+### Community 0 - "Product Pricing & Flavors"
 Cohesion: 0.07
-Nodes (34): Service Role Pattern (bypass RLS for public routes), Token-Based Public Access (no login needed), createClient (Server Supabase), createServiceClient (Service Role), ALLERGEN_LABELS Constant, AllergenFlags Type, BlackoutDate Interface, BusinessSetting Interface (+26 more)
+Nodes (56): buildPriceMap(), canonPrices(), FlavorDetail, Props, FlavorImageUpload, Props, FlavorList, FlavorThumb (+48 more)
 
-### Community 3 - "Settings CRUD Actions"
-Cohesion: 0.11
-Nodes (10): createBlackout(), deleteBlackout(), getBlackouts(), getSettings(), updateSetting(), BlackoutDatesPage(), BusinessInfoPage(), OperatingRulesPage() (+2 more)
+### Community 1 - "Order Status Actions"
+Cohesion: 0.06
+Nodes (55): NEXT_STATUS, OrderStatusActions, NEXT_STATUS, OrderDetailActions, Address, ConfirmAction, ConfirmDraft, ConfirmForm component (+47 more)
 
-### Community 4 - "Customer & Inquiry Actions"
-Cohesion: 0.09
-Nodes (9): lookupCustomerByPhone(), updateCustomerNotes(), upsertCustomer(), cancelInquiry(), confirmInquiry(), createInquiry(), sendConfirmationLink(), updateInquiry() (+1 more)
+### Community 2 - "Design System & Brand Tokens"
+Cohesion: 0.05
+Nodes (55): The Admin Headline Rule, Admin Navigation Component, Amber Bark (#92600f), Artisan Teal (#006860), The Atelier Ledger (Creative North Star), Button Component, Cabinet Grotesk (Customer Heading Font), Cards / List Items Component (+47 more)
 
-### Community 5 - "Auth & Navigation"
-Cohesion: 0.11
-Nodes (10): signIn(), CalendarPage(), getBlackoutDates(), getCalendarOrders(), getRatelimit(), POST(), OrderPage(), POST() (+2 more)
+### Community 3 - "Admin Analytics Export"
+Cohesion: 0.07
+Nodes (44): AnalyticsLoading, AnalyticsPage, getAnalyticsData, ExportButton, Props, CustomerDetail, Props, CustomerHistoryPanel (+36 more)
 
-### Community 6 - "Customer-Facing Flows"
-Cohesion: 0.09
-Nodes (28): ConfirmForm, Confirm Page, CustomerPhotoUpload, ImageGallery Component, app/admin/layout.tsx — Admin Layout (auth guard + badge counts from DB), app/(admin)/layout.tsx — Admin Layout Group (auth guard, no badge counts), POST /api/inquiries, POST /api/notify (+20 more)
+### Community 4 - "My Orders Lookup Flow"
+Cohesion: 0.06
+Nodes (43): POST /api/inquiries (referenced route), GET /api/my-orders (referenced route), formatEventDate(), MyOrdersContent, MyOrdersPage (Suspense wrapper), OrderResult, Props, MyOrdersServerPage() (+35 more)
 
-### Community 7 - "Inquiry Feature Flags"
+### Community 5 - "Admin Calendar & Events"
+Cohesion: 0.06
+Nodes (34): BaseEvent, BlackoutEvent, CalendarEvent, CalendarView, CalendarViewProps, CustomToolbar, DateCellWrapper, DetailEvent (+26 more)
+
+### Community 6 - "Inquiry Image Handling"
+Cohesion: 0.10
+Nodes (23): POST /api/upload/order (referenced route), CollapsibleImages, InquiryImageSection, Props, Props, CustomerPhotoUpload component, Props, UploadedPhoto (+15 more)
+
+### Community 7 - "Admin Loading Skeletons"
+Cohesion: 0.10
+Nodes (7): CELL_WIDTHS, Skeleton, SkeletonCalendar, SkeletonCards, SkeletonForm, SkeletonKanban, SkeletonTable
+
+### Community 8 - "Admin Layout & Login Forms"
+Cohesion: 0.12
+Nodes (20): AdminLayout(), LoginForm component, ForgotForm component, metadata, LoginPage(), metadata, AdminBottomNav, AdminSidebar (+12 more)
+
+### Community 9 - "Business Info & Pricing Panel"
+Cohesion: 0.13
+Nodes (21): PricingPanel, toStr(), BusinessInfoForm, BusinessInfoPage(), metadata, OperatingRulesForm, metadata, OperatingRulesPage() (+13 more)
+
+### Community 10 - "TypeScript / Next.js Config"
+Cohesion: 0.07
+Nodes (28): dom, dom.iterable, esnext, **/*.mts, .next/dev/types/**/*.ts, next-env.d.ts, .next/types/**/*.ts, node_modules (+20 more)
+
+### Community 11 - "Inquiry & Order Status Progression"
+Cohesion: 0.15
+Nodes (22): InquiryActions, NEXT_STEP, STATUS_PROGRESSION, OrderWhatsAppActions, EditOrderModal, EditOrderModalProps, ICON_COLORS, PILL_STYLES (+14 more)
+
+### Community 12 - "Analytics Dashboard Page"
+Cohesion: 0.14
+Nodes (17): AnalyticsPage(), getAnalyticsData(), metadata, CalendarPage(), getBlackoutDates(), getCalendarOrders(), getPendingInquiries(), metadata (+9 more)
+
+### Community 13 - "Customer & Order Detail Pages"
+Cohesion: 0.21
+Nodes (19): EventDetailBody, CustomerDetailPage(), generateMetadata(), OrderDetailPage(), Props, ConfirmPage(), metadata, Props (+11 more)
+
+### Community 14 - "Admin Error & Button Component"
+Cohesion: 0.16
+Nodes (15): Button, ButtonProps, ButtonSize, ButtonVariant, SIZE_CLASSES, VARIANT_CLASSES, CakeLoader, T (+7 more)
+
+### Community 15 - "Notify & Upload API Routes"
+Cohesion: 0.16
+Nodes (13): NotifyBody, POST(), ALLOWED_TYPES, POST(), ALLOWED_TYPES, DELETE(), POST(), ALLOWED_TYPES (+5 more)
+
+### Community 16 - "Order ETA & Invoice Admin"
+Cohesion: 0.14
+Nodes (14): AdminInvoicePage, OrderEtaSection, Props, OrderImageSection, DashboardPage(), formatPickupTime(), getDashboardData(), metadata (+6 more)
+
+### Community 17 - "Admin Order List Views"
+Cohesion: 0.14
+Nodes (18): AdminLayout, AnimatedCardList, daysUntil(), MobileOrder, MobileOrderCard, MobileOrderList, OrderInquiry, STATUS_LABELS (+10 more)
+
+### Community 18 - "Inquiries & My-Orders API Routes"
+Cohesion: 0.19
+Nodes (15): getRatelimit(), POST(), digitWildcardPattern(), fetchOrdersForCustomer(), GET(), getRatelimit(), normalize(), OrderResult (+7 more)
+
+### Community 19 - "Form Field UI Primitives"
 Cohesion: 0.18
-Nodes (17): Inquiry Server Actions, Order Server Actions, Allergen Flag System on Inquiries, Balance Paid Tracking on Inquiries, Inquiry Source Tracking (admin vs public_form), Tracking Token (UUID per order), confirmInquiry Server Action, DB: delivery_addresses table (+9 more)
+Nodes (13): Checkbox, CheckboxProps, DetailRowProps, Field, FieldProps, Modal, ModalProps, SIZE_CLASSES (+5 more)
 
-### Community 8 - "Options CRUD"
-Cohesion: 0.23
-Nodes (7): createOption(), deleteOption(), getAllOptions(), getOptions(), isValidTable(), updateOption(), OptionsPage()
+### Community 20 - "Cancel Inquiry & Customer Changes"
+Cohesion: 0.17
+Nodes (14): CancelInquiryButton, CustomerChangesBanner, Props, generateMetadata(), InquiryDetailPage(), Props, STATUS_ORDER, TIMELINE_STEPS (+6 more)
 
-### Community 9 - "Product Principles & Users"
-Cohesion: 0.18
-Nodes (11): Admin Panel (Zainab's Ledger), Confirmation Token (UUID per inquiry), Customer-Facing Pages (Confirmation + Tracking), User: Customers (Public Link Recipients), Product Principle: Mobile-First Admin (phone between baking), WhatsApp-Driven Order Workflow, User: Zainab (Sole Admin Operator), PRODUCT.md (Product Spec) (+3 more)
+### Community 21 - "Runtime NPM Dependencies"
+Cohesion: 0.12
+Nodes (17): date-fns, framer-motion, @hookform/resolvers, dependencies, date-fns, framer-motion, @hookform/resolvers, react-hook-form (+9 more)
 
-### Community 10 - "Invoice & Image Utilities"
+### Community 22 - "Invoice Layout & PDF"
 Cohesion: 0.24
-Nodes (10): GOVERNORATE_LABELS Constant, InvoicePrint Component, Image Server Actions, DB: inquiry_images table, formatDate Utility, formatKWD Utility, isValidUUID Utility, Supabase Storage: cake-references bucket (+2 more)
+Nodes (11): InvoiceLayout, Props, InvoicePdfDocument, Props, styles, GOVERNORATE_LABELS, balanceOwed, ALLERGEN_LABELS (+3 more)
 
-### Community 11 - "Admin UI Components"
-Cohesion: 0.29
-Nodes (8): AdminBottomNav Component, AdminSidebar Component, PriorityBadge Component, StatusBadge Component, Customer Server Actions, cn (classnames) Utility, DB: customers table, Supabase Database Types
+### Community 23 - "Confirm/Invoice Loading States"
+Cohesion: 0.18
+Nodes (5): metadata, NotFound(), metadata, Navbar, Props
 
-### Community 12 - "Public Submission Flow"
+### Community 24 - "Dev Tooling Dependencies"
+Cohesion: 0.13
+Nodes (15): devDependencies, patch-package, tailwindcss, @tailwindcss/postcss, @types/node, @types/react, @types/react-dom, typescript (+7 more)
+
+### Community 25 - "Input Component Styling"
+Cohesion: 0.21
+Nodes (9): inputBaseClass, InputProps, InputSize, sizeClass, SelectProps, sizeClass, sizeClass, TextareaProps (+1 more)
+
+### Community 26 - "Settings Sections Navigation"
+Cohesion: 0.23
+Nodes (6): SETTINGS_SECTIONS, SettingsSection, SettingsMobileBar, SettingsSidebar, metadata, SettingsLayout
+
+### Community 27 - "Root Layout & Fonts"
+Cohesion: 0.21
+Nodes (10): bricolageGrotesque, geistMono, geistSans, metadata, RootLayout, viewport, metadata, OrderSuccessPage() (+2 more)
+
+### Community 28 - "New Inquiry & Blackout Dates"
+Cohesion: 0.26
+Nodes (9): metadata, NewInquiryPage(), BlackoutDatesManager, BlackoutDatesPage(), metadata, getOptions, createBlackout, deleteBlackout (+1 more)
+
+### Community 30 - "Impeccable Design Critique Workflow"
+Cohesion: 0.20
+Nodes (11): Impeccable critique-driven phase workflow, One Voice Rule (single teal accent per screen), Phase 1 â€” Trust & Resilience, Phase 2 â€” Device & Accessibility Mechanics, Phase 3 â€” Copy, Phase 4 â€” Brand Moments, Phase 5 â€” Polish & Engineering, Phase 5.5 â€” One Voice Regression + Wizard Density (+3 more)
+
+### Community 31 - "Inquiries List Page Logic"
+Cohesion: 0.24
+Nodes (10): getCustomerInquiryCounts(), getInquiries(), InquiriesPage(), isUrgent(), metadata, PAYMENT_OPTIONS, PaymentStatus, selectStyle (+2 more)
+
+### Community 32 - "PDF Download & Print Buttons"
+Cohesion: 0.24
+Nodes (8): DownloadPdfButton component, Props, sanitizeFileName(), PrintButton component, metadata, Props, PublicInvoicePage(), PublicInvoicePage (server component)
+
+### Community 33 - "Settings Validation Schemas"
+Cohesion: 0.22
+Nodes (10): BusinessSetting interface, BlackoutDateData, BusinessInfoData, businessInfoSchema, OperatingRulesData, operatingRulesSchema, PricingData, pricingSchema (+2 more)
+
+### Community 34 - "Customer Lookup Rationale (Phone Matching)"
+Cohesion: 0.25
+Nodes (9): POST /api/inquiries (public inquiry creation), getRatelimit() helper (inquiries route), GET /api/my-orders (token & name+phone lookup), Rationale: digit-wildcard ILIKE fallback for legacy inconsistently formatted phone numbers, Rationale: name check is tolerant edit-distance since phone already uniquely resolved the customer, fetchOrdersForCustomer() helper, getRatelimit() helper (my-orders route), POST /api/upload/order (pre-inquiry reference upload) (+1 more)
+
+### Community 35 - "Package Manifest Scripts"
+Cohesion: 0.22
+Nodes (8): name, private, scripts, build, dev, postinstall, start, version
+
+### Community 36 - "Orders Table Columns"
 Cohesion: 0.32
-Nodes (8): OrderForm Component, Settings Server Actions, POST /api/inquiries Endpoint, DB: blackout_dates table, DB: business_settings table, DB: flavor/size/occasion/theme/decoration option tables, Order Page, Order Success Page
+Nodes (7): BASE_COLUMNS, CANCELLED_COLUMN, daysUntil(), getOrders(), metadata, OrderCard(), OrdersPage()
 
-### Community 13 - "Login Module"
-Cohesion: 0.29
-Nodes (8): LoginForm Component, Auth Server Actions, Options Server Actions, Login Page, signIn Server Action, signOut Server Action, Supabase Server createClient, Options Validation Schema
+### Community 37 - "Rate Limiting Proxy"
+Cohesion: 0.32
+Nodes (7): checkRateLimit, checkRateLimit(), config, getIp, getIp(), limiters (per-route Ratelimit instances), proxy()
 
-### Community 14 - "Rate Limiting Layer"
-Cohesion: 0.29
-Nodes (7): @supabase/ssr — Supabase SSR client (createServerClient), @upstash/ratelimit — Sliding window rate limiter, Upstash Redis — Rate limiter backing store, checkRateLimit() — Apply Upstash Ratelimit, getIp() — Extract Client IP from Request, proxy() — Main Middleware Handler, Rate Limiters Map (login/confirm/track/notify/admin/global)
+### Community 38 - "Inquiry Row Actions"
+Cohesion: 0.48
+Nodes (6): InquiryRowActions, RowInquiry, setInquiryPaymentFlags, confirmationLink, derivePaymentStatus, 026_add_amount_paid.sql (payment_status generated column)
 
-### Community 15 - "DB Option Tables"
-Cohesion: 0.29
-Nodes (7): DB Table: decoration_style_options, DB Table: flavor_options, DB Table: occasion_options, RLS Policy: Option Tables (admin+anon), DB Table: size_options, DB Table: theme_options, OPTION_TABLES Constant
-
-### Community 17 - "Design System Rules"
+### Community 39 - "Public Route Entry Pages"
 Cohesion: 0.33
-Nodes (6): Design Rule: No Cabinet Grotesk in Admin Panel, Design Rule: Flat By Default (no card shadows), Design Rule: Mono Numbers (Geist Mono for KWD/IDs), Design Rule: One Voice (single teal accent per screen), Design Rule: Warm Base (no pure white backgrounds), DESIGN.md (Design System Document)
+Nodes (5): /admin/calendar (referenced route), RootPage, ForgotPage, LoginPage, ResetPage
 
-### Community 18 - "Proxy Rate Limiter"
-Cohesion: 0.83
-Nodes (3): checkRateLimit(), getIp(), proxy()
+### Community 41 - "Invoice Print Flow"
+Cohesion: 0.50
+Nodes (3): PrintButton(), AdminInvoicePage(), Props
 
-### Community 20 - "Next.js Boilerplate Assets"
-Cohesion: 0.83
-Nodes (4): Next.js Default Boilerplate, Public Static Assets, Vercel Logo SVG, Browser Window Icon SVG
+### Community 42 - "Loading Skeleton Layout Rationale"
+Cohesion: 0.50
+Nodes (4): ConfirmLoading skeleton, Rationale: skeleton shape must match ConfirmPage exactly to avoid layout jump, InvoiceLoading skeleton, Rationale: skeleton shape must match InvoiceLayout exactly (previously no loading.tsx caused frozen screen)
 
-### Community 21 - "Pricing Configuration"
+### Community 44 - "Motion Easing Curve"
 Cohesion: 0.67
-Nodes (3): Pricing Matrix Business Setting, Rush Multiplier Business Setting, pricingSchema (Zod)
+Nodes (3): EASE_OUT_QUART Motion Curve, app/globals.css (--ease-out-quart), lib/motion.ts (EASE_OUT_QUART)
+
+### Community 45 - "Admin Font Setup"
+Cohesion: 0.67
+Nodes (3): Geist (Admin Font), Geist Font (Vercel, via next/font), Next.js Project (create-next-app)
+
+## Ambiguous Edges - Review These
+- `FlavorDetail` → `PricingTable`  [AMBIGUOUS]
+  app/admin/products/_components/PricingTable.tsx · relation: references
+- `InquiryPaymentSelect Component (new)` → `updateInquiryStatus Server Action`  [AMBIGUOUS]
+  docs/superpowers/specs/2026-05-29-inquiry-pages-redesign.md · relation: calls
 
 ## Knowledge Gaps
-- **105 isolated node(s):** `next-env.d.ts — Next.js TypeScript Env Reference`, `next.config.ts — Next.js Config`, `postcss.config.mjs — PostCSS Config (Tailwind)`, `getIp() — Extract Client IP from Request`, `app/layout.tsx — Root Layout (Geist + Bricolage fonts)` (+100 more)
+- **302 isolated node(s):** `Props`, `BAR_HEIGHTS`, `metadata`, `localizer`, `EventKind` (+297 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **27 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **44 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `lib/utils — Shared utilities (formatDate, formatKWD, formatTime, cn, GOVERNORATE_LABELS, INQUIRY_STATUS_LABELS, confirmationLink, trackingLink)` connect `Settings Module Pages` to `Admin UI Components`, `Customer-Facing Flows`?**
-  _High betweenness centrality (0.092) - this node is a cross-community bridge._
-- **Why does `Supabase Database Types` connect `Admin UI Components` to `Settings Module Pages`, `Invoice & Image Utilities`, `Customer-Facing Flows`?**
-  _High betweenness centrality (0.089) - this node is a cross-community bridge._
-- **Why does `Customer Server Actions` connect `Admin UI Components` to `Login Module`?**
-  _High betweenness centrality (0.074) - this node is a cross-community bridge._
-- **Are the 6 inferred relationships involving `createServiceClient()` (e.g. with `POST()` and `POST()`) actually correct?**
-  _`createServiceClient()` has 6 INFERRED edges - model-reasoned connections that need verification._
-- **Are the 5 inferred relationships involving `DB: inquiries table` (e.g. with `Inquiry Interface` and `Allergen Flag System on Inquiries`) actually correct?**
-  _`DB: inquiries table` has 5 INFERRED edges - model-reasoned connections that need verification._
-- **What connects `next-env.d.ts — Next.js TypeScript Env Reference`, `next.config.ts — Next.js Config`, `postcss.config.mjs — PostCSS Config (Tailwind)` to the rest of the system?**
-  _105 weakly-connected nodes found - possible documentation gaps or missing edges._
-- **Should `Settings Module Pages` be split into smaller, more focused modules?**
-  _Cohesion score 0.05 - nodes in this community are weakly interconnected._
+- **What is the exact relationship between `FlavorDetail` and `PricingTable`?**
+  _Edge tagged AMBIGUOUS (relation: references) - confidence is low._
+- **What is the exact relationship between `InquiryPaymentSelect Component (new)` and `updateInquiryStatus Server Action`?**
+  _Edge tagged AMBIGUOUS (relation: calls) - confidence is low._
+- **Why does `createClient (server Supabase client)` connect `Analytics Dashboard Page` to `Product Pricing & Flavors`, `Order Status Actions`, `Admin Analytics Export`, `Orders Table Columns`, `Inquiry Image Handling`, `Inquiry Row Actions`, `Admin Layout & Login Forms`, `Invoice Print Flow`, `Business Info & Pricing Panel`, `Customer & Order Detail Pages`, `Notify & Upload API Routes`, `Order ETA & Invoice Admin`, `Cancel Inquiry & Customer Changes`, `New Inquiry & Blackout Dates`, `Inquiries List Page Logic`?**
+  _High betweenness centrality (0.061) - this node is a cross-community bridge._
+- **Why does `getBusinessContactSettings` connect `Root Layout & Fonts` to `Confirm Page Allergen Selection`, `Customer & Order Detail Pages`, `Impeccable Design Critique Workflow`, `Notify & Upload API Routes`?**
+  _High betweenness centrality (0.020) - this node is a cross-community bridge._
+- **Why does `createServiceClient (service-role Supabase client)` connect `Notify & Upload API Routes` to `PDF Download & Print Buttons`, `Order Status Actions`, `Product Pricing & Flavors`, `My Orders Lookup Flow`, `Inquiry Image Handling`, `Confirm Page Allergen Selection`, `Customer & Order Detail Pages`, `Inquiries & My-Orders API Routes`, `Confirm/Invoice Loading States`, `Root Layout & Fonts`?**
+  _High betweenness centrality (0.019) - this node is a cross-community bridge._
+- **What connects `Props`, `BAR_HEIGHTS`, `metadata` to the rest of the system?**
+  _302 weakly-connected nodes found - possible documentation gaps or missing edges._
+- **Should `Product Pricing & Flavors` be split into smaller, more focused modules?**
+  _Cohesion score 0.07453416149068323 - nodes in this community are weakly interconnected._
