@@ -43,12 +43,13 @@ export function balanceOwed(
 }
 
 /**
- * Price after the admin-applied discount is subtracted. Used as the order's
- * final_price at confirmation time.
+ * Price minus the admin-applied discount, plus the delivery charge (0 on pickup orders).
+ * Used as the order's final_price at confirmation time.
  */
-export function subtotalAfterDiscount(
+export function orderTotal(
   admin_price: number | string | null,
-  discount: number | string | null
+  discount: number | string | null,
+  delivery_charge: number | string | null = 0
 ): number {
-  return Math.max(0, Number(admin_price ?? 0) - Number(discount ?? 0))
+  return Math.max(0, Number(admin_price ?? 0) - Number(discount ?? 0)) + Number(delivery_charge ?? 0)
 }

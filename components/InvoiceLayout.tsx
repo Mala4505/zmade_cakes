@@ -10,6 +10,7 @@ interface Props {
     final_price: string
     deposit_amount: string | null
     amount_paid: string | null
+    delivery_charge: string | null
     delivery_type: DeliveryType
     tracking_token: string
     invoice_number?: number | null
@@ -77,6 +78,7 @@ export default function InvoiceLayout({ order, inquiry, adminMode, businessPhone
   const balance = balanceOwed(order.final_price, order.amount_paid, inquiry.fully_paid)
   const paymentStatus = derivePaymentStatus(inquiry.fully_paid, order.amount_paid)
   const hasDiscount = Number(inquiry.discount) > 0
+  const hasDeliveryCharge = order.delivery_type === 'delivery' && Number(order.delivery_charge) > 0
 
   return (
     <div
@@ -241,6 +243,9 @@ export default function InvoiceLayout({ order, inquiry, adminMode, businessPhone
         <InvRow label="Subtotal" value={formatKWD(inquiry.admin_price)} mono />
         {hasDiscount && (
           <InvRow label="Discount" value={`- ${formatKWD(inquiry.discount)}`} mono />
+        )}
+        {hasDeliveryCharge && (
+          <InvRow label="Delivery" value={`+ ${formatKWD(order.delivery_charge)}`} mono />
         )}
 
         <div className="flex justify-between items-center mb-1.5">

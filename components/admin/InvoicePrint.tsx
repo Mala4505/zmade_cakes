@@ -9,6 +9,7 @@ interface Props {
     final_price: string
     deposit_amount: string | null
     amount_paid: string | null
+    delivery_charge: string | null
     delivery_type: string
     tracking_token: string
     invoice_number?: number | null
@@ -74,6 +75,7 @@ export default function InvoicePrint({ order, inquiry, businessPhone, businessIn
   const balance = balanceOwed(order.final_price, order.amount_paid, inquiry.fully_paid)
   const paymentStatus = derivePaymentStatus(inquiry.fully_paid, order.amount_paid)
   const hasDiscount = Number(inquiry.discount) > 0
+  const hasDeliveryCharge = order.delivery_type === 'delivery' && Number(order.delivery_charge) > 0
 
   return (
     <div id="invoice" className="print-only">
@@ -243,6 +245,12 @@ export default function InvoicePrint({ order, inquiry, businessPhone, businessIn
         <div className="inv-total-row">
           <span className="inv-label">Discount</span>
           <span className="inv-mono">- {formatKWD(inquiry.discount)}</span>
+        </div>
+      )}
+      {hasDeliveryCharge && (
+        <div className="inv-total-row">
+          <span className="inv-label">Delivery</span>
+          <span className="inv-mono">+ {formatKWD(order.delivery_charge)}</span>
         </div>
       )}
       <div className="inv-total-row inv-total-main">

@@ -72,6 +72,7 @@ export default function InquiryActions({
       status: inquiry.status,
       admin_price: inquiry.admin_price,
       discount: inquiry.discount,
+      delivery_charge: inquiry.delivery_charge,
       confirmationLinkUrl: confirmLink,
       fallbackLinkUrl,
     },

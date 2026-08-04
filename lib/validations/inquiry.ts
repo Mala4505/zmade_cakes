@@ -61,6 +61,9 @@ const inquiryShape = {
     .optional()
     .nullable(),
   discount: z.number().min(0).max(9999).optional().default(0),
+  // Set by the admin when delivery_type is 'delivery'; must be 0 on a pickup order —
+  // see deliveryChargeRefine below.
+  delivery_charge: z.number().min(0).max(9999).optional().default(0),
   order_type: z.enum(['cake', 'other_item']).default('cake'),
   item_name: z.string().max(150).optional().default(''),
   customer_id: z.string().uuid().optional().nullable(),
@@ -98,6 +101,19 @@ function discountRefine(
       code: 'custom',
       message: 'Discount cannot exceed the price',
       path: ['discount'],
+    })
+  }
+}
+
+function deliveryChargeRefine(
+  data: { delivery_type?: 'pickup' | 'delivery'; delivery_charge?: number },
+  ctx: z.RefinementCtx
+) {
+  if (data.delivery_type === 'pickup' && (data.delivery_charge ?? 0) > 0) {
+    ctx.addIssue({
+      code: 'custom',
+      message: 'Delivery charge only applies to delivery orders',
+      path: ['delivery_charge'],
     })
   }
 }
@@ -149,6 +165,7 @@ export const inquirySchema = z
   .object(inquiryShape)
   .superRefine(cakeTypeRefine)
   .superRefine(discountRefine)
+  .superRefine(deliveryChargeRefine)
   .superRefine(orderTypeRefine)
   .superRefine(paymentChoiceRefine)
   .transform(clearThemeWhenNormal)
@@ -158,6 +175,7 @@ export const inquiryUpdateSchema = z
   .partial()
   .superRefine(cakeTypeRefine)
   .superRefine(discountRefine)
+  .superRefine(deliveryChargeRefine)
   .superRefine(orderTypeRefine)
   .superRefine(paymentChoiceRefine)
   .transform(clearThemeWhenNormal)

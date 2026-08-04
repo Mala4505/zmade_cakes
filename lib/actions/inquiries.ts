@@ -8,7 +8,7 @@ import {
   tokenSchema,
 } from '@/lib/validations/inquiry'
 import { customerConfirmSchema } from '@/lib/validations/confirm'
-import { subtotalAfterDiscount } from '@/lib/payments'
+import { orderTotal } from '@/lib/payments'
 import { orderSummary, buildCustomerEditDiff, type CustomerEditDiffEntry } from '@/lib/format'
 import { generateShortToken } from '@/lib/tokens'
 import type { Inquiry, Order, InquiryStatus, Json } from '@/lib/supabase/types'
@@ -280,9 +280,10 @@ export async function confirmInquiry(
           inquiry_id: inquiry.id,
           status: 'confirmed',
           tracking_token: generateShortToken(),
-          final_price: subtotalAfterDiscount(inquiry.admin_price, inquiry.discount),
+          final_price: orderTotal(inquiry.admin_price, inquiry.discount, inquiry.delivery_charge),
           deposit_amount: inquiry.deposit_amount,
           amount_paid: inquiry.amount_paid,
+          delivery_charge: Number(inquiry.delivery_charge),
           delivery_type: inquiry.delivery_type,
         })
         .select()
@@ -389,7 +390,7 @@ export async function updateInquiryStatus(
   if (!existingOrder && status === 'confirmed') {
     const { data: inquiry, error: fetchError } = await supabase
       .from('inquiries')
-      .select('admin_price, discount, deposit_amount, amount_paid, delivery_type')
+      .select('admin_price, discount, deposit_amount, amount_paid, delivery_charge, delivery_type')
       .eq('id', id)
       .single()
     if (fetchError || !inquiry) return { data: null, error: fetchError?.message ?? 'Inquiry not found', fieldErrors: null }
@@ -401,9 +402,10 @@ export async function updateInquiryStatus(
       inquiry_id: id,
       status: 'confirmed',
       tracking_token: generateShortToken(),
-      final_price: subtotalAfterDiscount(inquiry.admin_price, inquiry.discount),
+      final_price: orderTotal(inquiry.admin_price, inquiry.discount, inquiry.delivery_charge),
       deposit_amount: inquiry.deposit_amount,
       amount_paid: inquiry.amount_paid,
+      delivery_charge: Number(inquiry.delivery_charge),
       delivery_type: inquiry.delivery_type,
     })
     if (orderError) return { data: null, error: orderError.message, fieldErrors: null }

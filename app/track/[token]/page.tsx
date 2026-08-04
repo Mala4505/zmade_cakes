@@ -60,6 +60,7 @@ export default async function TrackPage({ params }: Props) {
 
   const fullyPaid = Boolean(inq?.fully_paid)
   const hasDiscount = Number(inq?.discount) > 0
+  const hasDeliveryCharge = o.delivery_type === 'delivery' && Number(o.delivery_charge) > 0
   const amountPaid = Number(o.amount_paid ?? 0)
   const isPartiallyPaid = !fullyPaid && amountPaid !== 0
   const balance = balanceOwed(o.final_price, o.amount_paid, fullyPaid)
@@ -342,6 +343,9 @@ export default async function TrackPage({ params }: Props) {
           <DetailRow label="Subtotal" value={formatKWD(inq?.admin_price)} mono />
           {hasDiscount && (
             <DetailRow label="Discount" value={`- ${formatKWD(inq?.discount)}`} mono />
+          )}
+          {hasDeliveryCharge && (
+            <DetailRow label="Delivery" value={`+ ${formatKWD(o.delivery_charge)}`} mono />
           )}
           <DetailRow label="Total" value={formatKWD(o.final_price)} mono emphasize />
           {isPartiallyPaid && (

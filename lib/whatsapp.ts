@@ -1,4 +1,4 @@
-import { balanceOwed, subtotalAfterDiscount } from './payments'
+import { balanceOwed, orderTotal } from './payments'
 import { DEFAULT_WHATSAPP_TEMPLATES, type WhatsAppTemplates } from './supabase/types'
 
 export function interpolate(template: string, vars: Record<string, string>): string {
@@ -26,6 +26,7 @@ export interface WhatsAppActionInput {
   status?: string                    // omitted at order-stage call sites
   admin_price?: string | null
   discount?: string | null
+  delivery_charge?: string | null
   final_price?: string | number | null   // order-stage frozen price, takes precedence over admin_price/discount when present
   confirmationLinkUrl?: string       // precomputed server-side (confirmationLink(token))
   fallbackLinkUrl?: string           // precomputed tracking/my-orders link, used for order-ready & balance-due messages
@@ -57,7 +58,7 @@ export function pickWhatsAppAction(
     // 2. Outstanding balance
     const balance = input.final_price != null
       ? balanceOwed(input.final_price, input.amount_paid, input.fully_paid)
-      : balanceOwed(subtotalAfterDiscount(input.admin_price ?? null, input.discount ?? null), input.amount_paid, input.fully_paid)
+      : balanceOwed(orderTotal(input.admin_price ?? null, input.discount ?? null, input.delivery_charge ?? null), input.amount_paid, input.fully_paid)
 
     if (balance > 0) {
       if (input.fallbackLinkUrl) {

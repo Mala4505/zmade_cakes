@@ -11,6 +11,7 @@ interface Props {
     final_price: string
     deposit_amount: string | null
     amount_paid: string | null
+    delivery_charge: string | null
     delivery_type: DeliveryType
     tracking_token: string
     invoice_number?: number | null
@@ -240,6 +241,7 @@ export default function InvoicePdfDocument({ order, inquiry, businessPhone, busi
   const balance = balanceOwed(order.final_price, order.amount_paid, inquiry.fully_paid)
   const paymentStatus = derivePaymentStatus(inquiry.fully_paid, order.amount_paid)
   const hasDiscount = Number(inquiry.discount) > 0
+  const hasDeliveryCharge = order.delivery_type === 'delivery' && Number(order.delivery_charge) > 0
 
   return (
     <Document>
@@ -332,6 +334,9 @@ export default function InvoicePdfDocument({ order, inquiry, businessPhone, busi
           <Row label="Subtotal" value={formatKWD(inquiry.admin_price)} mono />
           {hasDiscount && (
             <Row label="Discount" value={`- ${formatKWD(inquiry.discount)}`} mono />
+          )}
+          {hasDeliveryCharge && (
+            <Row label="Delivery" value={`+ ${formatKWD(order.delivery_charge)}`} mono />
           )}
 
           <View style={styles.totalRow}>

@@ -17,6 +17,7 @@ export async function exportMonthlyOrdersCSV(year: number, month: number): Promi
       status,
       final_price,
       delivery_type,
+      delivery_charge,
       created_at,
       inquiry:inquiries(
         customer_name,
@@ -33,7 +34,7 @@ export async function exportMonthlyOrdersCSV(year: number, month: number): Promi
 
   if (error) return { data: null, error: error.message }
 
-  const header = 'Order ID,Customer,Phone,Cake Size,Flavor,Event Date,Delivery Type,Price,Status,Created At'
+  const header = 'Order ID,Customer,Phone,Cake Size,Flavor,Event Date,Delivery Type,Delivery Charge,Price,Status,Created At'
   const rows = (data ?? []).map((o: any) => {
     const inq = o.inquiry ?? {}
     return [
@@ -44,6 +45,7 @@ export async function exportMonthlyOrdersCSV(year: number, month: number): Promi
       inq.flavor ?? '',
       inq.event_date ?? '',
       o.delivery_type ?? '',
+      o.delivery_charge ?? '',
       o.final_price ?? '',
       o.status ?? '',
       o.created_at?.split('T')[0] ?? '',

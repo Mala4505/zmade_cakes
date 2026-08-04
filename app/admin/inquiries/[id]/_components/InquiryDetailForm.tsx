@@ -13,6 +13,7 @@ import { upsertCustomer } from '@/lib/actions/customers'
 import { createOption } from '@/lib/actions/options'
 import { derivePaymentStatus, balanceOwed } from '@/lib/payments'
 import { PaymentBadge } from '@/components/admin/StatusBadge'
+import { PinnedOrderTotal } from '@/components/admin/PinnedOrderTotal'
 import { Button, Checkbox, Field, Input, RadioGroup, Select, Spinner, Textarea } from '@/components/ui'
 import { Copy, WhatsappLogo, Check, X } from '@phosphor-icons/react'
 import type { OptionRow, Inquiry, BlackoutDate } from '@/lib/supabase/types'
@@ -76,6 +77,16 @@ export default function InquiryDetailForm({
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [copiedPhone, setCopiedPhone] = useState(false)
+  const ledgerRef = useRef<HTMLDivElement>(null)
+  const [showDietary, setShowDietary] = useState(() =>
+    !!(
+      inquiry.allergen_nut_free ||
+      inquiry.allergen_dairy_free ||
+      inquiry.allergen_egg_free ||
+      inquiry.allergen_raw_sugar ||
+      inquiry.allergen_other
+    )
+  )
 
   // Inline "add new item" affordance for the Item dropdown (Other Item order type).
   const [itemOptions, setItemOptions] = useState<OptionRow[]>(options.items)
@@ -122,6 +133,7 @@ export default function InquiryDetailForm({
       delivery_type: inquiry.delivery_type,
       admin_price: inquiry.admin_price ? Number(inquiry.admin_price) : undefined,
       discount: inquiry.discount ? Number(inquiry.discount) : 0,
+      delivery_charge: inquiry.delivery_charge ? Number(inquiry.delivery_charge) : 0,
       deposit_amount: inquiry.deposit_amount ? Number(inquiry.deposit_amount) : undefined,
       amount_paid: inquiry.amount_paid ? Number(inquiry.amount_paid) : undefined,
       fully_paid: inquiry.fully_paid,
@@ -147,6 +159,7 @@ export default function InquiryDetailForm({
   const watchedCakeSize = watch('cake_size')
   const watchedPrice = watch('admin_price')
   const watchedDiscount = watch('discount')
+  const watchedDeliveryCharge = watch('delivery_charge')
   const watchedAmountPaid = watch('amount_paid')
   const fullyPaid = watch('fully_paid')
   const paymentChoice = watch('payment_choice')
@@ -242,10 +255,25 @@ export default function InquiryDetailForm({
     typeof watchedPrice === 'number' && !Number.isNaN(watchedPrice) ? watchedPrice : null
   const discountNum =
     typeof watchedDiscount === 'number' && !Number.isNaN(watchedDiscount) ? watchedDiscount : 0
-  const discountedPrice = priceNum !== null ? Math.max(0, priceNum - discountNum) : null
-  const remaining = balanceOwed(discountedPrice, amountPaidNum, !!fullyPaid)
+  const deliveryChargeNum =
+    typeof watchedDeliveryCharge === 'number' && !Number.isNaN(watchedDeliveryCharge) ? watchedDeliveryCharge : 0
+  const orderTotalAmt =
+    priceNum !== null ? Math.max(0, priceNum - discountNum) + deliveryChargeNum : null
+  const remaining = balanceOwed(orderTotalAmt, amountPaidNum, !!fullyPaid)
   const balanceFill =
-    discountedPrice && discountedPrice > 0 ? Math.min(((discountedPrice - remaining) / discountedPrice) * 100, 100) : 0
+    orderTotalAmt && orderTotalAmt > 0 ? Math.min(((orderTotalAmt - remaining) / orderTotalAmt) * 100, 100) : 0
+
+  // Delivery charge only makes sense on a delivery order — clear a stale charge (and say
+  // so) the moment an admin flips an order from Delivery back to Pickup, rather than
+  // leaving a hidden number that would otherwise fail the pickup=0 DB check on save.
+  const prevDeliveryType = useRef(deliveryType)
+  useEffect(() => {
+    if (prevDeliveryType.current === 'delivery' && deliveryType === 'pickup' && watchedDeliveryCharge) {
+      setValue('delivery_charge', 0, { shouldDirty: true })
+      toast.info('Delivery charge cleared — this order is now pickup')
+    }
+    prevDeliveryType.current = deliveryType
+  }, [deliveryType])
 
   const onSubmit = (data: FormOutput) => {
     startTransition(async () => {
@@ -535,17 +563,45 @@ export default function InquiryDetailForm({
           <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--color-ink-muted)' }}>
             Dietary
           </p>
-          <div className="grid grid-cols-2 gap-2">
-            <Checkbox {...register('allergen_nut_free')} label="Nut-free" />
-            <Checkbox {...register('allergen_dairy_free')} label="Dairy-free" />
-            <Checkbox {...register('allergen_egg_free')} label="Egg-free" />
-            <Checkbox {...register('allergen_raw_sugar')} label="Raw sugar" />
-          </div>
-          <div className="mt-3">
-            <Field label="Other dietary notes" error={errors.allergen_other?.message}>
-              <Input {...register('allergen_other')} placeholder="e.g. no artificial colouring…" />
-            </Field>
-          </div>
+          <Checkbox
+            checked={showDietary}
+            onChange={(e) => {
+              const checked = e.target.checked
+              setShowDietary(checked)
+              if (!checked) {
+                setValue('allergen_nut_free', false, { shouldDirty: true })
+                setValue('allergen_dairy_free', false, { shouldDirty: true })
+                setValue('allergen_egg_free', false, { shouldDirty: true })
+                setValue('allergen_raw_sugar', false, { shouldDirty: true })
+                setValue('allergen_other', '', { shouldDirty: true })
+              }
+            }}
+            label="This order has dietary requirements"
+          />
+          <AnimatePresence initial={false}>
+            {showDietary && (
+              <motion.div
+                key="dietary-fields"
+                initial={reduceMotion ? { opacity: 0 } : { opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={reduceMotion ? { opacity: 0 } : { opacity: 0, height: 0 }}
+                transition={{ duration: reduceMotion ? 0 : 0.16, ease: EASE_OUT_QUART }}
+                className="overflow-hidden"
+              >
+                <div className="grid grid-cols-2 gap-2 pt-3">
+                  <Checkbox {...register('allergen_nut_free')} label="Nut-free" />
+                  <Checkbox {...register('allergen_dairy_free')} label="Dairy-free" />
+                  <Checkbox {...register('allergen_egg_free')} label="Egg-free" />
+                  <Checkbox {...register('allergen_raw_sugar')} label="Raw sugar" />
+                </div>
+                <div className="mt-3">
+                  <Field label="Other dietary notes" error={errors.allergen_other?.message}>
+                    <Input {...register('allergen_other')} placeholder="e.g. no artificial colouring…" />
+                  </Field>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
         <div className="p-4" style={{ borderColor: 'var(--color-border)' }}>
@@ -635,6 +691,23 @@ export default function InquiryDetailForm({
                     )}
                   </div>
                 </Field>
+                <div className="col-span-2 pt-3 border-t" style={{ borderColor: 'var(--color-border)' }}>
+                  <Field
+                    label="Delivery Charge (KD)"
+                    error={errors.delivery_charge?.message}
+                    hint="Added to the order total below. Leave at 0 for free delivery."
+                  >
+                    <Input
+                      {...register('delivery_charge', { setValueAs: numberOrZero })}
+                      type="number"
+                      step="0.001"
+                      min="0"
+                      placeholder="0.000"
+                      prefix="+"
+                      aria-invalid={errors.delivery_charge ? true : undefined}
+                    />
+                  </Field>
+                </div>
               </div>
             )}
           </div>
@@ -662,87 +735,111 @@ export default function InquiryDetailForm({
                 aria-label="Payment method"
               />
             </Field>
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Price (KD)" error={errors.admin_price?.message}>
-                <Input
-                  {...register('admin_price', { setValueAs: numberOrNull })}
-                  type="number"
-                  step="0.001"
-                  min="0"
-                  placeholder="12.500"
-                  style={{ fontFamily: 'var(--font-mono)' }}
-                  aria-invalid={errors.admin_price ? true : undefined}
-                />
-                {(suggestedBase !== undefined || suggestedRush !== undefined) && (
-                  <div className="flex gap-2 mt-1 flex-wrap">
-                    {suggestedBase !== undefined && (
-                      <button
-                        type="button"
-                        onClick={() => setValue('admin_price', suggestedBase, { shouldDirty: true })}
-                        className="text-xs px-2.5 py-1 rounded-full font-medium"
-                        style={{ backgroundColor: 'var(--color-teal-light)', color: 'var(--color-teal-deep)' }}
-                      >
-                        Suggested: KD {suggestedBase.toFixed(3)}
-                      </button>
-                    )}
-                    {suggestedRush !== undefined && (
-                      <button
-                        type="button"
-                        onClick={() => setValue('admin_price', suggestedRush, { shouldDirty: true })}
-                        className="text-xs px-2.5 py-1 rounded-full font-medium"
-                        style={{ backgroundColor: '#fef3c7', color: '#92400e' }}
-                      >
-                        Rush: KD {suggestedRush.toFixed(3)}
-                      </button>
-                    )}
-                  </div>
-                )}
-                {minPriceGuard !== undefined && priceNum !== null && priceNum > 0 && priceNum < minPriceGuard && (
-                  <p className="mt-1 text-xs" style={{ color: 'var(--color-danger)' }}>
-                    Minimum price is KD {minPriceGuard.toFixed(3)}
-                  </p>
-                )}
-              </Field>
-              <Field
-                label="Security Deposit (KD)"
-                error={errors.deposit_amount?.message}
-                hint="Held as collateral — not counted toward balance"
-              >
-                <Input
-                  {...register('deposit_amount', { setValueAs: numberOrNull })}
-                  type="number"
-                  step="0.001"
-                  min="0"
-                  style={{ fontFamily: 'var(--font-mono)' }}
-                  aria-invalid={errors.deposit_amount ? true : undefined}
-                />
-              </Field>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Discount (KD)" error={errors.discount?.message} hint="Flat amount off the price">
-                <Input
-                  {...register('discount', { setValueAs: numberOrZero })}
-                  type="number"
-                  step="0.001"
-                  min="0"
-                  placeholder="0.000"
-                  style={{ fontFamily: 'var(--font-mono)' }}
-                  aria-invalid={errors.discount ? true : undefined}
-                />
-              </Field>
-              <Field label="Total after discount">
-                <div
-                  className="w-full rounded-lg border px-3.5 py-2.5 text-sm"
-                  style={{
-                    borderColor: 'var(--color-border)',
-                    backgroundColor: 'var(--color-surface-raised)',
-                    fontFamily: 'var(--font-mono)',
-                    color: 'var(--color-ink)',
-                  }}
-                >
-                  {discountedPrice !== null ? `KD ${discountedPrice.toFixed(3)}` : '—'}
+            <Field label="Price (KD)" error={errors.admin_price?.message}>
+              <Input
+                {...register('admin_price', { setValueAs: numberOrNull })}
+                type="number"
+                step="0.001"
+                min="0"
+                placeholder="12.500"
+                prefix="KD"
+                aria-invalid={errors.admin_price ? true : undefined}
+              />
+              {(suggestedBase !== undefined || suggestedRush !== undefined) && (
+                <div className="flex gap-2 mt-1 flex-wrap">
+                  {suggestedBase !== undefined && (
+                    <button
+                      type="button"
+                      onClick={() => setValue('admin_price', suggestedBase, { shouldDirty: true })}
+                      className="text-xs px-2.5 py-1 rounded-full font-medium"
+                      style={{ backgroundColor: 'var(--color-teal-light)', color: 'var(--color-teal-deep)' }}
+                    >
+                      Suggested: KD {suggestedBase.toFixed(3)}
+                    </button>
+                  )}
+                  {suggestedRush !== undefined && (
+                    <button
+                      type="button"
+                      onClick={() => setValue('admin_price', suggestedRush, { shouldDirty: true })}
+                      className="text-xs px-2.5 py-1 rounded-full font-medium"
+                      style={{ backgroundColor: '#fef3c7', color: '#92400e' }}
+                    >
+                      Rush: KD {suggestedRush.toFixed(3)}
+                    </button>
+                  )}
                 </div>
-              </Field>
+              )}
+              {minPriceGuard !== undefined && priceNum !== null && priceNum > 0 && priceNum < minPriceGuard && (
+                <p className="mt-1 text-xs" style={{ color: 'var(--color-danger)' }}>
+                  Minimum price is KD {minPriceGuard.toFixed(3)}
+                </p>
+              )}
+            </Field>
+
+            <Field label="Discount (KD)" error={errors.discount?.message} hint="Flat amount off the price">
+              <Input
+                {...register('discount', { setValueAs: numberOrZero })}
+                type="number"
+                step="0.001"
+                min="0"
+                placeholder="0.000"
+                prefix="−"
+                prefixTone="minus"
+                aria-invalid={errors.discount ? true : undefined}
+              />
+            </Field>
+
+            {/* Order total — the one place every pricing figure resolves. The delivery
+                line is entered in Delivery & Collection above, not here, but still
+                counts toward this total. */}
+            <div
+              ref={ledgerRef}
+              className="rounded-lg border px-3.5 py-3 flex flex-col gap-1.5"
+              style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface-raised)' }}
+            >
+              <div className="flex items-center justify-between text-sm">
+                <span style={{ color: 'var(--color-ink-muted)' }}>Price</span>
+                <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-ink-secondary)' }}>
+                  {priceNum !== null ? priceNum.toFixed(3) : '—'}
+                </span>
+              </div>
+              {discountNum > 0 && (
+                <div className="flex items-center justify-between text-sm">
+                  <span style={{ color: 'var(--color-ink-muted)' }}>Discount</span>
+                  <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-warning)' }}>
+                    − {discountNum.toFixed(3)}
+                  </span>
+                </div>
+              )}
+              {deliveryType === 'delivery' && deliveryChargeNum > 0 && (
+                <div className="flex items-center justify-between text-sm">
+                  <span style={{ color: 'var(--color-ink-muted)' }}>
+                    Delivery <span className="text-xs">· set above</span>
+                  </span>
+                  <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-ink-secondary)' }}>
+                    + {deliveryChargeNum.toFixed(3)}
+                  </span>
+                </div>
+              )}
+              <div
+                className="pt-1.5 mt-0.5 border-t flex items-center justify-between"
+                style={{ borderColor: 'var(--color-border-strong)' }}
+              >
+                <span className="text-sm font-bold" style={{ color: 'var(--color-ink)' }}>
+                  Order total
+                </span>
+                <span
+                  className="text-base font-bold"
+                  style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-ink)' }}
+                >
+                  {orderTotalAmt !== null ? `KD ${orderTotalAmt.toFixed(3)}` : '—'}
+                </span>
+              </div>
+              {deliveryType === 'delivery' && deliveryChargeNum === 0 && (
+                <p className="text-xs mt-0.5" style={{ color: 'var(--color-warning)' }}>
+                  This is a delivery order with no delivery charge set. Add one in Delivery &amp; Collection above, or leave it if delivery is free.
+                </p>
+              )}
             </div>
 
             <Field label="Payment Status" required>
@@ -810,7 +907,7 @@ export default function InquiryDetailForm({
                   Payment status
                 </span>
                 <span className="flex items-center gap-2">
-                  {paymentStatus !== 'paid' && discountedPrice !== null && discountedPrice > 0 && (
+                  {paymentStatus !== 'paid' && orderTotalAmt !== null && orderTotalAmt > 0 && (
                     <span className="text-xs" style={{ color: 'var(--color-ink-muted)', fontFamily: 'var(--font-mono)' }}>
                       KD {remaining.toFixed(3)} owed
                     </span>
@@ -818,7 +915,7 @@ export default function InquiryDetailForm({
                   <PaymentBadge status={paymentStatus} />
                 </span>
               </div>
-              {discountedPrice !== null && discountedPrice > 0 && (
+              {orderTotalAmt !== null && orderTotalAmt > 0 && (
                 <div
                   className="mt-2 h-2 rounded-full overflow-hidden"
                   style={{ backgroundColor: 'var(--color-border)' }}
@@ -833,6 +930,24 @@ export default function InquiryDetailForm({
                 </div>
               )}
             </div>
+
+            <div className="pt-1 border-t" style={{ borderColor: 'var(--color-border)' }}>
+              <Field
+                label="Security Deposit (KD)"
+                error={errors.deposit_amount?.message}
+                hint="Collateral, refunded after the event. Not part of the total or the balance."
+                className="mt-3"
+              >
+                <Input
+                  {...register('deposit_amount', { setValueAs: numberOrNull })}
+                  type="number"
+                  step="0.001"
+                  min="0"
+                  prefix="KD"
+                  aria-invalid={errors.deposit_amount ? true : undefined}
+                />
+              </Field>
+            </div>
           </div>
         </div>
 
@@ -846,6 +961,8 @@ export default function InquiryDetailForm({
       <Button type="submit" size="lg" loading={pending} className="w-full">
         Save Changes
       </Button>
+
+      <PinnedOrderTotal anchorRef={ledgerRef} total={orderTotalAmt} />
     </form>
   )
 }

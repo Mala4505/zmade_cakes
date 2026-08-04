@@ -5,7 +5,7 @@ import { generatePortalToken } from '@/lib/portal'
 import { PageHeader } from '@/components/admin/PageHeader'
 import { InquiryStatusSelect } from '@/components/admin/InquiryStatusSelect'
 import InquiryRowActions from './_components/InquiryRowActions'
-import { balanceOwed, subtotalAfterDiscount } from '@/lib/payments'
+import { balanceOwed, orderTotal } from '@/lib/payments'
 import Link from 'next/link'
 import { Plus, CheckCircle, Circle } from '@phosphor-icons/react/dist/ssr'
 import type { Metadata } from 'next'
@@ -43,7 +43,7 @@ async function getInquiries(status: string, payment: string, sort: string, q?: s
   let query = supabase
     .from('inquiries')
     .select(
-      'id, customer_name, customer_phone, cake_size, flavor, occasion, order_type, item_name, event_date, status, admin_price, discount, deposit_amount, amount_paid, fully_paid, payment_status, created_at, customer_id, customer_confirmed, confirmation_token',
+      'id, customer_name, customer_phone, cake_size, flavor, occasion, order_type, item_name, event_date, status, admin_price, discount, delivery_charge, deposit_amount, amount_paid, fully_paid, payment_status, created_at, customer_id, customer_confirmed, confirmation_token',
       { count: 'exact' }
     )
 
@@ -231,13 +231,13 @@ export default async function InquiriesPage({
                 const urgent = isUrgent(inq.event_date)
                 const isReturning = inq.customer_id && (customerInquiryCounts[inq.customer_id] ?? 0) > 1
                 const isPaid = inq.fully_paid
-                const discountedPrice = inq.admin_price ? subtotalAfterDiscount(inq.admin_price, inq.discount) : null
-                const balance = discountedPrice !== null
-                  ? balanceOwed(discountedPrice, inq.amount_paid, inq.fully_paid)
+                const orderTotalAmt = inq.admin_price ? orderTotal(inq.admin_price, inq.discount, inq.delivery_charge) : null
+                const balance = orderTotalAmt !== null
+                  ? balanceOwed(orderTotalAmt, inq.amount_paid, inq.fully_paid)
                   : null
                 // Binary paid/not-paid — the amount shown is contextual: the settled total once
                 // paid, or what's still outstanding (net of any deposit already credited) if not.
-                const paymentAmount = isPaid ? discountedPrice : balance
+                const paymentAmount = isPaid ? orderTotalAmt : balance
 
                 return (
                   <tr
@@ -332,6 +332,7 @@ export default async function InquiriesPage({
                           customer_confirmed: inq.customer_confirmed,
                           admin_price: inq.admin_price,
                           discount: inq.discount,
+                          delivery_charge: inq.delivery_charge,
                           amount_paid: inq.amount_paid,
                           fully_paid: inq.fully_paid,
                           confirmation_token: inq.confirmation_token,

@@ -2,6 +2,7 @@ import { notFound, redirect } from 'next/navigation'
 import { createServiceClient } from '@/lib/supabase/server'
 import { getBusinessContactSettings } from '@/lib/supabase/business-settings'
 import { isValidToken, formatDate, formatTime, formatKWD, formatAddress, orderSummary } from '@/lib/utils'
+import { orderTotal } from '@/lib/payments'
 import ConfirmForm from './_components/ConfirmForm'
 import CustomerPhotoUpload from './_components/CustomerPhotoUpload'
 import { Navbar } from '@/components/public/Navbar'
@@ -157,8 +158,33 @@ export default async function ConfirmPage({ params }: Props) {
               <DetailRow label="Address" value={formatAddress(addr)} />
             )}
             {inquiry.admin_price && (
-              <div className="pt-2 border-t" style={{ borderColor: 'var(--color-border)' }}>
+              <div className="pt-2 border-t flex flex-col gap-1.5" style={{ borderColor: 'var(--color-border)' }}>
                 <div className="flex items-center justify-between">
+                  <span className="text-sm" style={{ color: 'var(--color-ink-muted)' }}>Subtotal</span>
+                  <span className="text-sm" style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-ink-secondary)' }}>
+                    {formatKWD(inquiry.admin_price)}
+                  </span>
+                </div>
+                {Number(inquiry.discount) > 0 && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm" style={{ color: 'var(--color-ink-muted)' }}>Discount</span>
+                    <span className="text-sm" style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-warning)' }}>
+                      − {formatKWD(inquiry.discount)}
+                    </span>
+                  </div>
+                )}
+                {inquiry.delivery_type === 'delivery' && Number(inquiry.delivery_charge) > 0 && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm" style={{ color: 'var(--color-ink-muted)' }}>Delivery</span>
+                    <span className="text-sm" style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-ink-secondary)' }}>
+                      + {formatKWD(inquiry.delivery_charge)}
+                    </span>
+                  </div>
+                )}
+                <div
+                  className="flex items-center justify-between pt-1.5 mt-0.5 border-t"
+                  style={{ borderColor: 'var(--color-border-strong)' }}
+                >
                   <span className="text-sm font-semibold" style={{ color: 'var(--color-ink)' }}>
                     Total
                   </span>
@@ -166,7 +192,7 @@ export default async function ConfirmPage({ params }: Props) {
                     className="text-lg font-bold"
                     style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-ink)' }}
                   >
-                    {formatKWD(inquiry.admin_price)}
+                    {formatKWD(String(orderTotal(inquiry.admin_price, inquiry.discount, inquiry.delivery_charge)))}
                   </span>
                 </div>
                 {inquiry.deposit_amount && (

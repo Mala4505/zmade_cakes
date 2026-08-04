@@ -19,6 +19,7 @@ interface RowInquiry {
   customer_confirmed: boolean
   admin_price: string | null
   discount: string | null
+  delivery_charge: string | null
   amount_paid: string | null
   fully_paid: boolean
   confirmation_token: string
@@ -46,6 +47,7 @@ export default function InquiryRowActions({
       status: inquiry.status,
       admin_price: inquiry.admin_price,
       discount: inquiry.discount,
+      delivery_charge: inquiry.delivery_charge,
       confirmationLinkUrl: confirmationLink(inquiry.confirmation_token),
       fallbackLinkUrl,
     },
