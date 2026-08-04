@@ -260,29 +260,38 @@ export default function ConfirmForm({
     setPendingAction(action)
     const startedAt = Date.now()
     startTransition(async () => {
-      const result = await confirmInquiry(token, parsed.data)
-      if (result.error) {
-        // Errors surface immediately — never held back to let the loader finish.
+      // Without this try/catch, a thrown error here (network failure, a rejected
+      // server action, etc.) would leave the loader spinning forever with no
+      // error ever shown.
+      try {
+        const result = await confirmInquiry(token, parsed.data)
+        if (result.error) {
+          // Errors surface immediately — never held back to let the loader finish.
+          setPendingAction(null)
+          setError(result.error)
+          return
+        }
+        if (result.fieldErrors) {
+          setPendingAction(null)
+          setError('Please check your details and try again.')
+          return
+        }
+        if (action === 'request_changes') {
+          await holdMinimumVisible(startedAt, 1400)
+          sessionStorage.removeItem(draftKey)
+          setPendingAction(null)
+          setRequestSent(true)
+          return
+        }
+        if (result.data?.order?.tracking_token) {
+          await holdMinimumVisible(startedAt, 1400)
+          sessionStorage.removeItem(draftKey)
+          router.push(`/track/${result.data.order.tracking_token}`)
+        }
+      } catch (err) {
+        console.error('[ConfirmForm] submit failed:', err)
         setPendingAction(null)
-        setError(result.error)
-        return
-      }
-      if (result.fieldErrors) {
-        setPendingAction(null)
-        setError('Please check your details and try again.')
-        return
-      }
-      if (action === 'request_changes') {
-        await holdMinimumVisible(startedAt, 1400)
-        sessionStorage.removeItem(draftKey)
-        setPendingAction(null)
-        setRequestSent(true)
-        return
-      }
-      if (result.data?.order?.tracking_token) {
-        await holdMinimumVisible(startedAt, 1400)
-        sessionStorage.removeItem(draftKey)
-        router.push(`/track/${result.data.order.tracking_token}`)
+        setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.')
       }
     })
   }

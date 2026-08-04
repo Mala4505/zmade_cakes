@@ -24,9 +24,16 @@ type ActionResult<T> =
   | { data: null; error: string; fieldErrors: null }
   | { data: null; error: null; fieldErrors: FieldErrors }
 
+interface ReferenceImageInput {
+  url_original: string
+  url_medium: string
+  url_thumb: string
+}
+
 export async function createInquiry(
   rawInquiry: unknown,
-  rawAddress?: unknown
+  rawAddress?: unknown,
+  referenceImages?: ReferenceImageInput[]
 ): Promise<ActionResult<Inquiry>> {
   const parsed = inquirySchema.safeParse(rawInquiry)
   if (!parsed.success) {
@@ -51,6 +58,24 @@ export async function createInquiry(
 
   if (inquiryError || !inquiry) {
     return { data: null, error: inquiryError?.message ?? 'Failed to create inquiry', fieldErrors: null }
+  }
+
+  if (referenceImages && referenceImages.length > 0) {
+    // Photos were already uploaded to storage (see /api/upload) and staged client-side
+    // before the inquiry existed — attach them now that it has a real id. Mirrors the
+    // public /api/inquiries route's handling of customer-submitted reference photos.
+    const { error: imagesError } = await supabase.from('inquiry_images').insert(
+      referenceImages.map((img) => ({
+        inquiry_id: inquiry.id,
+        uploaded_by: 'admin' as const,
+        image_type: 'reference' as const,
+        url_original: img.url_original,
+        url_medium: img.url_medium,
+        url_thumb: img.url_thumb,
+        caption: '',
+      }))
+    )
+    if (imagesError) console.error('[createInquiry] reference image insert failed:', imagesError.message)
   }
 
   if (parsed.data.delivery_type === 'delivery' && rawAddress) {

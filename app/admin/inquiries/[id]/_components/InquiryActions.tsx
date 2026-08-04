@@ -52,12 +52,21 @@ export default function InquiryActions({
   const handleNextStep = () => {
     if (!nextStatus) return
     startTransition(async () => {
-      const result = await updateInquiryStatus(inquiry.id, nextStatus)
-      if (result.error) {
-        toast.error(result.error)
-      } else {
-        toast.success('Status updated')
-        router.refresh()
+      // Without this try/catch, a thrown error here would leave `pending` stuck
+      // true forever with no feedback shown.
+      try {
+        const result = await updateInquiryStatus(inquiry.id, nextStatus)
+        if (result.error) {
+          toast.error(result.error)
+        } else {
+          toast.success('Status updated')
+          router.refresh()
+        }
+      } catch (err) {
+        console.error('[InquiryActions] status update failed:', err)
+        toast.error('Something went wrong', {
+          description: err instanceof Error ? err.message : 'Please try again.',
+        })
       }
     })
   }

@@ -13,12 +13,21 @@ export default function CancelInquiryButton({ inquiryId }: { inquiryId: string }
   const handleCancel = () => {
     if (!confirm('Cancel this inquiry? This cannot be undone.')) return
     startTransition(async () => {
-      const result = await cancelInquiry(inquiryId)
-      if (result.error) {
-        toast.error(result.error)
-      } else {
-        toast.success('Inquiry cancelled')
-        router.refresh()
+      // Without this try/catch, a thrown error here would leave `pending` stuck
+      // true forever with no feedback shown.
+      try {
+        const result = await cancelInquiry(inquiryId)
+        if (result.error) {
+          toast.error(result.error)
+        } else {
+          toast.success('Inquiry cancelled')
+          router.refresh()
+        }
+      } catch (err) {
+        console.error('[CancelInquiryButton] cancel failed:', err)
+        toast.error('Something went wrong', {
+          description: err instanceof Error ? err.message : 'Please try again.',
+        })
       }
     })
   }

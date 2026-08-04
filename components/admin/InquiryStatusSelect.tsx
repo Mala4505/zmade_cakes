@@ -64,15 +64,24 @@ export function InquiryStatusSelect({
       return
     }
     startTransition(async () => {
-      const result = await updateInquiryStatus(inquiryId, selected)
-      if (result.error) {
-        toast.error(result.error)
-        setSelected(value)
-      } else {
-        toast.success('Status updated')
-        router.refresh()
+      // Without this try/catch, a thrown error here would leave `pending` stuck
+      // true forever with no feedback shown.
+      try {
+        const result = await updateInquiryStatus(inquiryId, selected)
+        if (result.error) {
+          toast.error(result.error)
+          setSelected(value)
+        } else {
+          toast.success('Status updated')
+          router.refresh()
+        }
+        setEditing(false)
+      } catch (err) {
+        console.error('[InquiryStatusSelect] status update failed:', err)
+        toast.error('Something went wrong', {
+          description: err instanceof Error ? err.message : 'Please try again.',
+        })
       }
-      setEditing(false)
     })
   }
 

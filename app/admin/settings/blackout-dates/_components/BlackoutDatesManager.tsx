@@ -24,12 +24,19 @@ export default function BlackoutDatesManager({
   function handleDelete(id: string) {
     setDeleteError(null)
     startTransition(async () => {
-      const result = await deleteBlackout(id)
-      if (result.error) {
-        setDeleteError(result.error)
-        return
+      // Without this try/catch, a thrown error here would leave `isPending` stuck
+      // true forever with no error ever shown.
+      try {
+        const result = await deleteBlackout(id)
+        if (result.error) {
+          setDeleteError(result.error)
+          return
+        }
+        setBlackouts((prev) => prev.filter((b) => b.id !== id))
+      } catch (err) {
+        console.error('[BlackoutDatesManager] delete failed:', err)
+        setDeleteError(err instanceof Error ? err.message : 'Something went wrong. Please try again.')
       }
-      setBlackouts((prev) => prev.filter((b) => b.id !== id))
     })
   }
 
@@ -43,15 +50,22 @@ export default function BlackoutDatesManager({
     }
 
     startTransition(async () => {
-      const result = await createBlackout({ date_from: dateFrom, date_to: dateTo, reason })
-      if (result.error || !result.data) {
-        setAddError(result.error ?? 'Failed to add blackout')
-        return
+      // Without this try/catch, a thrown error here would leave `isPending` stuck
+      // true forever with no error ever shown.
+      try {
+        const result = await createBlackout({ date_from: dateFrom, date_to: dateTo, reason })
+        if (result.error || !result.data) {
+          setAddError(result.error ?? 'Failed to add blackout')
+          return
+        }
+        setBlackouts((prev) => [...prev, result.data!])
+        setDateFrom('')
+        setDateTo('')
+        setReason('')
+      } catch (err) {
+        console.error('[BlackoutDatesManager] add failed:', err)
+        setAddError(err instanceof Error ? err.message : 'Something went wrong. Please try again.')
       }
-      setBlackouts((prev) => [...prev, result.data!])
-      setDateFrom('')
-      setDateTo('')
-      setReason('')
     })
   }
 

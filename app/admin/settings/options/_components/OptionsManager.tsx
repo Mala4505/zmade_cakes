@@ -30,41 +30,77 @@ export default function OptionsManager({ optionTypes, activeType, options }: Pro
   const handleCreate = () => {
     if (!newName.trim()) return
     startTransition(async () => {
-      const result = await createOption(activeType, {
-        name: newName.trim(),
-        sort_order: options.length,
-        is_active: true,
-      })
-      if (result.error) { toast.error('Failed to create', { description: result.error }); return }
-      setNewName('')
-      refresh()
+      // Without this try/catch, a thrown error here would leave `pending` stuck
+      // true forever with no feedback shown.
+      try {
+        const result = await createOption(activeType, {
+          name: newName.trim(),
+          sort_order: options.length,
+          is_active: true,
+        })
+        if (result.error) { toast.error('Failed to create', { description: result.error }); return }
+        setNewName('')
+        refresh()
+      } catch (err) {
+        console.error('[OptionsManager] create failed:', err)
+        toast.error('Something went wrong', {
+          description: err instanceof Error ? err.message : 'Please try again.',
+        })
+      }
     })
   }
 
   const handleUpdate = (id: string) => {
     if (!editValue.trim()) return
     startTransition(async () => {
-      const result = await updateOption(id, activeType, { name: editValue.trim() })
-      if (result.error) { toast.error('Failed to update', { description: result.error }); return }
-      setEditingId(null)
-      refresh()
+      // Without this try/catch, a thrown error here would leave `pending` stuck
+      // true forever with no feedback shown.
+      try {
+        const result = await updateOption(id, activeType, { name: editValue.trim() })
+        if (result.error) { toast.error('Failed to update', { description: result.error }); return }
+        setEditingId(null)
+        refresh()
+      } catch (err) {
+        console.error('[OptionsManager] update failed:', err)
+        toast.error('Something went wrong', {
+          description: err instanceof Error ? err.message : 'Please try again.',
+        })
+      }
     })
   }
 
   const handleToggleActive = (option: OptionRow) => {
     startTransition(async () => {
-      const result = await updateOption(option.id, activeType, { is_active: !option.is_active })
-      if (result.error) { toast.error('Failed to update', { description: result.error }); return }
-      refresh()
+      // Without this try/catch, a thrown error here would leave `pending` stuck
+      // true forever with no feedback shown.
+      try {
+        const result = await updateOption(option.id, activeType, { is_active: !option.is_active })
+        if (result.error) { toast.error('Failed to update', { description: result.error }); return }
+        refresh()
+      } catch (err) {
+        console.error('[OptionsManager] toggle active failed:', err)
+        toast.error('Something went wrong', {
+          description: err instanceof Error ? err.message : 'Please try again.',
+        })
+      }
     })
   }
 
   const handleDelete = (id: string) => {
     if (!confirm('Remove this option? It will be hidden from the inquiry form.')) return
     startTransition(async () => {
-      const result = await deleteOption(id, activeType)
-      if (result.error) { toast.error('Failed to delete', { description: result.error }); return }
-      refresh()
+      // Without this try/catch, a thrown error here would leave `pending` stuck
+      // true forever with no feedback shown.
+      try {
+        const result = await deleteOption(id, activeType)
+        if (result.error) { toast.error('Failed to delete', { description: result.error }); return }
+        refresh()
+      } catch (err) {
+        console.error('[OptionsManager] delete failed:', err)
+        toast.error('Something went wrong', {
+          description: err instanceof Error ? err.message : 'Please try again.',
+        })
+      }
     })
   }
 

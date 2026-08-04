@@ -7,7 +7,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { EASE_OUT_QUART, holdMinimumVisible } from '@/lib/motion'
 import { formatDate } from '@/lib/format'
 import PhoneInput from '@/components/PhoneInput'
-import ReferencePhotoUpload, { type ReferenceImage } from './ReferencePhotoUpload'
+import ReferencePhotoUpload, { type ReferenceImage } from '@/components/ReferencePhotoUpload'
 import {
   publicInquirySchema,
   type PublicInquiryInput,

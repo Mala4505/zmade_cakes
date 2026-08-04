@@ -32,12 +32,21 @@ export default function WhatsAppTemplatesForm({
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     startTransition(async () => {
-      const result = await updateSetting('whatsapp_templates', templates)
-      if (result.error) {
-        toast.error('Failed to save', { description: result.error })
-        return
+      // Without this try/catch, a thrown error here would leave `isPending` stuck
+      // true forever with no feedback shown.
+      try {
+        const result = await updateSetting('whatsapp_templates', templates)
+        if (result.error) {
+          toast.error('Failed to save', { description: result.error })
+          return
+        }
+        toast.success('Templates saved')
+      } catch (err) {
+        console.error('[WhatsAppTemplatesForm] save failed:', err)
+        toast.error('Something went wrong', {
+          description: err instanceof Error ? err.message : 'Please try again.',
+        })
       }
-      toast.success('Templates saved')
     })
   }
 

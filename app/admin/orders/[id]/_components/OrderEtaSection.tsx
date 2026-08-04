@@ -24,15 +24,22 @@ export default function OrderEtaSection({ orderId, initialDate, initialTime, ini
   const handleSave = () => {
     startTransition(async () => {
       setError(null)
-      const result = await updateOrderEta(orderId, {
-        eta_date: date || null,
-        eta_time: time || null,
-        eta_note: note,
-      })
-      if (result.error) { setError(result.error); return }
-      setSaved(true)
-      setEditing(false)
-      setTimeout(() => setSaved(false), 2000)
+      // Without this try/catch, a thrown error here would leave `isPending` stuck
+      // true forever with no error ever shown.
+      try {
+        const result = await updateOrderEta(orderId, {
+          eta_date: date || null,
+          eta_time: time || null,
+          eta_note: note,
+        })
+        if (result.error) { setError(result.error); return }
+        setSaved(true)
+        setEditing(false)
+        setTimeout(() => setSaved(false), 2000)
+      } catch (err) {
+        console.error('[OrderEtaSection] save failed:', err)
+        setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.')
+      }
     })
   }
 

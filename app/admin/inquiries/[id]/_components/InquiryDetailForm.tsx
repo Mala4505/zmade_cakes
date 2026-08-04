@@ -277,43 +277,52 @@ export default function InquiryDetailForm({
 
   const onSubmit = (data: FormOutput) => {
     startTransition(async () => {
-      const {
-        address_governorate, address_area, address_block, address_street,
-        address_house_no, address_extra_notes, address_location_link, ...inquiryData
-      } = data
+      // Without this try/catch, any thrown error here would leave `pending` stuck
+      // true forever — the Save button spins indefinitely with no error ever shown.
+      try {
+        const {
+          address_governorate, address_area, address_block, address_street,
+          address_house_no, address_extra_notes, address_location_link, ...inquiryData
+        } = data
 
-      const addressData =
-        deliveryType === 'delivery' && address_area
-          ? {
-              governorate: address_governorate,
-              area: address_area,
-              block: address_block,
-              street: address_street,
-              house_no: address_house_no,
-              extra_notes: address_extra_notes,
-              location_link: address_location_link,
-            }
-          : undefined
+        const addressData =
+          deliveryType === 'delivery' && address_area
+            ? {
+                governorate: address_governorate,
+                area: address_area,
+                block: address_block,
+                street: address_street,
+                house_no: address_house_no,
+                extra_notes: address_extra_notes,
+                location_link: address_location_link,
+              }
+            : undefined
 
-      const result = await updateInquiry(inquiry.id, inquiryData, addressData)
+        const result = await updateInquiry(inquiry.id, inquiryData, addressData)
 
-      if (result.error) {
-        toast.error('Failed to save', { description: result.error })
-        return
-      }
-      if (result.fieldErrors) {
-        Object.entries(result.fieldErrors).forEach(([field, msgs]) => {
-          setError(field as keyof FormInput, { message: (msgs as string[])[0] })
+        if (result.error) {
+          toast.error('Failed to save', { description: result.error })
+          return
+        }
+        if (result.fieldErrors) {
+          Object.entries(result.fieldErrors).forEach(([field, msgs]) => {
+            setError(field as keyof FormInput, { message: (msgs as string[])[0] })
+          })
+          return
+        }
+
+        if (inquiryData.customer_phone && inquiryData.customer_name) {
+          void upsertCustomer(inquiryData.customer_phone, inquiryData.customer_name)
+        }
+
+        toast.success('Saved')
+        router.refresh()
+      } catch (err) {
+        console.error('[InquiryDetailForm] submit failed:', err)
+        toast.error('Something went wrong', {
+          description: err instanceof Error ? err.message : 'Please try again.',
         })
-        return
       }
-
-      if (inquiryData.customer_phone && inquiryData.customer_name) {
-        void upsertCustomer(inquiryData.customer_phone, inquiryData.customer_name)
-      }
-
-      toast.success('Saved')
-      router.refresh()
     })
   }
 

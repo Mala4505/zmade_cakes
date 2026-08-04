@@ -34,20 +34,27 @@ export function SizeList({ sizes, onChanged, embedded = false }: Props) {
       return
     }
     startAddTransition(async () => {
-      const result = await createOption('size_options', { name: trimmed, sort_order: sizes.length, is_active: true })
-      if (result.error !== null) {
-        setError(result.error)
-        return
+      // Without this try/catch, a thrown error here would leave `isAddPending`
+      // stuck true forever with no error ever shown.
+      try {
+        const result = await createOption('size_options', { name: trimmed, sort_order: sizes.length, is_active: true })
+        if (result.error !== null) {
+          setError(result.error)
+          return
+        }
+        if (result.fieldErrors !== null) {
+          setError(result.fieldErrors.name?.[0] ?? 'Could not add size')
+          return
+        }
+        onChanged([...sizes, result.data])
+        toast.success('Size added')
+        setNewName('')
+        setError(null)
+        setAdding(false)
+      } catch (err) {
+        console.error('[SizeList] add failed:', err)
+        setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.')
       }
-      if (result.fieldErrors !== null) {
-        setError(result.fieldErrors.name?.[0] ?? 'Could not add size')
-        return
-      }
-      onChanged([...sizes, result.data])
-      toast.success('Size added')
-      setNewName('')
-      setError(null)
-      setAdding(false)
     })
   }
 
@@ -129,21 +136,39 @@ function SizeRow({ size, onChanged }: { size: OptionRow; onChanged: (updated: Op
 
   const handleToggle = () => {
     startTransition(async () => {
-      const result = await updateOption(size.id, 'size_options', { is_active: !size.is_active })
-      if (result.error) toast.error('Failed to update', { description: result.error })
-      else if (result.data) onChanged(result.data)
+      // Without this try/catch, a thrown error here would leave `isPending` stuck
+      // true forever with no feedback shown.
+      try {
+        const result = await updateOption(size.id, 'size_options', { is_active: !size.is_active })
+        if (result.error) toast.error('Failed to update', { description: result.error })
+        else if (result.data) onChanged(result.data)
+      } catch (err) {
+        console.error('[SizeList] toggle failed:', err)
+        toast.error('Something went wrong', {
+          description: err instanceof Error ? err.message : 'Please try again.',
+        })
+      }
     })
   }
 
   const handleDelete = () => {
     startTransition(async () => {
-      const result = await deleteOption(size.id, 'size_options')
-      if (result.error) {
-        toast.error('Failed to deactivate', { description: result.error })
-        setConfirmDelete(false)
-      } else {
-        onChanged(null)
-        toast.success('Size deactivated')
+      // Without this try/catch, a thrown error here would leave `isPending` stuck
+      // true forever with no feedback shown.
+      try {
+        const result = await deleteOption(size.id, 'size_options')
+        if (result.error) {
+          toast.error('Failed to deactivate', { description: result.error })
+          setConfirmDelete(false)
+        } else {
+          onChanged(null)
+          toast.success('Size deactivated')
+        }
+      } catch (err) {
+        console.error('[SizeList] deactivate failed:', err)
+        toast.error('Something went wrong', {
+          description: err instanceof Error ? err.message : 'Please try again.',
+        })
       }
     })
   }

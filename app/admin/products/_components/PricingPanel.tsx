@@ -40,23 +40,32 @@ export function PricingPanel({ sizes, initialMatrix, initialMinGuard, initialRus
 
   const handleSave = () => {
     startTransition(async () => {
-      const nextMatrix: Record<string, number> = {}
-      for (const s of sizes) {
-        const v = parseFloat(matrix[s.id] ?? '')
-        if (!Number.isNaN(v)) nextMatrix[s.id] = v
+      // Without this try/catch, a thrown error here would leave `isPending` stuck
+      // true forever with no feedback shown.
+      try {
+        const nextMatrix: Record<string, number> = {}
+        for (const s of sizes) {
+          const v = parseFloat(matrix[s.id] ?? '')
+          if (!Number.isNaN(v)) nextMatrix[s.id] = v
+        }
+        const [r1, r2, r3] = await Promise.all([
+          updateSetting('pricing_matrix', nextMatrix),
+          updateSetting('min_price_guard', String(parseFloat(minGuard) || 0)),
+          updateSetting('rush_multiplier', String(parseFloat(rush) || 1)),
+        ])
+        const err = r1.error ?? r2.error ?? r3.error
+        if (err) {
+          toast.error('Failed to save prices', { description: err })
+          return
+        }
+        setSaved({ matrix: currentMatrixKey, minGuard, rush })
+        toast.success('Base prices saved')
+      } catch (err) {
+        console.error('[PricingPanel] save failed:', err)
+        toast.error('Something went wrong', {
+          description: err instanceof Error ? err.message : 'Please try again.',
+        })
       }
-      const [r1, r2, r3] = await Promise.all([
-        updateSetting('pricing_matrix', nextMatrix),
-        updateSetting('min_price_guard', String(parseFloat(minGuard) || 0)),
-        updateSetting('rush_multiplier', String(parseFloat(rush) || 1)),
-      ])
-      const err = r1.error ?? r2.error ?? r3.error
-      if (err) {
-        toast.error('Failed to save prices', { description: err })
-        return
-      }
-      setSaved({ matrix: currentMatrixKey, minGuard, rush })
-      toast.success('Base prices saved')
     })
   }
 

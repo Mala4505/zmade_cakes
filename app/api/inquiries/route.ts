@@ -67,7 +67,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (reference_images.length > 0) {
-      await supabase.from('inquiry_images').insert(
+      const { error: imagesError } = await supabase.from('inquiry_images').insert(
         reference_images.map(img => ({
           inquiry_id: inquiry.id,
           uploaded_by: 'customer' as const,
@@ -78,6 +78,10 @@ export async function POST(req: NextRequest) {
           caption: '',
         }))
       )
+      // Reference photos are already uploaded to storage by this point (see
+      // /api/upload/order) — a failed insert here would silently lose the customer's
+      // photos from the inquiry with no record of it, so this must never fail quietly.
+      if (imagesError) console.error('[inquiries] reference image insert failed:', imagesError.message)
     }
 
     if (data.delivery_type === 'delivery' && address_area) {

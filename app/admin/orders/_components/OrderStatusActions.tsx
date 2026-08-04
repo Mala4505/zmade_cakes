@@ -27,12 +27,21 @@ export default function OrderStatusActions({
 
   const handleAdvance = () => {
     startTransition(async () => {
-      const result = await updateOrderStatus(orderId, next.status)
-      if (result.error) {
-        toast.error(result.error)
-      } else {
-        toast.success('Status updated')
-        router.refresh()
+      // Without this try/catch, a thrown error here would leave `pending` stuck
+      // true forever with no feedback shown.
+      try {
+        const result = await updateOrderStatus(orderId, next.status)
+        if (result.error) {
+          toast.error(result.error)
+        } else {
+          toast.success('Status updated')
+          router.refresh()
+        }
+      } catch (err) {
+        console.error('[OrderStatusActions] status update failed:', err)
+        toast.error('Something went wrong', {
+          description: err instanceof Error ? err.message : 'Please try again.',
+        })
       }
     })
   }

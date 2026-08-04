@@ -71,20 +71,27 @@ export function FlavorList({ flavors, selectedFlavorId, onSelectFlavor, onFlavor
       return
     }
     startTransition(async () => {
-      const result = await createOption('flavor_options', { name: trimmed, sort_order: 0, is_active: true })
-      if (result.error !== null) {
-        setError(result.error)
-        return
+      // Without this try/catch, a thrown error here would leave `isPending` stuck
+      // true forever with no error ever shown.
+      try {
+        const result = await createOption('flavor_options', { name: trimmed, sort_order: 0, is_active: true })
+        if (result.error !== null) {
+          setError(result.error)
+          return
+        }
+        if (result.fieldErrors !== null) {
+          setError(result.fieldErrors.name?.[0] ?? 'Could not add flavor')
+          return
+        }
+        onFlavorCreated({ ...result.data, theme_available: true, prices: [] })
+        toast.success('Flavor added')
+        setNewName('')
+        setError(null)
+        setAdding(false)
+      } catch (err) {
+        console.error('[FlavorList] add failed:', err)
+        setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.')
       }
-      if (result.fieldErrors !== null) {
-        setError(result.fieldErrors.name?.[0] ?? 'Could not add flavor')
-        return
-      }
-      onFlavorCreated({ ...result.data, theme_available: true, prices: [] })
-      toast.success('Flavor added')
-      setNewName('')
-      setError(null)
-      setAdding(false)
     })
   }
 

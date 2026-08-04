@@ -33,11 +33,27 @@ const PAYMENT_OPTIONS: { value: PaymentStatus | 'all'; label: string }[] = [
 
 const SORT_OPTIONS = [
   { value: 'event_date', label: 'Event date ↑' },
+  { value: 'status', label: 'Status' },
   { value: 'created_at', label: 'Created ↓' },
   { value: 'price', label: 'Price ↓' },
 ]
 
-async function getInquiries(status: string, payment: string, sort: string, q?: string) {
+// Pipeline order for the "Status" sort — mirrors how an order actually
+// progresses, with cancelled last since it's a dead end rather than a stage.
+const STATUS_ORDER: Record<InquiryStatus, number> = {
+  pending: 0,
+  confirmed: 1,
+  ready: 2,
+  delivered: 3,
+  cancelled: 4,
+}
+
+const PAGE_SIZE = 25
+// Upper bound for the "Status" sort's wider fetch (see below) — comfortably above
+// any realistic single-view row count for this business, so nothing gets dropped.
+const STATUS_SORT_FETCH_CAP = 500
+
+async function getInquiries(status: string, payment: string, sort: string, page: number, q?: string) {
   const supabase = await createClient()
 
   let query = supabase
@@ -57,6 +73,10 @@ async function getInquiries(status: string, payment: string, sort: string, q?: s
 
   if (status && status !== 'all') {
     query = query.eq('status', status as InquiryStatus)
+  } else {
+    // Default view excludes cancelled orders — they'd otherwise clutter the
+    // day-to-day list. Explicitly filtering to "Cancelled" above still shows them.
+    query = query.neq('status', 'cancelled')
   }
   if (payment && payment !== 'all') {
     query = query.eq('payment_status', payment)
@@ -65,7 +85,23 @@ async function getInquiries(status: string, payment: string, sort: string, q?: s
     query = query.or(`customer_name.ilike.%${q.trim()}%,customer_phone.ilike.%${q.trim()}%`)
   }
 
-  const { data, error, count } = await query.limit(200)
+  // Postgrest can't order by an arbitrary enum sequence, so the pipeline-order
+  // "Status" sort is applied client-side after a wider fetch, with the page window
+  // then sliced in JS too — DB-level `.range()` pagination can't be combined with a
+  // sort it doesn't know about. Every other sort paginates directly at the DB level.
+  if (sort === 'status') {
+    const { data, error, count } = await query.limit(STATUS_SORT_FETCH_CAP)
+    if (error) throw new Error(`Inquiries: failed to load inquiries — ${error.message}`)
+    const rows = (data ?? []).sort(
+      (a, b) => STATUS_ORDER[a.status as InquiryStatus] - STATUS_ORDER[b.status as InquiryStatus]
+    )
+    const from = (page - 1) * PAGE_SIZE
+    return { data: rows.slice(from, from + PAGE_SIZE), count: count ?? 0 }
+  }
+
+  const from = (page - 1) * PAGE_SIZE
+  const to = from + PAGE_SIZE - 1
+  const { data, error, count } = await query.range(from, to)
   if (error) throw new Error(`Inquiries: failed to load inquiries — ${error.message}`)
   return { data: data ?? [], count: count ?? 0 }
 }
@@ -99,18 +135,33 @@ const selectStyle: React.CSSProperties = {
   color: 'var(--color-ink)',
 }
 
+// Builds a /admin/inquiries URL carrying every filter param explicitly (even
+// defaults) so pagination links always reflect the exact view currently on screen.
+function buildInquiriesHref({ q, status, payment, sort, page }: { q?: string; status: string; payment: string; sort: string; page: number }) {
+  const sp = new URLSearchParams()
+  if (q?.trim()) sp.set('q', q.trim())
+  sp.set('status', status)
+  sp.set('payment', payment)
+  sp.set('sort', sort)
+  sp.set('page', String(page))
+  return `/admin/inquiries?${sp.toString()}`
+}
+
 export default async function InquiriesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; payment?: string; sort?: string; q?: string }>
+  searchParams: Promise<{ status?: string; payment?: string; sort?: string; q?: string; page?: string }>
 }) {
-  const { status = 'all', payment = 'all', sort = 'event_date', q } = await searchParams
+  const { status = 'all', payment = 'all', sort = 'event_date', q, page: pageParam } = await searchParams
+  const page = Math.max(1, parseInt(pageParam ?? '1', 10) || 1)
 
   const [{ data: inquiries, count: totalCount }, settingsResult] = await Promise.all([
-    getInquiries(status, payment, sort, q),
+    getInquiries(status, payment, sort, page, q),
     getSettings(['whatsapp_templates']),
   ])
   const templates = settingsResult.data?.whatsapp_templates as WhatsAppTemplates | undefined
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
+  const hasActiveFilters = Boolean(q?.trim()) || status !== 'all' || payment !== 'all' || sort !== 'event_date'
 
   const customerIds = [...new Set(
     inquiries.filter((i: any) => i.customer_id).map((i: any) => i.customer_id as string)
@@ -180,6 +231,15 @@ export default async function InquiriesPage({
         >
           Filter
         </button>
+        {hasActiveFilters && (
+          <Link
+            href="/admin/inquiries"
+            className="px-4 py-2 text-sm rounded-lg font-medium border transition-all active:scale-[0.97]"
+            style={selectStyle}
+          >
+            Clear
+          </Link>
+        )}
       </form>
 
       {/* Table */}
@@ -190,7 +250,15 @@ export default async function InquiriesPage({
         {inquiries.length === 0 ? (
           <div className="py-16 text-center">
             <p className="text-sm" style={{ color: 'var(--color-ink-muted)' }}>No inquiries found</p>
-            {status === 'all' && !q && (
+            {hasActiveFilters ? (
+              <Link
+                href="/admin/inquiries"
+                className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium"
+                style={{ color: 'var(--color-teal)' }}
+              >
+                Clear filters
+              </Link>
+            ) : (
               <Link
                 href="/admin/inquiries/new"
                 className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium"
@@ -351,10 +419,37 @@ export default async function InquiriesPage({
         )}
       </div>
 
-      {inquiries.length >= 200 && totalCount > 200 && (
-        <p className="mt-3 text-xs text-center" style={{ color: 'var(--color-ink-muted)' }}>
-          Showing 200 of {totalCount} — refine your search
-        </p>
+      {totalCount > 0 && (
+        <div className="mt-4 flex items-center justify-between flex-wrap gap-3">
+          <p className="text-xs" style={{ color: 'var(--color-ink-muted)' }}>
+            Showing {Math.min((page - 1) * PAGE_SIZE + 1, totalCount)}–{Math.min(page * PAGE_SIZE, totalCount)} of {totalCount}
+          </p>
+          {totalPages > 1 && (
+            <div className="flex items-center gap-2">
+              <Link
+                href={buildInquiriesHref({ q, status, payment, sort, page: page - 1 })}
+                aria-disabled={page <= 1}
+                tabIndex={page <= 1 ? -1 : undefined}
+                className="px-3 py-1.5 text-xs font-medium rounded-lg border transition-all active:scale-[0.97]"
+                style={{ ...selectStyle, pointerEvents: page <= 1 ? 'none' : undefined, opacity: page <= 1 ? 0.5 : 1 }}
+              >
+                Previous
+              </Link>
+              <span className="text-xs font-mono px-1" style={{ color: 'var(--color-ink-secondary)' }}>
+                Page {page} of {totalPages}
+              </span>
+              <Link
+                href={buildInquiriesHref({ q, status, payment, sort, page: page + 1 })}
+                aria-disabled={page >= totalPages}
+                tabIndex={page >= totalPages ? -1 : undefined}
+                className="px-3 py-1.5 text-xs font-medium rounded-lg border transition-all active:scale-[0.97]"
+                style={{ ...selectStyle, pointerEvents: page >= totalPages ? 'none' : undefined, opacity: page >= totalPages ? 0.5 : 1 }}
+              >
+                Next
+              </Link>
+            </div>
+          )}
+        </div>
       )}
     </div>
   )

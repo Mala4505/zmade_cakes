@@ -21,6 +21,7 @@ import type { OptionRow, Inquiry, BlackoutDate } from '@/lib/supabase/types'
 import { z } from 'zod'
 import { GOVERNORATE_LABELS } from '@/lib/utils'
 import { CustomerHistoryPanel } from './CustomerHistoryPanel'
+import ReferencePhotoUpload, { type ReferenceImage } from '@/components/ReferencePhotoUpload'
 
 type MatchState = 'pending' | 'selected' | 'new'
 
@@ -67,6 +68,9 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const ledgerRef = useRef<HTMLDivElement>(null)
+  // Staged pre-inquiry (no inquiry_id to attach to yet, same reasoning as the customer
+  // /order form) — attached as inquiry_images once createInquiry returns a real id.
+  const [referenceImages, setReferenceImages] = useState<ReferenceImage[]>([])
 
   // Inline "add new item" affordance for the Item dropdown (Other Item order type).
   const [itemOptions, setItemOptions] = useState<OptionRow[]>(options.items)
@@ -298,55 +302,66 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
 
   const onSubmit = (data: FormOutput) => {
     startTransition(async () => {
-      const { address_governorate, address_area, address_block, address_street, address_house_no, address_extra_notes, address_location_link, ...inquiryData } = data
+      // Without this try/catch, any thrown error here (network failure, a rejected
+      // server action, etc.) would leave `pending` stuck true forever — the submit
+      // button spins indefinitely with no error ever shown, since nothing downstream
+      // of the throw runs to reset it or surface a toast.
+      try {
+        const { address_governorate, address_area, address_block, address_street, address_house_no, address_extra_notes, address_location_link, ...inquiryData } = data
 
-      const addressData = deliveryType === 'delivery' && address_area
-        ? {
-            governorate: address_governorate,
-            area: address_area,
-            block: address_block,
-            street: address_street,
-            house_no: address_house_no,
-            extra_notes: address_extra_notes,
-            location_link: address_location_link,
+        const addressData = deliveryType === 'delivery' && address_area
+          ? {
+              governorate: address_governorate,
+              area: address_area,
+              block: address_block,
+              street: address_street,
+              house_no: address_house_no,
+              extra_notes: address_extra_notes,
+              location_link: address_location_link,
+            }
+          : undefined
+
+        // Resolve the customer link BEFORE creating/updating the inquiry — an explicit
+        // "use this customer" selection wins, otherwise fall back to an upsert-by-phone
+        // (awaited, not fire-and-forget) so every admin-created inquiry ends up linked.
+        let customerId: string | null = selectedCustomerId
+        if (!customerId && inquiryData.customer_phone && inquiryData.customer_name) {
+          const upsertResult = await upsertCustomer(inquiryData.customer_phone, inquiryData.customer_name)
+          if (upsertResult.error || !upsertResult.data) {
+            toast.warning('Could not link customer record', {
+              description: upsertResult.error ?? 'Inquiry will be saved without a customer link.',
+            })
+            customerId = null
+          } else {
+            customerId = upsertResult.data.id
           }
-        : undefined
-
-      // Resolve the customer link BEFORE creating/updating the inquiry — an explicit
-      // "use this customer" selection wins, otherwise fall back to an upsert-by-phone
-      // (awaited, not fire-and-forget) so every admin-created inquiry ends up linked.
-      let customerId: string | null = selectedCustomerId
-      if (!customerId && inquiryData.customer_phone && inquiryData.customer_name) {
-        const upsertResult = await upsertCustomer(inquiryData.customer_phone, inquiryData.customer_name)
-        if (upsertResult.error || !upsertResult.data) {
-          toast.warning('Could not link customer record', {
-            description: upsertResult.error ?? 'Inquiry will be saved without a customer link.',
-          })
-          customerId = null
-        } else {
-          customerId = upsertResult.data.id
         }
-      }
 
-      const payload = { ...inquiryData, customer_id: customerId }
+        const payload = { ...inquiryData, customer_id: customerId }
 
-      const result = inquiry
-        ? await updateInquiry(inquiry.id, payload, addressData)
-        : await createInquiry(payload, addressData)
+        const result = inquiry
+          ? await updateInquiry(inquiry.id, payload, addressData)
+          : await createInquiry(payload, addressData, referenceImages)
 
-      if (result.error) {
-        toast.error('Failed to save', { description: result.error })
-        return
-      }
-      if (result.fieldErrors) {
-        Object.entries(result.fieldErrors).forEach(([field, msgs]) => {
-          setError(field as keyof FormInput, { message: (msgs as string[])[0] })
+        if (result.error) {
+          toast.error('Failed to save', { description: result.error })
+          return
+        }
+        if (result.fieldErrors) {
+          Object.entries(result.fieldErrors).forEach(([field, msgs]) => {
+            setError(field as keyof FormInput, { message: (msgs as string[])[0] })
+          })
+          return
+        }
+
+        router.push(inquiry ? `/admin/inquiries/${inquiry.id}` : `/admin/inquiries/${result.data!.id}`)
+        router.refresh()
+      } catch (err) {
+        console.error('[InquiryForm] submit failed:', err)
+        toast.error('Something went wrong', {
+          description: err instanceof Error ? err.message : 'Please try again.',
         })
-        return
       }
-
-      router.push(inquiry ? `/admin/inquiries/${inquiry.id}` : `/admin/inquiries/${result.data!.id}`)
-      router.refresh()
     })
   }
 
@@ -909,6 +924,16 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
           <Textarea {...register('admin_notes')} rows={3} placeholder="Notes visible only to you…" />
         </Field>
       </Section>
+
+      {/* Reference photos — create flow only; an existing inquiry already has its own
+          image section (ImageGallery, wired to the real inquiry_id) on the detail page.
+          Placed directly above the submit button per feedback that it was easy to miss
+          buried earlier in the form. */}
+      {!inquiry && (
+        <Section title="Reference Photos">
+          <ReferencePhotoUpload images={referenceImages} onChange={setReferenceImages} endpoint="/api/upload" />
+        </Section>
+      )}
 
       <Button type="submit" size="lg" loading={pending} className="w-full">
         {inquiry ? 'Save Changes' : 'Create Inquiry'}

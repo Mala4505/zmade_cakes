@@ -11,12 +11,21 @@ export default function OperatingRulesForm({ initialLeadDays }: { initialLeadDay
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     startTransition(async () => {
-      const result = await updateSetting('min_lead_days', String(value))
-      if (result.error) {
-        toast.error('Failed to save', { description: result.error })
-        return
+      // Without this try/catch, a thrown error here would leave `isPending` stuck
+      // true forever with no feedback shown.
+      try {
+        const result = await updateSetting('min_lead_days', String(value))
+        if (result.error) {
+          toast.error('Failed to save', { description: result.error })
+          return
+        }
+        toast.success('Operating rules saved')
+      } catch (err) {
+        console.error('[OperatingRulesForm] save failed:', err)
+        toast.error('Something went wrong', {
+          description: err instanceof Error ? err.message : 'Please try again.',
+        })
       }
-      toast.success('Operating rules saved')
     })
   }
 

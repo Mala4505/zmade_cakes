@@ -89,40 +89,49 @@ export function FlavorDetail({ flavor, sizes, onSaved, onDeleted, onBack, onDirt
       return
     }
     startTransition(async () => {
-      const nameResult = await updateOption(flavor.id, 'flavor_options', { name: trimmed, is_active: isActive })
-      if (nameResult.error) {
-        toast.error('Failed to save', { description: nameResult.error })
-        return
-      }
-      if (nameResult.fieldErrors) {
-        setNameError(nameResult.fieldErrors.name?.[0] ?? 'Invalid name')
-        return
-      }
+      // Without this try/catch, a thrown error here would leave `isPending` stuck
+      // true forever with no feedback shown.
+      try {
+        const nameResult = await updateOption(flavor.id, 'flavor_options', { name: trimmed, is_active: isActive })
+        if (nameResult.error) {
+          toast.error('Failed to save', { description: nameResult.error })
+          return
+        }
+        if (nameResult.fieldErrors) {
+          setNameError(nameResult.fieldErrors.name?.[0] ?? 'Invalid name')
+          return
+        }
 
-      const themeResult = await updateFlavorThemeAvailable(flavor.id, themeAvailable)
-      if (themeResult.error) {
-        toast.error('Failed to save', { description: themeResult.error })
-        return
+        const themeResult = await updateFlavorThemeAvailable(flavor.id, themeAvailable)
+        if (themeResult.error) {
+          toast.error('Failed to save', { description: themeResult.error })
+          return
+        }
+
+        const priceEntries = Object.entries(priceMap)
+          .filter(([, v]) => v !== '' && v !== undefined && v !== null)
+          .map(([sizeId, v]) => ({ sizeId, price: parseFloat(v) }))
+          .filter((e) => !isNaN(e.price))
+
+        const priceResult = await upsertFlavorPrices(flavor.id, priceEntries)
+        if (priceResult.error) {
+          toast.error('Failed to save prices', { description: priceResult.error })
+          return
+        }
+
+        const newPrices = priceResult.data ?? flavor.prices
+        setLastSaved(new Date())
+        setSnapshot({ name: trimmed, isActive, themeAvailable, prices: canonPrices(priceMap) })
+        toast.success('Flavor saved', {
+          description: `${trimmed} · ${priceEntries.length} price${priceEntries.length !== 1 ? 's' : ''}`,
+        })
+        onSaved({ ...flavor, name: trimmed, is_active: isActive, theme_available: themeAvailable, image_url: imageUrl, prices: newPrices })
+      } catch (err) {
+        console.error('[FlavorDetail] save failed:', err)
+        toast.error('Something went wrong', {
+          description: err instanceof Error ? err.message : 'Please try again.',
+        })
       }
-
-      const priceEntries = Object.entries(priceMap)
-        .filter(([, v]) => v !== '' && v !== undefined && v !== null)
-        .map(([sizeId, v]) => ({ sizeId, price: parseFloat(v) }))
-        .filter((e) => !isNaN(e.price))
-
-      const priceResult = await upsertFlavorPrices(flavor.id, priceEntries)
-      if (priceResult.error) {
-        toast.error('Failed to save prices', { description: priceResult.error })
-        return
-      }
-
-      const newPrices = priceResult.data ?? flavor.prices
-      setLastSaved(new Date())
-      setSnapshot({ name: trimmed, isActive, themeAvailable, prices: canonPrices(priceMap) })
-      toast.success('Flavor saved', {
-        description: `${trimmed} · ${priceEntries.length} price${priceEntries.length !== 1 ? 's' : ''}`,
-      })
-      onSaved({ ...flavor, name: trimmed, is_active: isActive, theme_available: themeAvailable, image_url: imageUrl, prices: newPrices })
     })
   }
 
@@ -132,14 +141,23 @@ export function FlavorDetail({ flavor, sizes, onSaved, onDeleted, onBack, onDirt
       return
     }
     startDeleteTransition(async () => {
-      const result = await deleteOption(flavor.id, 'flavor_options')
-      if (result.error) {
-        toast.error('Failed to deactivate', { description: result.error })
-        setConfirmDelete(false)
-        return
+      // Without this try/catch, a thrown error here would leave `isDeleting`
+      // stuck true forever with no feedback shown.
+      try {
+        const result = await deleteOption(flavor.id, 'flavor_options')
+        if (result.error) {
+          toast.error('Failed to deactivate', { description: result.error })
+          setConfirmDelete(false)
+          return
+        }
+        toast.success('Flavor deactivated')
+        onDeleted(flavor.id)
+      } catch (err) {
+        console.error('[FlavorDetail] delete failed:', err)
+        toast.error('Something went wrong', {
+          description: err instanceof Error ? err.message : 'Please try again.',
+        })
       }
-      toast.success('Flavor deactivated')
-      onDeleted(flavor.id)
     })
   }
 

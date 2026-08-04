@@ -60,12 +60,21 @@ export default function InquiryRowActions({
     e.preventDefault()
     e.stopPropagation()
     startTransition(async () => {
-      const result = await setInquiryPaymentFlags(inquiry.id, { fully_paid: !isPaid })
-      if (result.error) {
-        toast.error(result.error)
-      } else {
-        toast.success(isPaid ? 'Marked unpaid' : 'Marked fully paid')
-        router.refresh()
+      // Without this try/catch, a thrown error here would leave `pending` stuck
+      // true forever with no feedback shown.
+      try {
+        const result = await setInquiryPaymentFlags(inquiry.id, { fully_paid: !isPaid })
+        if (result.error) {
+          toast.error(result.error)
+        } else {
+          toast.success(isPaid ? 'Marked unpaid' : 'Marked fully paid')
+          router.refresh()
+        }
+      } catch (err) {
+        console.error('[InquiryRowActions] toggle paid failed:', err)
+        toast.error('Something went wrong', {
+          description: err instanceof Error ? err.message : 'Please try again.',
+        })
       }
     })
   }

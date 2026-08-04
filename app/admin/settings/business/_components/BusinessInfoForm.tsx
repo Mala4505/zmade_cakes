@@ -18,15 +18,24 @@ export default function BusinessInfoForm({
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     startTransition(async () => {
-      const [r1, r2] = await Promise.all([
-        updateSetting('business_phone', phone),
-        updateSetting('business_instagram', instagram),
-      ])
-      if (r1.error || r2.error) {
-        toast.error('Failed to save', { description: r1.error ?? r2.error ?? 'Failed to save' })
-        return
+      // Without this try/catch, a thrown error here would leave `isPending` stuck
+      // true forever with no feedback shown.
+      try {
+        const [r1, r2] = await Promise.all([
+          updateSetting('business_phone', phone),
+          updateSetting('business_instagram', instagram),
+        ])
+        if (r1.error || r2.error) {
+          toast.error('Failed to save', { description: r1.error ?? r2.error ?? 'Failed to save' })
+          return
+        }
+        toast.success('Changes saved')
+      } catch (err) {
+        console.error('[BusinessInfoForm] save failed:', err)
+        toast.error('Something went wrong', {
+          description: err instanceof Error ? err.message : 'Please try again.',
+        })
       }
-      toast.success('Changes saved')
     })
   }
 
