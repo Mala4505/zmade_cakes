@@ -1,21 +1,32 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { PhotoThumb, AddPhotoTile } from '@/components/PhotoTile'
+import { PhotoThumb, AddPhotoTile, PHOTO_TILE_SIZE } from '@/components/PhotoTile'
+
+interface ExistingImage {
+  id: string
+  url_thumb: string
+  uploaded_by: string
+}
 
 interface Props {
   token: string
+  initialImages?: ExistingImage[]
 }
 
 interface UploadedPhoto {
   id: string
   thumb: string
+  /** Admin-added reference photos are shown read-only — only the customer's own uploads can be removed. */
+  removable: boolean
 }
 
 const MAX_PHOTOS = 6
 
-export default function CustomerPhotoUpload({ token }: Props) {
-  const [photos, setPhotos] = useState<UploadedPhoto[]>([])
+export default function CustomerPhotoUpload({ token, initialImages = [] }: Props) {
+  const [photos, setPhotos] = useState<UploadedPhoto[]>(
+    initialImages.map((img) => ({ id: img.id, thumb: img.url_thumb, removable: img.uploaded_by === 'customer' }))
+  )
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [removingId, setRemovingId] = useState<string | null>(null)
@@ -29,7 +40,7 @@ export default function CustomerPhotoUpload({ token }: Props) {
     if (res.ok) {
       const json = await res.json()
       if (json.id && json.thumb) {
-        setPhotos((prev) => [...prev, { id: json.id, thumb: json.thumb }])
+        setPhotos((prev) => [...prev, { id: json.id, thumb: json.thumb, removable: true }])
       }
     } else {
       const json = await res.json().catch(() => ({}))
@@ -100,16 +111,27 @@ export default function CustomerPhotoUpload({ token }: Props) {
       </p>
 
       <div className="flex flex-wrap gap-2">
-        {photos.map((photo, i) => (
-          <PhotoThumb
-            key={photo.id}
-            src={photo.thumb}
-            alt={`Reference photo ${i + 1}`}
-            removeLabel={`Remove reference photo ${i + 1}`}
-            onRemove={() => handleRemove(photo)}
-            removing={removingId === photo.id}
-          />
-        ))}
+        {photos.map((photo, i) =>
+          photo.removable ? (
+            <PhotoThumb
+              key={photo.id}
+              src={photo.thumb}
+              alt={`Reference photo ${i + 1}`}
+              removeLabel={`Remove reference photo ${i + 1}`}
+              onRemove={() => handleRemove(photo)}
+              removing={removingId === photo.id}
+            />
+          ) : (
+            // Added by us while preparing your quote — shown for reference, not removable here.
+            <div
+              key={photo.id}
+              className="rounded-xl overflow-hidden border"
+              style={{ width: PHOTO_TILE_SIZE, height: PHOTO_TILE_SIZE, flexShrink: 0, borderColor: 'var(--color-border)' }}
+            >
+              <img src={photo.thumb} alt={`Reference photo ${i + 1}`} className="w-full h-full object-cover" />
+            </div>
+          )
+        )}
 
         {photos.length < MAX_PHOTOS && (
           <AddPhotoTile

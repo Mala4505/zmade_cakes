@@ -34,6 +34,16 @@ export default async function ConfirmPage({ params }: Props) {
 
   if (error || !rawInquiry) notFound()
 
+  // Reference photos already attached to this inquiry — added by the admin while
+  // building the quote, or by the customer on the original /order form — so the
+  // customer can see what's on file instead of the upload widget looking empty.
+  const { data: referenceImages } = await supabase
+    .from('inquiry_images')
+    .select('id, url_thumb, uploaded_by')
+    .eq('inquiry_id', rawInquiry.id)
+    .eq('image_type', 'reference')
+    .order('created_at', { ascending: true })
+
   const waNumber = businessPhone
     ? businessPhone.replace(/\D/g, '').replace(/^(?!965)/, '965')
     : ''
@@ -238,7 +248,7 @@ export default async function ConfirmPage({ params }: Props) {
         )}
 
         {/* Reference photo upload */}
-        <CustomerPhotoUpload token={token} />
+        <CustomerPhotoUpload token={token} initialImages={referenceImages ?? []} />
 
         {/* Confirmation form */}
         {inquiry.admin_price ? (
