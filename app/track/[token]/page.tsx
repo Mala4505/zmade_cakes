@@ -392,7 +392,7 @@ export default async function TrackPage({ params }: Props) {
           style={{ backgroundColor: 'var(--color-surface-raised)', color: 'var(--color-ink-secondary)' }}
         >
           <Receipt size={15} weight="bold" />
-          View Invoice
+          {fullyPaid ? 'View Receipt' : 'View Invoice'}
         </Link>
       </div>
     </main>

@@ -112,7 +112,7 @@ export default function InvoiceLayout({ order, inquiry, adminMode, businessPhone
             className="text-4xl font-bold tracking-widest uppercase"
             style={{ color: 'var(--color-border)', letterSpacing: '0.2em' }}
           >
-            INVOICE
+            {paymentStatus === 'paid' ? 'RECEIPT' : 'INVOICE'}
           </p>
           {(invoiceNumber ?? order.invoice_number) && (
             <p

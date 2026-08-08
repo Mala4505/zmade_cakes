@@ -1,5 +1,36 @@
 @import "tailwindcss";
 
+/* Open Sauce Sans — self-hosted (not on Google Fonts), SIL OFL licensed.
+   See /public/fonts/open-sauce-sans/LICENSE.txt */
+@font-face {
+  font-family: 'Open Sauce Sans';
+  src: url('/fonts/open-sauce-sans/OpenSauceSans-400.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Open Sauce Sans';
+  src: url('/fonts/open-sauce-sans/OpenSauceSans-500.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Open Sauce Sans';
+  src: url('/fonts/open-sauce-sans/OpenSauceSans-600.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Open Sauce Sans';
+  src: url('/fonts/open-sauce-sans/OpenSauceSans-700.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
 @theme {
   /* ---- Colors: The Atelier Palette ---- */
 
@@ -31,9 +62,9 @@
   --color-info-light: #e8f3fb;
 
   /* ---- Typography ---- */
-  --font-sans: var(--font-geist-sans), system-ui, sans-serif;
+  --font-sans: 'Open Sauce Sans', system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), monospace;
-  --font-display: var(--font-bricolage), system-ui, sans-serif;
+  --font-display: var(--font-fraunces), Georgia, serif;
 
   /* ---- Border Radius ---- */
   --radius-sm: 4px;

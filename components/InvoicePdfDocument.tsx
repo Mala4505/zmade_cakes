@@ -255,7 +255,7 @@ export default function InvoicePdfDocument({ order, inquiry, businessPhone, busi
             <Text style={styles.tagline}>Handcrafted with love</Text>
           </View>
           <View>
-            <Text style={styles.invoiceLabel}>INVOICE</Text>
+            <Text style={styles.invoiceLabel}>{paymentStatus === 'paid' ? 'RECEIPT' : 'INVOICE'}</Text>
             {(invoiceNumber ?? order.invoice_number) && (
               <Text style={styles.invoiceNumber}>
                 {`ZM-${new Date().getFullYear()}-${String(invoiceNumber ?? order.invoice_number).padStart(4, '0')}`}

@@ -6,7 +6,7 @@ import { Spinner, DownloadSimple } from '@phosphor-icons/react'
 import type { ComponentProps } from 'react'
 import type InvoicePdfDocument from '@/components/InvoicePdfDocument'
 
-type Props = ComponentProps<typeof InvoicePdfDocument>
+type Props = ComponentProps<typeof InvoicePdfDocument> & { fileLabel?: 'invoice' | 'receipt' }
 
 function sanitizeFileName(name: string): string {
   return name
@@ -16,7 +16,7 @@ function sanitizeFileName(name: string): string {
     .replace(/[^a-z0-9-]/g, '') || 'customer'
 }
 
-export function DownloadPdfButton(props: Props) {
+export function DownloadPdfButton({ fileLabel = 'invoice', ...props }: Props) {
   const [loading, setLoading] = useState(false)
 
   const handleDownload = async () => {
@@ -29,7 +29,7 @@ export function DownloadPdfButton(props: Props) {
 
       const blob = await pdf(<InvoicePdfDocument {...props} />).toBlob()
       const url = URL.createObjectURL(blob)
-      const fileName = `zmade-invoice-${sanitizeFileName(props.inquiry.customer_name)}.pdf`
+      const fileName = `zmade-${fileLabel}-${sanitizeFileName(props.inquiry.customer_name)}.pdf`
 
       const link = document.createElement('a')
       link.href = url

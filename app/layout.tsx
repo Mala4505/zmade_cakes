@@ -1,16 +1,14 @@
 import type { Metadata, Viewport } from 'next'
-import { Geist, Geist_Mono, Bricolage_Grotesque } from 'next/font/google'
+import { Geist_Mono, Fraunces } from 'next/font/google'
 import { Toaster } from 'sonner'
 import { getBusinessContactSettings } from '@/lib/supabase/business-settings'
 import { Footer } from '@/components/public/Footer'
 import { BRAND_NAME } from '@/lib/brand'
 import './globals.css'
 
-const geistSans = Geist({
-  variable: '--font-geist-sans',
-  subsets: ['latin'],
-  display: 'swap',
-})
+// Open Sauce Sans isn't on Google Fonts, so it's self-hosted via plain
+// @font-face in globals.css (see /public/fonts/open-sauce-sans) instead of
+// next/font/local.
 
 const geistMono = Geist_Mono({
   variable: '--font-geist-mono',
@@ -18,10 +16,11 @@ const geistMono = Geist_Mono({
   display: 'swap',
 })
 
-const bricolageGrotesque = Bricolage_Grotesque({
-  variable: '--font-bricolage',
+const fraunces = Fraunces({
+  variable: '--font-fraunces',
   subsets: ['latin'],
-  weight: ['500', '600', '700', '800'],
+  weight: 'variable',
+  axes: ['opsz'],
   display: 'optional',
 })
 
@@ -47,7 +46,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} ${bricolageGrotesque.variable} h-full antialiased`}
+      className={`${geistMono.variable} ${fraunces.variable} h-full antialiased`}
       // Guards against browser extensions (Grammarly, Dark Reader, password managers, etc.)
       // injecting attributes into <html>/<body> before hydration — not an app-caused mismatch.
       suppressHydrationWarning

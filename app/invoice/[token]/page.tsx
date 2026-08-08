@@ -5,6 +5,7 @@ import { Navbar } from '@/components/public/Navbar'
 import { PrintButton } from './_components/PrintButton'
 import { DownloadPdfButton } from './_components/DownloadPdfButton'
 import { BRAND_NAME } from '@/lib/brand'
+import { derivePaymentStatus } from '@/lib/payments'
 import type { Metadata } from 'next'
 
 interface Props { params: Promise<{ token: string }> }
@@ -31,6 +32,7 @@ export default async function PublicInvoicePage({ params }: Props) {
   const inq = o.inquiry
   const businessPhone = (phoneRow?.value as string) ?? ''
   const businessInstagram = (igRow?.value as string) ?? ''
+  const isPaid = derivePaymentStatus(inq?.fully_paid, o.amount_paid) === 'paid'
 
   return (
     <main
@@ -58,6 +60,7 @@ export default async function PublicInvoicePage({ params }: Props) {
             businessPhone={businessPhone}
             businessInstagram={businessInstagram}
             invoiceNumber={o.invoice_number ?? null}
+            fileLabel={isPaid ? 'receipt' : 'invoice'}
           />
         </div>
 
