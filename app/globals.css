@@ -105,6 +105,12 @@ body {
   line-height: 1.6;
 }
 
+/* Every heading gets the display face by default so it doesn't fall back
+   to body text just because a component forgot the inline override. */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display);
+}
+
 /* ---- Selection ---- */
 ::selection {
   background-color: var(--color-teal-light);

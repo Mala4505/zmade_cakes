@@ -216,7 +216,7 @@ export default function PhoneInput({
     'focus:border-[var(--color-teal)] focus-visible:border-[var(--color-teal)] focus:shadow-[0_0_0_2px_var(--color-teal-light)] focus-visible:shadow-[0_0_0_2px_var(--color-teal-light)]'
 
   return (
-    <div className={cn('relative flex', className)} ref={dropdownRef}>
+    <div className={cn('relative flex min-w-0', className)} ref={dropdownRef}>
       <button
         ref={triggerRef}
         type="button"
