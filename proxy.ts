@@ -37,11 +37,6 @@ const limiters = redisConfigured
           limiter: Ratelimit.slidingWindow(60, '1 m'),
           prefix: 'zmade:track',
         }),
-        notify: new Ratelimit({
-          redis,
-          limiter: Ratelimit.slidingWindow(10, '1 m'),
-          prefix: 'zmade:notify',
-        }),
         admin: new Ratelimit({
           redis,
           limiter: Ratelimit.slidingWindow(200, '1 m'),
@@ -103,8 +98,6 @@ export async function proxy(request: NextRequest) {
       rateLimitResponse = await checkRateLimit(limiter, ip)
     } else if (pathname.startsWith('/track/')) {
       rateLimitResponse = await checkRateLimit(limiters.trackRead, ip)
-    } else if (pathname === '/api/notify') {
-      rateLimitResponse = await checkRateLimit(limiters.notify, ip)
     } else if (pathname.startsWith('/admin') || pathname.startsWith('/(admin)')) {
       rateLimitResponse = await checkRateLimit(limiters.admin, ip)
     } else {
@@ -167,6 +160,6 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|woff|woff2|ttf|otf)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|manifest.json|sw.js|.*\\.(?:svg|png|jpg|jpeg|gif|webp|woff|woff2|ttf|otf)$).*)',
   ],
 }

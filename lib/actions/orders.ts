@@ -1,7 +1,9 @@
 'use server'
 
+import { after } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { tokenSchema } from '@/lib/validations/inquiry'
+import { sendPushToAdmin } from '@/lib/push'
 import type { Order, OrderStatus } from '@/lib/supabase/types'
 
 type ActionResult<T> =
@@ -46,17 +48,34 @@ export async function updateOrderStatus(id: string, status: OrderStatus): Promis
   const { data } = await supabase.from('orders').select().eq('id', id).single()
 
   if (status === 'ready' || status === 'delivered') {
-    await supabase.from('notifications').insert({
-      type: 'order_update',
-      title: status === 'ready' ? 'Order Ready for Pickup' : 'Order Dispatched',
-      body:
-        status === 'ready'
-          ? `Order for ${current.inquiry_id.slice(0, 8)} is ready!`
-          : `Order for ${current.inquiry_id.slice(0, 8)} has been dispatched`,
-      inquiry_id: current.inquiry_id,
-      order_id: id,
-      is_read: false,
-    })
+    const title = status === 'ready' ? 'Order Ready for Pickup' : 'Order Dispatched'
+    const body =
+      status === 'ready'
+        ? `Order for ${current.inquiry_id.slice(0, 8)} is ready!`
+        : `Order for ${current.inquiry_id.slice(0, 8)} has been dispatched`
+    const { data: notification } = await supabase
+      .from('notifications')
+      .insert({
+        type: 'order_update',
+        title,
+        body,
+        inquiry_id: current.inquiry_id,
+        order_id: id,
+        is_read: false,
+      })
+      .select('id')
+      .single()
+
+    if (notification) {
+      after(() =>
+        sendPushToAdmin('order_update', {
+          title,
+          body,
+          url: `/admin/orders/${id}`,
+          notificationId: notification.id,
+        })
+      )
+    }
   }
 
   return { data: data as unknown as Order, error: null }

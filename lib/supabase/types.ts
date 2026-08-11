@@ -186,6 +186,7 @@ export type BusinessSettingKey =
   | 'pricing_matrix'
   | 'min_price_guard'
   | 'rush_multiplier'
+  | 'notification_prefs'
 
 export interface BusinessSetting {
   key: BusinessSettingKey
@@ -207,6 +208,31 @@ export const DEFAULT_WHATSAPP_TEMPLATES: WhatsAppTemplates = {
   balanceDue: 'Hi {name}! A reminder that your balance of KWD {amount} is due on delivery.\n\n{link}',
   trackingLink: `Hi {name}! Track your ${BRAND_NAME} order here: {link}`,
   myOrdersLink: `Hi {name}! You can view all your ${BRAND_NAME} orders anytime here: {link}`,
+}
+
+export interface NotificationPrefs {
+  push_enabled: boolean
+  types: Record<NotificationType, boolean>
+}
+
+export const DEFAULT_NOTIFICATION_PREFS: NotificationPrefs = {
+  push_enabled: true,
+  types: {
+    inquiry_created: true,
+    customer_confirmed: true,
+    order_update: true,
+    general: true,
+  },
+}
+
+export interface PushSubscriptionRow {
+  id: string
+  endpoint: string
+  p256dh: string
+  auth: string
+  user_agent: string
+  created_at: string
+  last_seen_at: string
 }
 
 export interface FlavorSizePrice {
@@ -317,6 +343,12 @@ export type Database = {
         Insert: { created_at?: string; delivery_type: string; deposit_amount?: number | null; amount_paid?: number | null; delivery_charge?: number; eta_date?: string | null; eta_note?: string; eta_time?: string | null; final_price: number; id?: string; inquiry_id: string; status?: string; tracking_token?: string; updated_at?: string }
         Update: { created_at?: string; delivery_type?: string; deposit_amount?: number | null; amount_paid?: number | null; delivery_charge?: number; eta_date?: string | null; eta_note?: string; eta_time?: string | null; final_price?: number; id?: string; inquiry_id?: string; status?: string; tracking_token?: string; updated_at?: string }
         Relationships: [{ foreignKeyName: 'orders_inquiry_id_fkey'; columns: ['inquiry_id']; isOneToOne: true; referencedRelation: 'inquiries'; referencedColumns: ['id'] }]
+      }
+      push_subscriptions: {
+        Row: { auth: string; created_at: string; endpoint: string; id: string; last_seen_at: string; p256dh: string; user_agent: string }
+        Insert: { auth: string; created_at?: string; endpoint: string; id?: string; last_seen_at?: string; p256dh: string; user_agent?: string }
+        Update: { auth?: string; created_at?: string; endpoint?: string; id?: string; last_seen_at?: string; p256dh?: string; user_agent?: string }
+        Relationships: []
       }
       size_options: {
         Row: { created_at: string; id: string; image_url: string | null; is_active: boolean; name: string; sort_order: number }

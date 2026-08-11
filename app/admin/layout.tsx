@@ -1,8 +1,19 @@
+import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { AdminSidebar, AdminBottomNav, AdminMobileTopBar } from '@/components/admin/AdminNav'
 import { NavPendingProvider } from '@/components/admin/NavPendingContext'
 import { NavigationOverlay } from '@/components/admin/NavigationOverlay'
+import { NotificationProvider } from '@/components/admin/NotificationContext'
+import { NotificationBellDesktop } from '@/components/admin/NotificationBellDesktop'
+import { ServiceWorkerRegistration } from '@/components/admin/ServiceWorkerRegistration'
+import type { Notification } from '@/lib/supabase/types'
+
+export const metadata: Metadata = {
+  manifest: '/manifest.json',
+  appleWebApp: { capable: true, statusBarStyle: 'default', title: 'ZMade Admin' },
+  icons: { icon: '/icons/icon-192.png', apple: '/icons/icon-192.png' },
+}
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
@@ -12,7 +23,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   if (!user) redirect('/login')
 
-  const [pendingRes, readyRes] = await Promise.all([
+  const [pendingRes, readyRes, notificationsRes] = await Promise.all([
     supabase
       .from('inquiries')
       .select('id', { count: 'exact', head: true })
@@ -21,27 +32,37 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       .from('orders')
       .select('id', { count: 'exact', head: true })
       .eq('status', 'ready'),
+    supabase
+      .from('notifications')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(50),
   ])
   const pendingCount = pendingRes.count ?? 0
   const readyCount = readyRes.count ?? 0
+  const initialNotifications = (notificationsRes.data ?? []) as Notification[]
 
   return (
-    <NavPendingProvider>
-      <div className="flex min-h-svh" style={{ backgroundColor: 'var(--color-surface)' }}>
-        <AdminSidebar pendingCount={pendingCount} readyCount={readyCount} user={user} />
+    <NotificationProvider initialNotifications={initialNotifications}>
+      <NavPendingProvider>
+        <ServiceWorkerRegistration />
+        <NotificationBellDesktop />
+        <div className="flex min-h-svh" style={{ backgroundColor: 'var(--color-surface)' }}>
+          <AdminSidebar pendingCount={pendingCount} readyCount={readyCount} user={user} />
 
-        <div className="relative flex-1 flex flex-col min-w-0">
-          <AdminMobileTopBar />
+          <div className="relative flex-1 flex flex-col min-w-0">
+            <AdminMobileTopBar />
 
-          <main className="admin-main flex-1 pb-20 md:pb-0" style={{ backgroundColor: 'var(--color-cream)' }}>
-            {children}
-          </main>
+            <main className="admin-main flex-1 pb-20 md:pb-0" style={{ backgroundColor: 'var(--color-cream)' }}>
+              {children}
+            </main>
 
-          <NavigationOverlay />
+            <NavigationOverlay />
+          </div>
+
+          <AdminBottomNav pendingCount={pendingCount} readyCount={readyCount} />
         </div>
-
-        <AdminBottomNav pendingCount={pendingCount} readyCount={readyCount} />
-      </div>
-    </NavPendingProvider>
+      </NavPendingProvider>
+    </NotificationProvider>
   )
 }

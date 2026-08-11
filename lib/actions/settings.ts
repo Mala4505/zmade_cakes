@@ -28,6 +28,7 @@ export async function updateSetting(key: BusinessSettingKey, value: unknown): Pr
     business_instagram: (v) => typeof v === 'string' && v.length <= 100,
     rush_multiplier:    (v) => typeof v === 'number' && v >= 1 && v <= 10,
     min_price_guard:    (v) => typeof v === 'number' && v >= 0,
+    notification_prefs: (v) => typeof v === 'object' && v !== null && typeof (v as any).push_enabled === 'boolean' && typeof (v as any).types === 'object',
   }
   const validator = SETTING_VALIDATORS[key as string]
   if (validator && !validator(value)) return { data: null, error: `Invalid value for setting "${key}"` }

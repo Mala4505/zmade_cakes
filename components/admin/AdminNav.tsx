@@ -18,6 +18,7 @@ import { LogOut, Layers } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { signOut } from '@/lib/actions/auth'
 import { useNavPending } from './NavPendingContext'
+import { NotificationBellMobile } from './NotificationBellMobile'
 import { Modal } from '@/components/ui/Modal'
 import type { User } from '@supabase/supabase-js'
 import type React from 'react'
@@ -352,6 +353,7 @@ export function AdminMobileTopBar() {
       >
         {current?.label ?? 'ZMade Cakes'}
       </span>
+      <NotificationBellMobile />
     </header>
   )
 }

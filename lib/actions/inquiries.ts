@@ -1,5 +1,6 @@
 'use server'
 
+import { after } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import {
   inquirySchema,
@@ -11,6 +12,7 @@ import { customerConfirmSchema } from '@/lib/validations/confirm'
 import { orderTotal } from '@/lib/payments'
 import { orderSummary, buildCustomerEditDiff, type CustomerEditDiffEntry } from '@/lib/format'
 import { generateShortToken } from '@/lib/tokens'
+import { sendPushToAdmin } from '@/lib/push'
 import type { Inquiry, Order, InquiryStatus, Json } from '@/lib/supabase/types'
 
 type FieldErrors = Record<string, string[]>
@@ -88,14 +90,33 @@ export async function createInquiry(
     }
   }
 
-  await supabase.from('notifications').insert({
-    type: 'inquiry_created',
-    title: 'New Inquiry Created',
-    body: `${inquiry.customer_name} — ${inquiry.cake_size} ${inquiry.flavor} for ${inquiry.event_date}`,
-    inquiry_id: inquiry.id,
-    order_id: null,
-    is_read: false,
-  })
+  {
+    const title = 'New Inquiry Created'
+    const body = `${inquiry.customer_name} — ${inquiry.cake_size} ${inquiry.flavor} for ${inquiry.event_date}`
+    const { data } = await supabase
+      .from('notifications')
+      .insert({
+        type: 'inquiry_created',
+        title,
+        body,
+        inquiry_id: inquiry.id,
+        order_id: null,
+        is_read: false,
+      })
+      .select('id')
+      .single()
+
+    if (data) {
+      after(() =>
+        sendPushToAdmin('inquiry_created', {
+          title,
+          body,
+          url: `/admin/inquiries/${inquiry.id}`,
+          notificationId: data.id,
+        })
+      )
+    }
+  }
 
   return { data: inquiry as unknown as Inquiry, error: null, fieldErrors: null }
 }
@@ -334,14 +355,33 @@ export async function confirmInquiry(
       return { data: null, error: 'Failed to create order', fieldErrors: null }
     }
 
-    await supabase.from('notifications').insert({
-      type: 'customer_confirmed',
-      title: 'Customer Confirmed Order',
-      body: `${inquiry.customer_name} confirmed — ${orderSummary(inquiry)}.${editSummary(editDiff)}`,
-      inquiry_id: inquiry.id,
-      order_id: order.id,
-      is_read: false,
-    })
+    {
+      const title = 'Customer Confirmed Order'
+      const body = `${inquiry.customer_name} confirmed — ${orderSummary(inquiry)}.${editSummary(editDiff)}`
+      const { data } = await supabase
+        .from('notifications')
+        .insert({
+          type: 'customer_confirmed',
+          title,
+          body,
+          inquiry_id: inquiry.id,
+          order_id: order.id,
+          is_read: false,
+        })
+        .select('id')
+        .single()
+
+      if (data) {
+        after(() =>
+          sendPushToAdmin('customer_confirmed', {
+            title,
+            body,
+            url: `/admin/orders/${order.id}`,
+            notificationId: data.id,
+          })
+        )
+      }
+    }
 
     return { data: { inquiry: updatedInquiry as unknown as Inquiry, order }, error: null, fieldErrors: null }
   } else {
@@ -367,14 +407,33 @@ export async function confirmInquiry(
         .upsert({ inquiry_id: inquiry.id, ...delivery_address }, { onConflict: 'inquiry_id' })
     }
 
-    await supabase.from('notifications').insert({
-      type: 'general',
-      title: 'Customer Requested Changes',
-      body: `${inquiry.customer_name} requested changes — review their comments${editSummary(editDiff)}`,
-      inquiry_id: inquiry.id,
-      order_id: null,
-      is_read: false,
-    })
+    {
+      const title = 'Customer Requested Changes'
+      const body = `${inquiry.customer_name} requested changes — review their comments${editSummary(editDiff)}`
+      const { data } = await supabase
+        .from('notifications')
+        .insert({
+          type: 'general',
+          title,
+          body,
+          inquiry_id: inquiry.id,
+          order_id: null,
+          is_read: false,
+        })
+        .select('id')
+        .single()
+
+      if (data) {
+        after(() =>
+          sendPushToAdmin('general', {
+            title,
+            body,
+            url: `/admin/inquiries/${inquiry.id}`,
+            notificationId: data.id,
+          })
+        )
+      }
+    }
 
     return { data: { inquiry: updatedInquiry as unknown as Inquiry }, error: null, fieldErrors: null }
   }

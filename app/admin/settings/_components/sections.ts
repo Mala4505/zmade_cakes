@@ -4,6 +4,7 @@ import {
   CalendarX,
   WhatsappLogo,
   Confetti,
+  Bell,
 } from '@phosphor-icons/react/dist/ssr'
 import type { Icon } from '@phosphor-icons/react'
 
@@ -23,4 +24,5 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
   { href: '/admin/settings/blackout-dates', title: 'Blackout Dates', description: 'Blocked date ranges for holidays', Icon: CalendarX },
   { href: '/admin/settings/whatsapp-templates', title: 'WhatsApp Templates', description: 'Message templates for customer notifications', Icon: WhatsappLogo },
   { href: '/admin/settings/options', title: 'Occasions', description: 'Occasions offered on the inquiry form', Icon: Confetti },
+  { href: '/admin/settings/notifications', title: 'Notifications', description: 'Push alerts and what triggers them', Icon: Bell },
 ]

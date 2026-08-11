@@ -377,7 +377,7 @@ export default async function DashboardPage() {
           <Section
             title="Recent Activity"
             icon={<Bell size={15} weight="fill" />}
-            href="#"
+            href="/admin/notifications"
             empty={notifications.length === 0}
             emptyText="No activity yet"
           >
