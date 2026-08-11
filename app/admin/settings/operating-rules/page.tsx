@@ -7,7 +7,8 @@ export const metadata: Metadata = { title: 'Operating Rules' }
 
 export default async function OperatingRulesPage() {
   const result = await getSettings(['min_lead_days'])
-  const leadDays = parseInt(result.data?.min_lead_days as string) || 3
+  const parsedLeadDays = parseInt(result.data?.min_lead_days as string)
+  const leadDays = Number.isNaN(parsedLeadDays) ? 3 : parsedLeadDays
 
   return (
     <div className="px-4 py-6 md:px-8 md:py-8 max-w-xl">

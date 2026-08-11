@@ -6,7 +6,7 @@ import { getBusinessContactSettings } from '@/lib/supabase/business-settings'
 import { isValidToken, formatDate, formatTime, formatKWD, formatDateLong, orderSummary } from '@/lib/utils'
 import { balanceOwed } from '@/lib/payments'
 import type { Metadata } from 'next'
-import type { Order, OrderStatus } from '@/lib/supabase/types'
+import type { Order, OrderStatus, Payment } from '@/lib/supabase/types'
 import { CheckCircle, Circle, Receipt, ShieldCheck, WhatsappLogo } from '@phosphor-icons/react/dist/ssr'
 import { BRAND_NAME } from '@/lib/brand'
 import { Navbar } from '@/components/public/Navbar'
@@ -78,6 +78,14 @@ export default async function TrackPage({ params }: Props) {
     if (imagesError) throw new Error(`Track: failed to load finished cake photos — ${imagesError.message}`)
     finishedImages = images ?? []
   }
+
+  const { data: paymentsData, error: paymentsError } = await supabase
+    .from('payments')
+    .select('*')
+    .eq('order_id', o.id)
+    .order('paid_at', { ascending: false })
+  if (paymentsError) throw new Error(`Track: failed to load payments — ${paymentsError.message}`)
+  const payments = (paymentsData ?? []) as unknown as Payment[]
 
   return (
     <main
@@ -358,6 +366,50 @@ export default async function TrackPage({ params }: Props) {
             <DetailRow label="Payment" value={inq.payment_method === 'wamd' ? 'WAMD' : 'Cash'} />
           )}
         </section>
+
+        {/* Payment History */}
+        {payments.length > 0 && (
+          <section
+            className="rounded-2xl border p-5"
+            style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
+          >
+            <h2
+              className="text-xs font-semibold uppercase tracking-widest mb-4"
+              style={{ color: 'var(--color-ink-muted)' }}
+            >
+              Payment History
+            </h2>
+            <div className="flex flex-col">
+              {payments.map((p, i) => (
+                <div
+                  key={p.id}
+                  className="flex items-center justify-between gap-3 py-3"
+                  style={i > 0 ? { borderTop: '1px dashed var(--color-border)' } : { paddingTop: 0 }}
+                >
+                  <div className="min-w-0">
+                    <p
+                      className="text-sm font-semibold"
+                      style={{ color: 'var(--color-ink)', fontFamily: 'var(--font-mono)' }}
+                    >
+                      {formatKWD(p.amount)}
+                    </p>
+                    <p className="text-xs mt-0.5" style={{ color: 'var(--color-ink-muted)' }}>
+                      {formatDate(p.paid_at)} · {p.method === 'wamd' ? 'WAMD' : 'Cash'}
+                    </p>
+                  </div>
+                  <Link
+                    href={`/receipt/${p.receipt_token}`}
+                    className="inline-flex items-center gap-1 text-xs font-medium shrink-0 min-h-11 px-2 -mx-2 -my-2"
+                    style={{ color: 'var(--color-teal)' }}
+                  >
+                    <Receipt size={13} weight="bold" />
+                    View receipt
+                  </Link>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* Security Deposit — collateral, kept visually separate from the balance math above */}
         {hasSecurityDeposit && (

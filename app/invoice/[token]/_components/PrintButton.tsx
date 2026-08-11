@@ -2,7 +2,11 @@
 
 import { Printer } from '@phosphor-icons/react'
 
-export function PrintButton() {
+interface Props {
+  label?: string
+}
+
+export function PrintButton({ label = 'Print Invoice' }: Props) {
   return (
     <button
       type="button"
@@ -15,7 +19,7 @@ export function PrintButton() {
       }}
     >
       <Printer size={14} />
-      Print Invoice
+      {label}
     </button>
   )
 }

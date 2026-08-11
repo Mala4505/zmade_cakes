@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { EASE_OUT_QUART } from '@/lib/motion'
 import { inquirySchema } from '@/lib/validations/inquiry'
@@ -18,7 +19,7 @@ import { Button, Checkbox, Field, Input, RadioGroup, Select, Spinner, Textarea }
 import { Copy, WhatsappLogo, Check, X } from '@phosphor-icons/react'
 import type { OptionRow, Inquiry, BlackoutDate } from '@/lib/supabase/types'
 import { z } from 'zod'
-import { GOVERNORATE_LABELS } from '@/lib/utils'
+import { GOVERNORATE_LABELS, formatKWD } from '@/lib/utils'
 
 // Sentinel value for the "+ Add new item" entry appended to the item <Select>.
 // Never a real option — intercepted in the onChange handler before it reaches form state.
@@ -52,6 +53,7 @@ interface Props {
   pricingMatrix?: Record<string, number>
   minPriceGuard?: number
   rushMultiplier?: number
+  orderId: string | null
 }
 
 function whatsappUrl(phone: string): string {
@@ -73,6 +75,7 @@ export default function InquiryDetailForm({
   pricingMatrix,
   minPriceGuard,
   rushMultiplier,
+  orderId,
 }: Props) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
@@ -202,7 +205,7 @@ export default function InquiryDetailForm({
   }
 
   const isWithinLeadTime = (date: string): boolean => {
-    if (!date || !minLeadDays) return false
+    if (!date || minLeadDays == null) return false
     const d = new Date(date)
     const cutoff = new Date()
     cutoff.setDate(cutoff.getDate() + minLeadDays)
@@ -298,7 +301,14 @@ export default function InquiryDetailForm({
               }
             : undefined
 
-        const result = await updateInquiry(inquiry.id, inquiryData, addressData)
+        // Once an order exists, `payments` (not this form) is the source of truth for
+        // amount_paid: the DB trigger derives it from the payments ledger. Never let this
+        // form's local state (stale as soon as a payment is recorded on the order page)
+        // stomp that derived total, regardless of which payment_choice is selected.
+        const { amount_paid: _amountPaid, ...restInquiryData } = inquiryData
+        const payload = orderId ? restInquiryData : inquiryData
+
+        const result = await updateInquiry(inquiry.id, payload, addressData)
 
         if (result.error) {
           toast.error('Failed to save', { description: result.error })
@@ -885,23 +895,49 @@ export default function InquiryDetailForm({
                   exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -6 }}
                   transition={{ duration: reduceMotion ? 0 : 0.16, ease: EASE_OUT_QUART }}
                 >
-                  <Field
-                    label="Amount Paid (KD)"
-                    error={errors.amount_paid?.message}
-                    hint="How much the customer has paid so far"
-                    required
-                  >
-                    <Input
-                      {...register('amount_paid', { setValueAs: numberOrNull })}
-                      type="number"
-                      step="0.001"
-                      min="0"
+                  {orderId ? (
+                    <Field label="Amount Paid (KD)">
+                      <p
+                        className="rounded-lg border px-3.5 py-2.5 text-sm"
+                        style={{
+                          fontFamily: 'var(--font-mono)',
+                          color: 'var(--color-ink)',
+                          borderColor: 'var(--color-border)',
+                          backgroundColor: 'var(--color-surface-raised)',
+                        }}
+                      >
+                        {formatKWD(inquiry.amount_paid)}
+                      </p>
+                      <p className="mt-1 text-xs" style={{ color: 'var(--color-ink-muted)' }}>
+                        Managed from the order&apos;s Payment History.{' '}
+                        <Link
+                          href={`/admin/orders/${orderId}`}
+                          className="font-medium underline underline-offset-2"
+                          style={{ color: 'var(--color-teal)' }}
+                        >
+                          view payments →
+                        </Link>
+                      </p>
+                    </Field>
+                  ) : (
+                    <Field
+                      label="Amount Paid (KD)"
+                      error={errors.amount_paid?.message}
+                      hint="How much the customer has paid so far"
                       required
-                      autoFocus
-                      style={{ fontFamily: 'var(--font-mono)' }}
-                      aria-invalid={errors.amount_paid ? true : undefined}
-                    />
-                  </Field>
+                    >
+                      <Input
+                        {...register('amount_paid', { setValueAs: numberOrNull })}
+                        type="number"
+                        step="0.001"
+                        min="0"
+                        required
+                        autoFocus
+                        style={{ fontFamily: 'var(--font-mono)' }}
+                        aria-invalid={errors.amount_paid ? true : undefined}
+                      />
+                    </Field>
+                  )}
                 </motion.div>
               )}
             </AnimatePresence>

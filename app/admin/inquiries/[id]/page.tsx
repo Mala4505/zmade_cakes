@@ -145,12 +145,19 @@ export default async function InquiryDetailPage({ params }: Props) {
     customerData = data
   }
 
-  const { count: pastOrderCount } = await supabase
-    .from('orders')
-    .select('id, inquiry:inquiries!inner(customer_phone)', { count: 'exact', head: true })
-    .eq('inquiry.customer_phone', inquiry.customer_phone)
-    .neq('inquiry.id', inquiry.id)
-    .in('status', ['confirmed', 'ready', 'delivered'])
+  const [{ count: pastOrderCount }, { data: order }] = await Promise.all([
+    supabase
+      .from('orders')
+      .select('id, inquiry:inquiries!inner(customer_phone)', { count: 'exact', head: true })
+      .eq('inquiry.customer_phone', inquiry.customer_phone)
+      .neq('inquiry.id', inquiry.id)
+      .in('status', ['confirmed', 'ready', 'delivered']),
+    supabase
+      .from('orders')
+      .select('id')
+      .eq('inquiry_id', inquiry.id)
+      .maybeSingle(),
+  ])
 
   const isCancelled = inquiry.status === 'cancelled'
 
@@ -241,6 +248,7 @@ export default async function InquiryDetailPage({ params }: Props) {
         pricingMatrix={pricingMatrix}
         minPriceGuard={minPriceGuard}
         rushMultiplier={rushMultiplier}
+        orderId={order?.id ?? null}
       />
 
       {/* Reference Images */}

@@ -23,11 +23,11 @@ export async function getSettings(keys: BusinessSettingKey[]): Promise<ActionRes
 
 export async function updateSetting(key: BusinessSettingKey, value: unknown): Promise<ActionResult<void>> {
   const SETTING_VALIDATORS: Partial<Record<string, (v: unknown) => boolean>> = {
-    min_lead_days:      (v) => typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= 365,
+    min_lead_days:      (v) => typeof v === 'string' && /^\d+$/.test(v) && Number(v) >= 0 && Number(v) <= 90,
     business_phone:     (v) => typeof v === 'string' && v.length <= 30,
     business_instagram: (v) => typeof v === 'string' && v.length <= 100,
-    rush_multiplier:    (v) => typeof v === 'number' && v >= 1 && v <= 10,
-    min_price_guard:    (v) => typeof v === 'number' && v >= 0,
+    rush_multiplier:    (v) => typeof v === 'string' && !Number.isNaN(Number(v)) && Number(v) >= 1 && Number(v) <= 10,
+    min_price_guard:    (v) => typeof v === 'string' && !Number.isNaN(Number(v)) && Number(v) >= 0,
     notification_prefs: (v) => typeof v === 'object' && v !== null && typeof (v as any).push_enabled === 'boolean' && typeof (v as any).types === 'object',
   }
   const validator = SETTING_VALIDATORS[key as string]

@@ -115,6 +115,17 @@ export interface Order {
   inquiry?: Inquiry
 }
 
+export interface Payment {
+  id: string
+  order_id: string
+  amount: string
+  method: PaymentMethod
+  receipt_token: string
+  note: string | null
+  paid_at: string
+  created_at: string
+}
+
 export interface Notification {
   id: string
   type: NotificationType
@@ -343,6 +354,12 @@ export type Database = {
         Insert: { created_at?: string; delivery_type: string; deposit_amount?: number | null; amount_paid?: number | null; delivery_charge?: number; eta_date?: string | null; eta_note?: string; eta_time?: string | null; final_price: number; id?: string; inquiry_id: string; status?: string; tracking_token?: string; updated_at?: string }
         Update: { created_at?: string; delivery_type?: string; deposit_amount?: number | null; amount_paid?: number | null; delivery_charge?: number; eta_date?: string | null; eta_note?: string; eta_time?: string | null; final_price?: number; id?: string; inquiry_id?: string; status?: string; tracking_token?: string; updated_at?: string }
         Relationships: [{ foreignKeyName: 'orders_inquiry_id_fkey'; columns: ['inquiry_id']; isOneToOne: true; referencedRelation: 'inquiries'; referencedColumns: ['id'] }]
+      }
+      payments: {
+        Row: { amount: number; created_at: string; id: string; method: string; note: string | null; order_id: string; paid_at: string; receipt_token: string }
+        Insert: { amount: number; created_at?: string; id?: string; method: string; note?: string | null; order_id: string; paid_at?: string; receipt_token: string }
+        Update: { amount?: number; created_at?: string; id?: string; method?: string; note?: string | null; order_id?: string; paid_at?: string; receipt_token?: string }
+        Relationships: [{ foreignKeyName: 'payments_order_id_fkey'; columns: ['order_id']; isOneToOne: false; referencedRelation: 'orders'; referencedColumns: ['id'] }]
       }
       push_subscriptions: {
         Row: { auth: string; created_at: string; endpoint: string; id: string; last_seen_at: string; p256dh: string; user_agent: string }

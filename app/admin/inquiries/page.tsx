@@ -5,15 +5,18 @@ import { generatePortalToken } from '@/lib/portal'
 import { PageHeader } from '@/components/admin/PageHeader'
 import { InquiryStatusSelect } from '@/components/admin/InquiryStatusSelect'
 import InquiryRowActions from './_components/InquiryRowActions'
+import InquiryFilterBar from './_components/InquiryFilterBar'
 import { balanceOwed, orderTotal } from '@/lib/payments'
 import Link from 'next/link'
-import { Plus, CheckCircle, Circle } from '@phosphor-icons/react/dist/ssr'
+import { Plus, CheckCircle, Circle, CaretUp, CaretDown, CaretUpDown } from '@phosphor-icons/react/dist/ssr'
 import type { Metadata } from 'next'
 import type { InquiryStatus, WhatsAppTemplates } from '@/lib/supabase/types'
 
 export const metadata: Metadata = { title: 'Inquiries' }
 
 type PaymentStatus = 'unpaid' | 'partial' | 'paid'
+type SortField = 'customer_name' | 'event_date' | 'status' | 'price'
+type SortDir = 'asc' | 'desc'
 
 const STATUS_OPTIONS: { value: InquiryStatus | 'all'; label: string }[] = [
   { value: 'all', label: 'All statuses' },
@@ -31,11 +34,14 @@ const PAYMENT_OPTIONS: { value: PaymentStatus | 'all'; label: string }[] = [
   { value: 'paid', label: 'Paid' },
 ]
 
-const SORT_OPTIONS = [
-  { value: 'event_date', label: 'Event date ↑' },
-  { value: 'status', label: 'Status' },
-  { value: 'created_at', label: 'Created ↓' },
-  { value: 'price', label: 'Price ↓' },
+// Column headers double as sort controls — each entry maps a header label to the
+// field it sorts by. Actions has no `field` since it isn't sortable.
+const COLUMNS: { label: string; field?: SortField }[] = [
+  { label: 'Customer', field: 'customer_name' },
+  { label: 'Event Date', field: 'event_date' },
+  { label: 'Status', field: 'status' },
+  { label: 'Payment', field: 'price' },
+  { label: 'Actions' },
 ]
 
 // Pipeline order for the "Status" sort — mirrors how an order actually
@@ -53,8 +59,9 @@ const PAGE_SIZE = 25
 // any realistic single-view row count for this business, so nothing gets dropped.
 const STATUS_SORT_FETCH_CAP = 500
 
-async function getInquiries(status: string, payment: string, sort: string, page: number, q?: string) {
+async function getInquiries(status: string, payment: string, sort: SortField, dir: SortDir, page: number, q?: string) {
   const supabase = await createClient()
+  const ascending = dir === 'asc'
 
   let query = supabase
     .from('inquiries')
@@ -63,12 +70,12 @@ async function getInquiries(status: string, payment: string, sort: string, page:
       { count: 'exact' }
     )
 
-  if (sort === 'created_at') {
-    query = query.order('created_at', { ascending: false })
+  if (sort === 'customer_name') {
+    query = query.order('customer_name', { ascending })
   } else if (sort === 'price') {
-    query = query.order('admin_price', { ascending: false, nullsFirst: false })
-  } else {
-    query = query.order('event_date', { ascending: true })
+    query = query.order('admin_price', { ascending, nullsFirst: false })
+  } else if (sort === 'event_date') {
+    query = query.order('event_date', { ascending })
   }
 
   if (status && status !== 'all') {
@@ -92,8 +99,9 @@ async function getInquiries(status: string, payment: string, sort: string, page:
   if (sort === 'status') {
     const { data, error, count } = await query.limit(STATUS_SORT_FETCH_CAP)
     if (error) throw new Error(`Inquiries: failed to load inquiries — ${error.message}`)
+    const sign = ascending ? 1 : -1
     const rows = (data ?? []).sort(
-      (a, b) => STATUS_ORDER[a.status as InquiryStatus] - STATUS_ORDER[b.status as InquiryStatus]
+      (a, b) => sign * (STATUS_ORDER[a.status as InquiryStatus] - STATUS_ORDER[b.status as InquiryStatus])
     )
     const from = (page - 1) * PAGE_SIZE
     return { data: rows.slice(from, from + PAGE_SIZE), count: count ?? 0 }
@@ -137,12 +145,15 @@ const selectStyle: React.CSSProperties = {
 
 // Builds a /admin/inquiries URL carrying every filter param explicitly (even
 // defaults) so pagination links always reflect the exact view currently on screen.
-function buildInquiriesHref({ q, status, payment, sort, page }: { q?: string; status: string; payment: string; sort: string; page: number }) {
+function buildInquiriesHref(
+  { q, status, payment, sort, dir, page }: { q?: string; status: string; payment: string; sort: SortField; dir: SortDir; page: number }
+) {
   const sp = new URLSearchParams()
   if (q?.trim()) sp.set('q', q.trim())
   sp.set('status', status)
   sp.set('payment', payment)
   sp.set('sort', sort)
+  sp.set('dir', dir)
   sp.set('page', String(page))
   return `/admin/inquiries?${sp.toString()}`
 }
@@ -150,18 +161,21 @@ function buildInquiriesHref({ q, status, payment, sort, page }: { q?: string; st
 export default async function InquiriesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; payment?: string; sort?: string; q?: string; page?: string }>
+  searchParams: Promise<{ status?: string; payment?: string; sort?: string; dir?: string; q?: string; page?: string }>
 }) {
-  const { status = 'all', payment = 'all', sort = 'event_date', q, page: pageParam } = await searchParams
+  const { status = 'all', payment = 'all', sort: sortParam, dir: dirParam, q, page: pageParam } = await searchParams
+  // Default sort mirrors the pipeline: Inquired → Confirmed → Ready → Dispatched (Cancelled last).
+  const sort: SortField = sortParam === 'customer_name' || sortParam === 'event_date' || sortParam === 'price' ? sortParam : 'status'
+  const dir: SortDir = dirParam === 'desc' ? 'desc' : 'asc'
   const page = Math.max(1, parseInt(pageParam ?? '1', 10) || 1)
 
   const [{ data: inquiries, count: totalCount }, settingsResult] = await Promise.all([
-    getInquiries(status, payment, sort, page, q),
+    getInquiries(status, payment, sort, dir, page, q),
     getSettings(['whatsapp_templates']),
   ])
   const templates = settingsResult.data?.whatsapp_templates as WhatsAppTemplates | undefined
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
-  const hasActiveFilters = Boolean(q?.trim()) || status !== 'all' || payment !== 'all' || sort !== 'event_date'
+  const hasActiveFilters = Boolean(q?.trim()) || status !== 'all' || payment !== 'all' || sort !== 'status' || dir !== 'asc'
 
   const customerIds = [...new Set(
     inquiries.filter((i: any) => i.customer_id).map((i: any) => i.customer_id as string)
@@ -184,63 +198,16 @@ export default async function InquiriesPage({
         }
       />
 
-      {/* Filter row */}
-      <form method="GET" className="flex flex-wrap gap-3 mb-5">
-        <input
-          type="search"
-          name="q"
-          defaultValue={q ?? ''}
-          placeholder="Search by name or phone…"
-          className="flex-1 min-w-[180px] px-3 py-2 text-sm rounded-lg border outline-none focus:ring-2 focus:ring-[var(--color-teal-light)]"
-          style={selectStyle}
-        />
-        <select
-          name="status"
-          defaultValue={status}
-          className="px-3 py-2 text-sm rounded-lg border outline-none"
-          style={selectStyle}
-        >
-          {STATUS_OPTIONS.map(o => (
-            <option key={o.value} value={o.value}>{o.label}</option>
-          ))}
-        </select>
-        <select
-          name="payment"
-          defaultValue={payment}
-          className="px-3 py-2 text-sm rounded-lg border outline-none"
-          style={selectStyle}
-        >
-          {PAYMENT_OPTIONS.map(o => (
-            <option key={o.value} value={o.value}>{o.label}</option>
-          ))}
-        </select>
-        <select
-          name="sort"
-          defaultValue={sort}
-          className="px-3 py-2 text-sm rounded-lg border outline-none"
-          style={selectStyle}
-        >
-          {SORT_OPTIONS.map(o => (
-            <option key={o.value} value={o.value}>{o.label}</option>
-          ))}
-        </select>
-        <button
-          type="submit"
-          className="px-4 py-2 text-sm rounded-lg font-medium transition-all active:scale-[0.97]"
-          style={{ backgroundColor: 'var(--color-teal)', color: 'var(--color-cream)' }}
-        >
-          Filter
-        </button>
-        {hasActiveFilters && (
-          <Link
-            href="/admin/inquiries"
-            className="px-4 py-2 text-sm rounded-lg font-medium border transition-all active:scale-[0.97]"
-            style={selectStyle}
-          >
-            Clear
-          </Link>
-        )}
-      </form>
+      <InquiryFilterBar
+        q={q}
+        status={status}
+        payment={payment}
+        sort={sort}
+        dir={dir}
+        hasActiveFilters={hasActiveFilters}
+        statusOptions={STATUS_OPTIONS}
+        paymentOptions={PAYMENT_OPTIONS}
+      />
 
       {/* Table */}
       <div
@@ -280,17 +247,43 @@ export default async function InquiriesPage({
             <thead>
               <tr
                 className="border-b text-left"
-                style={{ borderColor: 'var(--color-border)' }}
+                style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface-raised)' }}
               >
-                {['Customer', 'Event Date', 'Status', 'Payment', 'Actions'].map((h) => (
-                  <th
-                    key={h}
-                    className="px-3 py-2.5 text-[11px] font-bold uppercase tracking-wider whitespace-nowrap"
-                    style={{ color: 'var(--color-ink-muted)' }}
-                  >
-                    {h}
-                  </th>
-                ))}
+                {COLUMNS.map((col) => {
+                  if (!col.field) {
+                    return (
+                      <th
+                        key={col.label}
+                        className="px-3 py-2.5 text-[11px] font-bold uppercase tracking-wider whitespace-nowrap"
+                        style={{ color: 'var(--color-ink-muted)' }}
+                      >
+                        {col.label}
+                      </th>
+                    )
+                  }
+                  const isActive = sort === col.field
+                  const nextDir: SortDir = isActive && dir === 'asc' ? 'desc' : 'asc'
+                  const href = buildInquiriesHref({ q, status, payment, sort: col.field, dir: nextDir, page: 1 })
+                  return (
+                    <th
+                      key={col.label}
+                      className="px-3 py-2.5 text-[11px] font-bold uppercase tracking-wider whitespace-nowrap"
+                    >
+                      <Link
+                        href={href}
+                        className="inline-flex items-center gap-1 transition-colors hover:text-[var(--color-teal-deep)]"
+                        style={{ color: isActive ? 'var(--color-teal-deep)' : 'var(--color-ink-muted)' }}
+                      >
+                        {col.label}
+                        {isActive ? (
+                          dir === 'asc' ? <CaretUp size={10} weight="bold" /> : <CaretDown size={10} weight="bold" />
+                        ) : (
+                          <CaretUpDown size={10} weight="bold" style={{ opacity: 0.4 }} />
+                        )}
+                      </Link>
+                    </th>
+                  )
+                })}
               </tr>
             </thead>
             <tbody>
@@ -320,9 +313,9 @@ export default async function InquiriesPage({
                   >
                     {/* Customer */}
                     <td className="px-3 py-3 align-middle">
-                      <Link href={`/admin/inquiries/${inq.id}`} className="block">
+                      <Link href={`/admin/inquiries/${inq.id}`} className="block group">
                         <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="font-semibold" style={{ color: 'var(--color-ink)' }}>
+                          <span className="font-semibold transition-colors text-[var(--color-ink)] group-hover:text-[var(--color-teal-deep)]">
                             {inq.customer_name}
                           </span>
                           {isReturning && (
@@ -377,7 +370,7 @@ export default async function InquiriesPage({
                           <span
                             className="text-xs font-mono font-medium"
                             style={{
-                              color: isPaid ? 'var(--color-success)' : 'var(--color-ink)',
+                              color: isPaid ? 'var(--color-success)' : 'var(--color-warning)',
                               fontFamily: 'var(--font-mono)',
                             }}
                           >
@@ -427,7 +420,7 @@ export default async function InquiriesPage({
           {totalPages > 1 && (
             <div className="flex items-center gap-2">
               <Link
-                href={buildInquiriesHref({ q, status, payment, sort, page: page - 1 })}
+                href={buildInquiriesHref({ q, status, payment, sort, dir, page: page - 1 })}
                 aria-disabled={page <= 1}
                 tabIndex={page <= 1 ? -1 : undefined}
                 className="px-3 py-1.5 text-xs font-medium rounded-lg border transition-all active:scale-[0.97]"
@@ -439,7 +432,7 @@ export default async function InquiriesPage({
                 Page {page} of {totalPages}
               </span>
               <Link
-                href={buildInquiriesHref({ q, status, payment, sort, page: page + 1 })}
+                href={buildInquiriesHref({ q, status, payment, sort, dir, page: page + 1 })}
                 aria-disabled={page >= totalPages}
                 tabIndex={page >= totalPages ? -1 : undefined}
                 className="px-3 py-1.5 text-xs font-medium rounded-lg border transition-all active:scale-[0.97]"

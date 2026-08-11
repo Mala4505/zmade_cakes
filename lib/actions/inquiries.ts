@@ -328,7 +328,6 @@ export async function confirmInquiry(
           tracking_token: generateShortToken(),
           final_price: orderTotal(inquiry.admin_price, inquiry.discount, inquiry.delivery_charge),
           deposit_amount: inquiry.deposit_amount,
-          amount_paid: inquiry.amount_paid,
           delivery_charge: Number(inquiry.delivery_charge),
           delivery_type: inquiry.delivery_type,
         })
@@ -348,6 +347,19 @@ export async function confirmInquiry(
         return { data: null, error: orderError?.message ?? 'Failed to create order', fieldErrors: null }
       } else {
         order = newOrder as unknown as Order
+        // orders.amount_paid is now trigger-derived from `payments` (see
+        // 032_add_payments_table.sql) — a deposit the admin recorded before this order
+        // existed needs a real payments row, or it's silently lost the moment the trigger
+        // next recomputes the total.
+        if (Number(inquiry.amount_paid) > 0) {
+          await supabase.from('payments').insert({
+            order_id: order.id,
+            amount: Number(inquiry.amount_paid),
+            method: inquiry.payment_method || 'cash',
+            note: 'Deposit recorded before order confirmation',
+            receipt_token: generateShortToken(),
+          })
+        }
       }
     }
 
@@ -474,7 +486,7 @@ export async function updateInquiryStatus(
   if (!existingOrder && status === 'confirmed') {
     const { data: inquiry, error: fetchError } = await supabase
       .from('inquiries')
-      .select('admin_price, discount, deposit_amount, amount_paid, delivery_charge, delivery_type')
+      .select('admin_price, discount, deposit_amount, amount_paid, payment_method, delivery_charge, delivery_type')
       .eq('id', id)
       .single()
     if (fetchError || !inquiry) return { data: null, error: fetchError?.message ?? 'Inquiry not found', fieldErrors: null }
@@ -482,17 +494,33 @@ export async function updateInquiryStatus(
       return { data: null, error: 'Set a price before confirming this order', fieldErrors: null }
     }
 
-    const { error: orderError } = await supabase.from('orders').insert({
-      inquiry_id: id,
-      status: 'confirmed',
-      tracking_token: generateShortToken(),
-      final_price: orderTotal(inquiry.admin_price, inquiry.discount, inquiry.delivery_charge),
-      deposit_amount: inquiry.deposit_amount,
-      amount_paid: inquiry.amount_paid,
-      delivery_charge: Number(inquiry.delivery_charge),
-      delivery_type: inquiry.delivery_type,
-    })
-    if (orderError) return { data: null, error: orderError.message, fieldErrors: null }
+    const { data: newOrder, error: orderError } = await supabase
+      .from('orders')
+      .insert({
+        inquiry_id: id,
+        status: 'confirmed',
+        tracking_token: generateShortToken(),
+        final_price: orderTotal(inquiry.admin_price, inquiry.discount, inquiry.delivery_charge),
+        deposit_amount: inquiry.deposit_amount,
+        delivery_charge: Number(inquiry.delivery_charge),
+        delivery_type: inquiry.delivery_type,
+      })
+      .select('id')
+      .single()
+    if (orderError || !newOrder) return { data: null, error: orderError?.message ?? 'Failed to create order', fieldErrors: null }
+
+    // orders.amount_paid is now trigger-derived from `payments` (see
+    // 032_add_payments_table.sql) — a deposit the admin recorded before this order existed
+    // needs a real payments row, or it's silently lost the moment the trigger next recomputes.
+    if (Number(inquiry.amount_paid) > 0) {
+      await supabase.from('payments').insert({
+        order_id: newOrder.id,
+        amount: Number(inquiry.amount_paid),
+        method: inquiry.payment_method || 'cash',
+        note: 'Deposit recorded before order confirmation',
+        receipt_token: generateShortToken(),
+      })
+    }
   }
 
   const { error } = await supabase

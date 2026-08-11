@@ -244,7 +244,7 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
   }
 
   const isWithinLeadTime = (date: string): boolean => {
-    if (!date || !minLeadDays) return false
+    if (!date || minLeadDays == null) return false
     const d = new Date(date)
     const cutoff = new Date()
     cutoff.setDate(cutoff.getDate() + minLeadDays)
@@ -635,7 +635,7 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
               aria-label="Delivery type"
             />
           </Field>
-          <Field label={minLeadDays ? `Event Date (min ${minLeadDays} days)` : 'Event Date'} error={errors.event_date?.message} required>
+          <Field label={minLeadDays != null ? `Event Date (min ${minLeadDays} days)` : 'Event Date'} error={errors.event_date?.message} required>
             <Input
               {...register('event_date')}
               type="date"

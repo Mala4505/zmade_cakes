@@ -10,9 +10,10 @@ import OrderDetailActions from './_components/OrderDetailActions'
 import OrderEtaSection from './_components/OrderEtaSection'
 import OrderImageSection from './_components/OrderImageSection'
 import OrderWhatsAppActions from './_components/OrderWhatsAppActions'
+import PaymentHistorySection from './_components/PaymentHistorySection'
 import InvoicePrint from '@/components/admin/InvoicePrint'
 import type { Metadata } from 'next'
-import type { OrderStatus, WhatsAppTemplates } from '@/lib/supabase/types'
+import type { OrderStatus, Payment, WhatsAppTemplates } from '@/lib/supabase/types'
 
 interface Props { params: Promise<{ id: string }> }
 
@@ -33,7 +34,7 @@ export default async function OrderDetailPage({ params }: Props) {
   const { id } = await params
   const supabase = await createClient()
 
-  const [{ data: order, error }, settingsResult] = await Promise.all([
+  const [{ data: order, error }, settingsResult, paymentsResult] = await Promise.all([
     supabase
       .from('orders')
       .select(`
@@ -44,10 +45,12 @@ export default async function OrderDetailPage({ params }: Props) {
       .eq('id', id)
       .single(),
     getSettings(['business_phone', 'business_instagram', 'whatsapp_templates']),
+    supabase.from('payments').select('*').eq('order_id', id).order('paid_at', { ascending: false }),
   ])
 
   if (error || !order) notFound()
   if (settingsResult.error) throw new Error(`Order: failed to load settings — ${settingsResult.error}`)
+  if (paymentsResult.error) throw new Error(`Order: failed to load payments — ${paymentsResult.error.message}`)
 
   const inq = (order as any).inquiry
   const trackLink = trackingLink(order.tracking_token)
@@ -58,6 +61,8 @@ export default async function OrderDetailPage({ params }: Props) {
 
   const imagesResult = inq?.id ? await getInquiryImages(inq.id) : { data: [], error: null }
   if (imagesResult.error) throw new Error(`Order: failed to load images — ${imagesResult.error}`)
+
+  const payments = (paymentsResult.data ?? []) as unknown as Payment[]
 
   return (
     <div className="px-4 py-6 md:px-8 md:py-8 max-w-2xl mx-auto">
@@ -120,6 +125,15 @@ export default async function OrderDetailPage({ params }: Props) {
               <Detail label="Special Requirements" value={inq.special_requirements} />
             </div>
           )}
+        </div>
+
+        {/* Payments */}
+        <div className="mb-6">
+          <PaymentHistorySection
+            orderId={order.id}
+            payments={payments}
+            defaultMethod={inq?.payment_method || 'cash'}
+          />
         </div>
 
         {/* ETA */}
