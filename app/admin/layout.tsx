@@ -12,7 +12,7 @@ import type { Notification } from '@/lib/supabase/types'
 export const metadata: Metadata = {
   manifest: '/manifest.json',
   appleWebApp: { capable: true, statusBarStyle: 'default', title: 'ZMade Admin' },
-  icons: { icon: '/icons/icon-192.png', apple: '/icons/icon-192.png' },
+  icons: { icon: '/icons/icon-192.png', apple: '/icons/apple-touch-icon.png' },
 }
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
