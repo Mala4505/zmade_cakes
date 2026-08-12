@@ -243,14 +243,6 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
     setMatchState('new')
   }
 
-  const isWithinLeadTime = (date: string): boolean => {
-    if (!date || minLeadDays == null) return false
-    const d = new Date(date)
-    const cutoff = new Date()
-    cutoff.setDate(cutoff.getDate() + minLeadDays)
-    return d < cutoff
-  }
-
   const isDateBlackedOut = (date: string): boolean => {
     if (!date || !blackouts?.length) return false
     const d = new Date(date)
@@ -354,8 +346,17 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
           return
         }
 
-        router.push(inquiry ? `/admin/inquiries/${inquiry.id}` : `/admin/inquiries/${result.data!.id}`)
-        router.refresh()
+        // Editing pushes to the route we're already on (a no-op navigation), so it needs
+        // an explicit refresh to pick up the update. Creating pushes to a route that's
+        // never been rendered, which already fetches fresh data on its own — calling
+        // refresh() there too raced the two router operations and left the app stuck
+        // showing the old page until a hard reload, even though the inquiry was created.
+        if (inquiry) {
+          router.push(`/admin/inquiries/${inquiry.id}`)
+          router.refresh()
+        } else {
+          router.push(`/admin/inquiries/${result.data!.id}`)
+        }
       } catch (err) {
         console.error('[InquiryForm] submit failed:', err)
         toast.error('Something went wrong', {
@@ -635,7 +636,7 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
               aria-label="Delivery type"
             />
           </Field>
-          <Field label={minLeadDays != null ? `Event Date (min ${minLeadDays} days)` : 'Event Date'} error={errors.event_date?.message} required>
+          <Field label="Event Date" error={errors.event_date?.message} required>
             <Input
               {...register('event_date')}
               type="date"
@@ -647,14 +648,9 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
                 This date is blocked — unavailable for new orders.
               </p>
             )}
-            {watchedEventDate && !isDateBlackedOut(watchedEventDate) && isWithinLeadTime(watchedEventDate) && (
-              <p className="mt-1 text-xs" style={{ color: 'var(--color-warning)' }}>
-                Warning: this date is within the minimum lead time of {minLeadDays} days.
-              </p>
-            )}
           </Field>
           <Field label={deliveryType === 'delivery' ? 'Delivery Time' : 'Pickup Time'} error={errors.pickup_time?.message}>
-            <Input {...register('pickup_time')} type="time" />
+            <Input {...register('pickup_time')} type="time" step={900} />
           </Field>
         </div>
 

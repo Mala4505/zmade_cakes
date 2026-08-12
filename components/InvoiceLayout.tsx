@@ -114,7 +114,7 @@ export default function InvoiceLayout({ order, inquiry, adminMode, businessPhone
               {BRAND_NAME}
             </p>
             <p className="text-sm mt-0.5" style={{ color: 'var(--color-ink-muted)' }}>
-              Handcrafted with love
+              Made with love
             </p>
           </div>
         </div>

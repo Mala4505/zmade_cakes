@@ -204,14 +204,6 @@ export default function InquiryDetailForm({
     requestAnimationFrame(() => itemSelectRef.current?.focus())
   }
 
-  const isWithinLeadTime = (date: string): boolean => {
-    if (!date || minLeadDays == null) return false
-    const d = new Date(date)
-    const cutoff = new Date()
-    cutoff.setDate(cutoff.getDate() + minLeadDays)
-    return d < cutoff
-  }
-
   const isDateBlackedOut = (date: string): boolean => {
     if (!date || !blackouts?.length) return false
     const d = new Date(date)
@@ -659,11 +651,6 @@ export default function InquiryDetailForm({
               )}
               {watchedEventDate && isDateBlackedOut(watchedEventDate) && (
                 <p className="mt-1 text-xs" style={{ color: 'var(--color-danger)' }}>Date is blocked</p>
-              )}
-              {watchedEventDate && !isDateBlackedOut(watchedEventDate) && isWithinLeadTime(watchedEventDate) && (
-                <p className="mt-1 text-xs" style={{ color: 'var(--color-warning)' }}>
-                  Within lead time ({minLeadDays}d)
-                </p>
               )}
             </div>
             <Field label={deliveryType === 'delivery' ? 'Delivery Time' : 'Pickup Time'} error={errors.pickup_time?.message}>

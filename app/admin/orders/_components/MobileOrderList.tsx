@@ -92,7 +92,7 @@ function MobileOrderCard({ order }: { order: MobileOrder }) {
                 : { backgroundColor: 'var(--color-surface-raised)', color: 'var(--color-ink-muted)' }
             }
           >
-            {days < 0 ? 'OVERDUE' : days === 0 ? 'TODAY' : `${days}d`}
+            {days === 0 ? 'TODAY' : `${days}d`}
           </span>
         )}
         <span

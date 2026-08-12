@@ -24,6 +24,14 @@ export function normalizePhone(phone: string): string {
   return phone.replace(/\D/g, '').replace(/^(?!965)/, '965')
 }
 
+// Local (not UTC) YYYY-MM-DD for use in downloaded filenames.
+export function filenameDate(date: Date = new Date()): string {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 // Standard Levenshtein (edit-distance) DP implementation — no external dependency.
 export function levenshteinDistance(a: string, b: string): number {
   const m = a.length

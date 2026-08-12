@@ -10,8 +10,10 @@ self.addEventListener('push', (event) => {
       body,
       tag: notificationId,
       data: { url },
-      icon: '/icons/icon-192.png',
-      badge: '/icons/icon-192.png',
+      // Glyph-only mark, not the full text wordmark — notification icons render too small
+      // (~24-48px) for the "ZMade / Made with Love!" text to stay legible.
+      icon: '/favicon.png',
+      badge: '/favicon.png',
     })
   );
 });

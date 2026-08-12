@@ -125,7 +125,7 @@ export default function InvoicePrint({ order, inquiry, businessPhone, businessIn
           <img src="/logo.svg" alt="" className="inv-logo" />
           <div>
             <div className="inv-brand-name">{BRAND_NAME}</div>
-            <div className="inv-tagline">Handcrafted with love</div>
+            <div className="inv-tagline">Made with love</div>
           </div>
         </div>
         <div>

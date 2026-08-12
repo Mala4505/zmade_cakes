@@ -3,7 +3,10 @@ import { formatDate, formatTime, formatKWD, GOVERNORATE_LABELS } from '@/lib/uti
 import { hasAllergens, ALLERGEN_LABELS } from '@/lib/supabase/types'
 import { derivePaymentStatus, balanceOwed } from '@/lib/payments'
 import { BRAND_NAME } from '@/lib/brand'
+import { registerPdfFonts } from '@/lib/pdfFonts'
 import type { DeliveryType } from '@/lib/supabase/types'
+
+registerPdfFonts()
 
 interface Props {
   order: {
@@ -62,7 +65,7 @@ const BORDER = '#d9d3c7'
 
 const styles = StyleSheet.create({
   page: {
-    fontFamily: 'Helvetica',
+    fontFamily: 'Open Sauce Sans',
     fontSize: 10,
     color: INK_SECONDARY,
     padding: 28,
@@ -83,12 +86,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   logo: {
-    width: 40,
-    height: 40,
-    marginRight: 10,
+    width: 56,
+    height: 56,
+    marginRight: 14,
   },
   brandName: {
-    fontFamily: 'Helvetica-Bold',
+    fontFamily: 'Fraunces',
+    fontWeight: 700,
     fontSize: 24,
     color: TEAL,
   },
@@ -98,14 +102,15 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   invoiceLabel: {
-    fontFamily: 'Helvetica-Bold',
+    fontFamily: 'Open Sauce Sans',
+    fontWeight: 700,
     fontSize: 22,
     color: BORDER,
     letterSpacing: 2,
     textAlign: 'right',
   },
   invoiceNumber: {
-    fontFamily: 'Courier',
+    fontFamily: 'Geist Mono',
     fontSize: 11,
     color: INK_MUTED,
     textAlign: 'right',
@@ -128,7 +133,8 @@ const styles = StyleSheet.create({
     marginVertical: 8,
   },
   sectionTitle: {
-    fontFamily: 'Helvetica-Bold',
+    fontFamily: 'Open Sauce Sans',
+    fontWeight: 700,
     fontSize: 11,
     color: INK_MUTED,
     letterSpacing: 1.5,
@@ -152,7 +158,7 @@ const styles = StyleSheet.create({
     maxWidth: 320,
   },
   rowValueMono: {
-    fontFamily: 'Courier',
+    fontFamily: 'Geist Mono',
     fontSize: 13,
     color: INK_SECONDARY,
     textAlign: 'right',
@@ -164,12 +170,13 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   totalLabel: {
-    fontFamily: 'Helvetica-Bold',
+    fontFamily: 'Open Sauce Sans',
+    fontWeight: 700,
     fontSize: 15,
     color: INK,
   },
   totalValue: {
-    fontFamily: 'Courier-Bold',
+    fontFamily: 'Geist Mono',
     fontSize: 15,
     color: INK,
   },
@@ -178,7 +185,8 @@ const styles = StyleSheet.create({
     color: INK_MUTED,
   },
   balancePaidValue: {
-    fontFamily: 'Helvetica-Bold',
+    fontFamily: 'Open Sauce Sans',
+    fontWeight: 700,
     fontSize: 14,
     color: '#16a34a',
   },
@@ -260,10 +268,10 @@ export default function InvoicePdfDocument({ order, inquiry, businessPhone, busi
         {/* Header */}
         <View style={styles.headerRow}>
           <View style={styles.brandBlock}>
-            <Image src="/logo.jpeg" style={styles.logo} />
+            <Image src="/logo.png" style={styles.logo} />
             <View>
               <Text style={styles.brandName}>{BRAND_NAME}</Text>
-              <Text style={styles.tagline}>Handcrafted with love</Text>
+              <Text style={styles.tagline}>Made with love</Text>
             </View>
           </View>
           <View>

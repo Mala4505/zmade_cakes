@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 import { Spinner, DownloadSimple } from '@phosphor-icons/react'
 import type { ComponentProps } from 'react'
 import type PaymentReceiptPdfDocument from '@/components/PaymentReceiptPdfDocument'
+import { filenameDate } from '@/lib/utils'
 
 type Props = ComponentProps<typeof PaymentReceiptPdfDocument>
 
@@ -29,7 +30,7 @@ export function DownloadPaymentReceiptButton(props: Props) {
 
       const blob = await pdf(<PaymentReceiptPdfDocument {...props} />).toBlob()
       const url = URL.createObjectURL(blob)
-      const fileName = `zmade-receipt-${sanitizeFileName(props.inquiry.customer_name)}.pdf`
+      const fileName = `zmade-receipt-${filenameDate()}_${sanitizeFileName(props.inquiry.customer_name)}.pdf`
 
       const link = document.createElement('a')
       link.href = url

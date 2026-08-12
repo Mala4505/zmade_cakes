@@ -184,16 +184,14 @@ function OrderCard({ order }: { order: any }) {
           <span
             className="text-[10px] font-semibold px-1.5 py-0.5 rounded font-mono"
             style={
-              days < 0
-                ? { backgroundColor: 'var(--color-danger)', color: '#fff' }
-                : days === 0
+              days <= 0
                 ? { backgroundColor: 'var(--color-danger)', color: '#fff' }
                 : days <= 3
                 ? { backgroundColor: 'var(--color-warning-light)', color: 'var(--color-warning)' }
                 : { backgroundColor: 'var(--color-surface-raised)', color: 'var(--color-ink-muted)' }
             }
           >
-            {days < 0 ? 'OVERDUE' : days === 0 ? 'TODAY' : `${days}d`}
+            {days === 0 ? 'TODAY' : `${days}d`}
           </span>
         )}
         <span

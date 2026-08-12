@@ -70,7 +70,7 @@ export default function PaymentReceiptLayout({ payment, order, inquiry, business
               {BRAND_NAME}
             </p>
             <p className="text-sm mt-0.5" style={{ color: 'var(--color-ink-muted)' }}>
-              Handcrafted with love
+              Made with love
             </p>
           </div>
         </div>
