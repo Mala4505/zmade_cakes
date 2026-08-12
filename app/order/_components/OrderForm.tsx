@@ -10,6 +10,7 @@ import PhoneInput from '@/components/PhoneInput'
 import ReferencePhotoUpload, { type ReferenceImage } from '@/components/ReferencePhotoUpload'
 import {
   publicInquirySchema,
+  minPublicEventDate,
   type PublicInquiryInput,
   type PublicInquiryData,
 } from '@/lib/validations/publicInquiry'
@@ -37,8 +38,7 @@ function isDateBlackedOut(date: string, blackouts: Blackout[]): boolean {
 }
 
 function getMinDate(minLeadDays: number): string {
-  const d = new Date()
-  d.setDate(d.getDate() + minLeadDays)
+  const d = minPublicEventDate(minLeadDays)
   // Build the date string from local parts — toISOString() converts to UTC, which
   // shifts the date backward by a day for local times between 00:00 and 03:00 Kuwait
   // time (UTC+3).

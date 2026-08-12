@@ -1,3 +1,4 @@
+import Image from 'next/image'
 import { formatDate, formatTime, formatKWD, GOVERNORATE_LABELS } from '@/lib/utils'
 import { hasAllergens, ALLERGEN_LABELS } from '@/lib/supabase/types'
 import { derivePaymentStatus, balanceOwed } from '@/lib/payments'
@@ -96,16 +97,26 @@ export default function InvoiceLayout({ order, inquiry, adminMode, businessPhone
 
       {/* Header */}
       <div className="px-6 pt-5 pb-4 flex justify-between items-start">
-        <div>
-          <p
-            className="text-2xl font-extrabold tracking-tight"
-            style={{ color: 'var(--color-teal)', fontFamily: 'var(--font-display)' }}
-          >
-            {BRAND_NAME}
-          </p>
-          <p className="text-sm mt-0.5" style={{ color: 'var(--color-ink-muted)' }}>
-            Handcrafted with love
-          </p>
+        <div className="flex items-center gap-3">
+          <Image
+            src="/logo.svg"
+            alt=""
+            width={44}
+            height={44}
+            style={{ width: 44, height: 44, flexShrink: 0 }}
+            priority
+          />
+          <div>
+            <p
+              className="text-2xl font-extrabold tracking-tight"
+              style={{ color: 'var(--color-teal)', fontFamily: 'var(--font-display)' }}
+            >
+              {BRAND_NAME}
+            </p>
+            <p className="text-sm mt-0.5" style={{ color: 'var(--color-ink-muted)' }}>
+              Handcrafted with love
+            </p>
+          </div>
         </div>
         <div>
           <p

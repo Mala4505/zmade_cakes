@@ -1,4 +1,4 @@
-import { Document, Page, View, Text, StyleSheet } from '@react-pdf/renderer'
+import { Document, Page, View, Text, Image, StyleSheet } from '@react-pdf/renderer'
 import { formatDate, formatKWD } from '@/lib/utils'
 import { derivePaymentStatus, balanceOwed } from '@/lib/payments'
 import { BRAND_NAME } from '@/lib/brand'
@@ -56,6 +56,15 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     marginBottom: 8,
+  },
+  brandBlock: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  logo: {
+    width: 40,
+    height: 40,
+    marginRight: 10,
   },
   brandName: {
     fontFamily: 'Helvetica-Bold',
@@ -174,9 +183,12 @@ export default function PaymentReceiptPdfDocument({ payment, order, inquiry, bus
 
         {/* Header */}
         <View style={styles.headerRow}>
-          <View>
-            <Text style={styles.brandName}>{BRAND_NAME}</Text>
-            <Text style={styles.tagline}>Handcrafted with love</Text>
+          <View style={styles.brandBlock}>
+            <Image src="/logo.jpeg" style={styles.logo} />
+            <View>
+              <Text style={styles.brandName}>{BRAND_NAME}</Text>
+              <Text style={styles.tagline}>Handcrafted with love</Text>
+            </View>
           </View>
           <View>
             <Text style={styles.receiptLabel}>RECEIPT</Text>

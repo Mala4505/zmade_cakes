@@ -1,4 +1,4 @@
-import { Document, Page, View, Text, StyleSheet } from '@react-pdf/renderer'
+import { Document, Page, View, Text, Image, StyleSheet } from '@react-pdf/renderer'
 import { formatDate, formatTime, formatKWD, GOVERNORATE_LABELS } from '@/lib/utils'
 import { hasAllergens, ALLERGEN_LABELS } from '@/lib/supabase/types'
 import { derivePaymentStatus, balanceOwed } from '@/lib/payments'
@@ -77,6 +77,15 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     marginBottom: 8,
+  },
+  brandBlock: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  logo: {
+    width: 40,
+    height: 40,
+    marginRight: 10,
   },
   brandName: {
     fontFamily: 'Helvetica-Bold',
@@ -250,9 +259,12 @@ export default function InvoicePdfDocument({ order, inquiry, businessPhone, busi
 
         {/* Header */}
         <View style={styles.headerRow}>
-          <View>
-            <Text style={styles.brandName}>{BRAND_NAME}</Text>
-            <Text style={styles.tagline}>Handcrafted with love</Text>
+          <View style={styles.brandBlock}>
+            <Image src="/logo.jpeg" style={styles.logo} />
+            <View>
+              <Text style={styles.brandName}>{BRAND_NAME}</Text>
+              <Text style={styles.tagline}>Handcrafted with love</Text>
+            </View>
           </View>
           <View>
             <Text style={styles.invoiceLabel}>{paymentStatus === 'paid' ? 'RECEIPT' : 'INVOICE'}</Text>

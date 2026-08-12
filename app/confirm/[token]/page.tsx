@@ -61,7 +61,14 @@ export default async function ConfirmPage({ params }: Props) {
     )
   }
 
-  if (inquiry.customer_confirmed) {
+  // Anything past 'pending' has already moved beyond the confirm step — whether the
+  // customer confirmed it themselves or the admin advanced/created it directly (e.g.
+  // backdating a completed order for the record) — so send them to the tracking/receipt
+  // view instead of asking them to confirm an order that's already confirmed, ready, or
+  // delivered. Checking `status` here (not `customer_confirmed`) is what makes this work
+  // for admin-driven status changes, which set status/create the order but intentionally
+  // leave `customer_confirmed` false since the customer never actually confirmed it.
+  if (inquiry.status !== 'pending') {
     const { data: order } = await supabase
       .from('orders')
       .select('tracking_token')

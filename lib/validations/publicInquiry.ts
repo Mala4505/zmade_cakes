@@ -1,6 +1,18 @@
 import { z } from 'zod'
 import { KUWAIT_PHONE_REGEX } from './inquiry'
 
+// Earliest event date a customer may book, given the admin-configured minimum lead time
+// (business_settings.min_lead_days). Same-day is always excluded regardless of the
+// setting — a lead time of 0 still means "at least tomorrow", not "today allowed" — so
+// the lead days stack on top of that fixed one-day floor. Admin-entered inquiries are
+// exempt from this entirely (see the event_date field in ./inquiry.ts).
+export function minPublicEventDate(minLeadDays: number): Date {
+  const d = new Date()
+  d.setHours(0, 0, 0, 0)
+  d.setDate(d.getDate() + 1 + Math.max(minLeadDays, 0))
+  return d
+}
+
 // Shared schema for the public /order form. Mirrors the admin inquiry schema's
 // cake_type <-> theme rule: 'theme' selection requires a theme description, and
 // switching back to 'normal' clears it on parse.

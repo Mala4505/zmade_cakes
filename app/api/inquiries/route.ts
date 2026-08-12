@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
-import { publicInquirySchema } from '@/lib/validations/publicInquiry'
+import { publicInquirySchema, minPublicEventDate } from '@/lib/validations/publicInquiry'
 import { normalizePhone } from '@/lib/utils'
 import { generateShortToken } from '@/lib/tokens'
 
@@ -29,6 +29,24 @@ export async function POST(req: NextRequest) {
     }
 
     const supabase = createServiceClient()
+
+    // Server-side mirror of the client-side date picker's `min` — the picker restricts
+    // what's selectable, but a direct POST to this endpoint bypasses it entirely, so the
+    // minimum lead time must also be enforced here. Admin-entered inquiries go through a
+    // separate action (lib/actions/inquiries.ts) that has no such restriction.
+    const { data: leadDaysSetting } = await supabase
+      .from('business_settings')
+      .select('value')
+      .eq('key', 'min_lead_days')
+      .single()
+    const minLeadDays = parseInt((leadDaysSetting?.value as string) ?? '3')
+    const earliestDate = minPublicEventDate(Number.isNaN(minLeadDays) ? 3 : minLeadDays)
+    if (new Date(data.event_date) < earliestDate) {
+      return NextResponse.json(
+        { error: 'Invalid data', fieldErrors: { event_date: [`Event date must be at least ${earliestDate.toDateString()}`] } },
+        { status: 400 }
+      )
+    }
 
     const { data: customer, error: customerError } = await supabase
       .from('customers')

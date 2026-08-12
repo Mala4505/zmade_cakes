@@ -94,6 +94,8 @@ export default function InvoicePrint({ order, inquiry, businessPhone, businessIn
           }
           .inv-accent { height: 3px; background: var(--color-teal); width: 100%; margin-bottom: 18px; }
           .inv-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; }
+          .inv-brand-block { display: flex; align-items: center; gap: 10px; }
+          .inv-logo { width: 40px; height: 40px; flex-shrink: 0; object-fit: contain; }
           .inv-brand-name { font-size: 26px; font-weight: 800; letter-spacing: -0.3px; color: var(--color-teal); }
           .inv-tagline { font-size: 12px; color: #777; margin-top: 2px; }
           .inv-label-invoice { font-size: 30px; font-weight: 700; letter-spacing: 2px; color: #ccc; text-transform: uppercase; }
@@ -119,9 +121,12 @@ export default function InvoicePrint({ order, inquiry, businessPhone, businessIn
       <div className="inv-accent" />
 
       <div className="inv-header">
-        <div>
-          <div className="inv-brand-name">{BRAND_NAME}</div>
-          <div className="inv-tagline">Handcrafted with love</div>
+        <div className="inv-brand-block">
+          <img src="/logo.svg" alt="" className="inv-logo" />
+          <div>
+            <div className="inv-brand-name">{BRAND_NAME}</div>
+            <div className="inv-tagline">Handcrafted with love</div>
+          </div>
         </div>
         <div>
           <div className="inv-label-invoice">INVOICE</div>

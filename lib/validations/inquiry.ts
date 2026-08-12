@@ -42,15 +42,11 @@ const inquiryShape = {
   // insert/update (see lib/actions/inquiries.ts). Named distinctly from that column
   // to avoid ever being confused with it.
   payment_choice: z.enum(['unpaid', 'partial', 'paid']).default('unpaid'),
-  event_date: z
-    .string()
-    .refine((d) => {
-      const date = new Date(d)
-      const tomorrow = new Date()
-      tomorrow.setDate(tomorrow.getDate() + 1)
-      tomorrow.setHours(0, 0, 0, 0)
-      return date >= tomorrow
-    }, 'Event date must be at least tomorrow'),
+  // No date-range restriction here — this schema backs the admin-only inquiry actions
+  // (see lib/actions/inquiries.ts, gated on an authenticated admin user), and admins need
+  // to backdate past orders and edit historical records freely. The minimum-lead-time rule
+  // is a customer-facing restriction only — enforced in lib/validations/publicInquiry.ts.
+  event_date: z.string().min(1, 'Event date is required'),
   // Empty string (an untouched <input type="time">) isn't valid for the
   // Postgres `time` column — normalize it to null before it reaches the DB.
   pickup_time: z.string().optional().nullable().transform((v) => (v ? v : null)),
