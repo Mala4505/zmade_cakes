@@ -10,7 +10,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { EASE_OUT_QUART } from '@/lib/motion'
 import { inquirySchema } from '@/lib/validations/inquiry'
 import { createInquiry, updateInquiry } from '@/lib/actions/inquiries'
-import { lookupCustomerByPhone, upsertCustomer } from '@/lib/actions/customers'
+import { lookupCustomerByPhone, searchCustomersByName, upsertCustomer } from '@/lib/actions/customers'
 import { createOption } from '@/lib/actions/options'
 import { derivePaymentStatus, balanceOwed } from '@/lib/payments'
 import { PaymentBadge } from '@/components/admin/StatusBadge'
@@ -151,6 +151,7 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
   const orderType = watch('order_type')
   const paymentMethod = watch('payment_method')
   const watchedPhone = watch('customer_phone')
+  const watchedCustomerName = watch('customer_name')
   const watchedEventDate = watch('event_date')
   const watchedCakeSize = watch('cake_size')
   const watchedPrice = watch('admin_price')
@@ -230,6 +231,36 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
     }, 500)
     return () => clearTimeout(timer)
   }, [watchedPhone])
+
+  // Name-based search — the phone effect above only ever resolves an exact phone match,
+  // which doesn't help when the admin starts typing a customer's name instead. Only runs
+  // while the phone field isn't itself already close to a full number, so the two searches
+  // don't fight over which one drives the panel.
+  const [nameMatches, setNameMatches] = useState<{ id: string; name: string; phone: string; vip: boolean }[]>([])
+
+  useEffect(() => {
+    const trimmedName = watchedCustomerName?.trim() ?? ''
+    const trimmedPhone = watchedPhone?.trim() ?? ''
+
+    if (matchState === 'selected' || trimmedPhone.length >= 7 || trimmedName.length < 2) {
+      setNameMatches([])
+      return
+    }
+    const timer = setTimeout(async () => {
+      const result = await searchCustomersByName(trimmedName)
+      setNameMatches(result.data ?? [])
+    }, 400)
+    return () => clearTimeout(timer)
+  }, [watchedCustomerName, watchedPhone, matchState])
+
+  const handleSelectNameMatch = (match: { id: string; name: string; phone: string }) => {
+    // Reuses the phone-lookup effect above to populate customerHistory and show the
+    // existing "Use this customer / someone else" panel — same confirmation step as
+    // typing a phone directly, just reached from the name field instead.
+    setValue('customer_name', match.name, { shouldValidate: true })
+    setValue('customer_phone', match.phone, { shouldValidate: true })
+    setNameMatches([])
+  }
 
   const handleUseExisting = () => {
     if (!customerHistory) return
@@ -385,6 +416,36 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
             />
           </Field>
         </div>
+        {nameMatches.length > 0 && (
+          <div
+            className="rounded-xl border mt-2 overflow-hidden"
+            style={{ borderColor: 'var(--color-border)' }}
+          >
+            {nameMatches.map((match, i) => (
+              <button
+                key={match.id}
+                type="button"
+                onClick={() => handleSelectNameMatch(match)}
+                className="w-full flex items-center justify-between gap-2 px-3.5 py-2.5 text-left transition-colors hover:bg-[var(--color-surface-raised)]"
+                style={i > 0 ? { borderTop: '1px solid var(--color-border)' } : undefined}
+              >
+                <span className="flex items-center gap-1.5 min-w-0">
+                  <span className="text-sm font-medium truncate" style={{ color: 'var(--color-ink)' }}>
+                    {match.name}
+                  </span>
+                  {match.vip && (
+                    <span className="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 shrink-0">
+                      VIP
+                    </span>
+                  )}
+                </span>
+                <span className="text-xs shrink-0" style={{ color: 'var(--color-ink-muted)', fontFamily: 'var(--font-mono)' }}>
+                  {match.phone}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
         {customerHistory && (
           <CustomerHistoryPanel
             data={customerHistory}
@@ -413,18 +474,6 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
               aria-label="Order type"
             />
           </Field>
-          {orderType === 'other_item' ? (
-            <Field label="Size" error={errors.cake_size?.message} hint="Optional — free text">
-              <Input {...register('cake_size')} placeholder="500ml, 1kg, small jar…" aria-invalid={errors.cake_size ? true : undefined} />
-            </Field>
-          ) : (
-            <Field label="Size" error={errors.cake_size?.message} required>
-              <Select {...register('cake_size')} required aria-invalid={errors.cake_size ? true : undefined}>
-                <option value="">Select size</option>
-                {options.sizes.map((o) => <option key={o.id} value={o.name}>{o.name}</option>)}
-              </Select>
-            </Field>
-          )}
           {orderType === 'other_item' ? (
             <Field label="Item" error={errors.item_name?.message} required>
               <Select
@@ -513,6 +562,18 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
               <Select {...register('flavor')} required aria-invalid={errors.flavor ? true : undefined}>
                 <option value="">Select flavor</option>
                 {options.flavors.map((o) => <option key={o.id} value={o.name}>{o.name}</option>)}
+              </Select>
+            </Field>
+          )}
+          {orderType === 'other_item' ? (
+            <Field label="Size" error={errors.cake_size?.message} hint="Optional — free text">
+              <Input {...register('cake_size')} placeholder="500ml, 1kg, small jar…" aria-invalid={errors.cake_size ? true : undefined} />
+            </Field>
+          ) : (
+            <Field label="Size" error={errors.cake_size?.message} required>
+              <Select {...register('cake_size')} required aria-invalid={errors.cake_size ? true : undefined}>
+                <option value="">Select size</option>
+                {options.sizes.map((o) => <option key={o.id} value={o.name}>{o.name}</option>)}
               </Select>
             </Field>
           )}

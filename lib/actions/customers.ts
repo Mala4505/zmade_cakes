@@ -50,6 +50,33 @@ export async function lookupCustomerByPhone(phone: string): Promise<ActionResult
   }
 }
 
+// Multi-result, partial-match search so the New Inquiry form can surface candidates
+// while the admin is still typing a customer's name (lookupCustomerByPhone only ever
+// returns one exact phone match, which doesn't help when starting from a name).
+export async function searchCustomersByName(
+  query: string
+): Promise<ActionResult<Pick<Customer, 'id' | 'name' | 'phone' | 'vip'>[]>> {
+  const trimmed = query.trim()
+  if (trimmed.length < 2) return { data: [], error: null }
+
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { data: null, error: 'Unauthorized' }
+
+  // Escape ILIKE wildcards in the user-typed query before interpolating it.
+  const escaped = trimmed.replace(/[%_]/g, (c) => `\\${c}`)
+
+  const { data, error } = await supabase
+    .from('customers')
+    .select('id, name, phone, vip')
+    .ilike('name', `%${escaped}%`)
+    .order('name')
+    .limit(6)
+
+  if (error) return { data: null, error: error.message }
+  return { data: data ?? [], error: null }
+}
+
 export async function upsertCustomer(phone: string, name: string): Promise<ActionResult<Customer>> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
