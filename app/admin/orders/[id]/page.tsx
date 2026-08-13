@@ -13,7 +13,7 @@ import OrderWhatsAppActions from './_components/OrderWhatsAppActions'
 import PaymentHistorySection from './_components/PaymentHistorySection'
 import InvoicePrint from '@/components/admin/InvoicePrint'
 import type { Metadata } from 'next'
-import type { OrderStatus, Payment, WhatsAppTemplates } from '@/lib/supabase/types'
+import type { InquiryItem, OrderStatus, Payment, WhatsAppTemplates } from '@/lib/supabase/types'
 
 interface Props { params: Promise<{ id: string }> }
 
@@ -22,12 +22,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const supabase = await createClient()
   const { data } = await supabase
     .from('orders')
-    .select('inquiry:inquiries(customer_name, order_type, item_name, cake_size, flavor)')
+    .select('inquiry:inquiries(customer_name, items:inquiry_items(*))')
     .eq('id', id)
     .single()
   const inq = data?.inquiry as any
   const name = inq?.customer_name
-  return { title: name ? `${name} — Order (${orderSummary(inq)})` : 'Order' }
+  return { title: name ? `${name} — Order (${orderSummary(inq?.items ?? [])})` : 'Order' }
 }
 
 export default async function OrderDetailPage({ params }: Props) {
@@ -39,7 +39,7 @@ export default async function OrderDetailPage({ params }: Props) {
       .from('orders')
       .select(`
         *, inquiry:inquiries (
-          *, delivery_address:delivery_addresses(*)
+          *, delivery_address:delivery_addresses(*), items:inquiry_items(*)
         )
       `)
       .eq('id', id)
@@ -69,7 +69,7 @@ export default async function OrderDetailPage({ params }: Props) {
       <div className="no-print">
         <PageHeader
           title={inq?.customer_name ?? 'Order'}
-          subtitle={`${inq ? orderSummary(inq) : '—'} · ${inq?.event_date ? formatDate(inq.event_date) : '—'}`}
+          subtitle={`${inq ? orderSummary(inq.items ?? []) : '—'} · ${inq?.event_date ? formatDate(inq.event_date) : '—'}`}
           backHref="/admin/orders"
           backLabel="Orders"
           action={<StatusBadge status={order.status as OrderStatus} />}
@@ -84,12 +84,8 @@ export default async function OrderDetailPage({ params }: Props) {
           <Detail label="Phone" value={inq?.customer_phone} mono />
           <Detail label="Event Date" value={inq?.event_date ? formatDate(inq.event_date) : '—'} mono />
           <Detail label="Pickup Time" value={formatTime(inq?.pickup_time)} mono />
-          <Detail label="Cake" value={inq ? orderSummary(inq) : undefined} />
-          {inq?.occasion && <Detail label="Occasion" value={inq.occasion} />}
-          {inq?.theme && <Detail label="Theme" value={inq.theme} />}
+          <Detail label="Cake" value={inq ? orderSummary(inq.items ?? []) : undefined} />
           {inq?.decoration_style && <Detail label="Decoration" value={inq.decoration_style} />}
-          {inq?.message_on_cake && <Detail label="Message" value={inq.message_on_cake} />}
-          <Detail label="Quantity" value={String(inq?.quantity ?? 1)} mono />
           <Detail label="Final Price" value={formatKWD(order.final_price?.toString())} mono />
           {order.delivery_type === 'delivery' && Number(order.delivery_charge) > 0 && (
             <Detail label="Delivery Charge (KD)" value={formatKWD(order.delivery_charge?.toString())} mono />
@@ -120,12 +116,39 @@ export default async function OrderDetailPage({ params }: Props) {
               )}
             </div>
           )}
-          {inq?.special_requirements && (
-            <div className="col-span-2">
-              <Detail label="Special Requirements" value={inq.special_requirements} />
-            </div>
-          )}
         </div>
+
+        {/* Items */}
+        {inq?.items && inq.items.length > 0 && (
+          <div
+            className="rounded-xl border p-4 mb-6 flex flex-col gap-4"
+            style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
+          >
+            <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--color-ink-muted)' }}>
+              {inq.items.length > 1 ? `Items (${inq.items.length})` : 'Item Details'}
+            </p>
+            {(inq.items as InquiryItem[]).map((item, i) => (
+              <div
+                key={item.id}
+                className="grid grid-cols-2 gap-x-6 gap-y-3"
+                style={i > 0 ? { paddingTop: '1rem', borderTop: '1px solid var(--color-border)' } : undefined}
+              >
+                <div className="col-span-2">
+                  <Detail label={inq.items!.length > 1 ? `Item ${i + 1}` : 'Cake'} value={orderSummary([item])} />
+                </div>
+                {item.occasion && <Detail label="Occasion" value={item.occasion} />}
+                {item.theme && <Detail label="Theme" value={item.theme} />}
+                {item.message_on_cake && <Detail label="Message" value={item.message_on_cake} />}
+                <Detail label="Quantity" value={String(item.quantity ?? 1)} mono />
+                {item.special_requirements && (
+                  <div className="col-span-2">
+                    <Detail label="Special Requirements" value={item.special_requirements} />
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Payments */}
         <div className="mb-6">

@@ -66,7 +66,7 @@ async function getInquiries(status: string, payment: string, sort: SortField, di
   let query = supabase
     .from('inquiries')
     .select(
-      'id, customer_name, customer_phone, cake_size, flavor, occasion, order_type, item_name, event_date, status, admin_price, discount, delivery_charge, deposit_amount, amount_paid, fully_paid, payment_status, created_at, customer_id, customer_confirmed, confirmation_token',
+      'id, customer_name, customer_phone, event_date, status, admin_price, discount, delivery_charge, deposit_amount, amount_paid, fully_paid, payment_status, created_at, customer_id, customer_confirmed, confirmation_token, items:inquiry_items(*)',
       { count: 'exact' }
     )
 
@@ -328,7 +328,7 @@ export default async function InquiriesPage({
                           )}
                         </div>
                         <p className="text-xs mt-0.5" style={{ color: 'var(--color-ink-muted)' }}>
-                          {orderSummary(inq)}
+                          {orderSummary(inq.items ?? [])}
                         </p>
                       </Link>
                     </td>

@@ -19,7 +19,7 @@ export default async function PublicInvoicePage({ params }: Props) {
   const [{ data: order, error }, { data: phoneRow }, { data: igRow }] = await Promise.all([
     supabase
       .from('orders')
-      .select('*, inquiry:inquiries(*, delivery_address:delivery_addresses(*))')
+      .select('*, inquiry:inquiries(*, delivery_address:delivery_addresses(*), items:inquiry_items(*))')
       .eq('tracking_token', token)
       .single(),
     supabase.from('business_settings').select('value').eq('key', 'business_phone').single(),

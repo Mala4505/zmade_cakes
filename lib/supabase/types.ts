@@ -45,6 +45,26 @@ export interface DeliveryAddress {
   created_at: string
 }
 
+// One row per distinct item within an inquiry/order (see supabase/migrations/034_multi_item_
+// inquiries.sql). The matching nine flat columns still live on Inquiry too (removal deferred
+// to migration 035) — items is populated only on joined reads, same optionality pattern as
+// delivery_address below.
+export interface InquiryItem {
+  id: string
+  inquiry_id: string
+  sort_order: number
+  order_type: 'cake' | 'other_item'
+  item_name: string
+  cake_size: string
+  flavor: string
+  occasion: string
+  theme: string
+  message_on_cake: string
+  quantity: number
+  special_requirements: string
+  created_at: string
+}
+
 export interface Inquiry {
   id: string
   customer_name: string
@@ -95,6 +115,10 @@ export interface Inquiry {
   created_at: string
   updated_at: string
   delivery_address?: DeliveryAddress | null
+  // Populated only on joined reads (see supabase/migrations/034_multi_item_inquiries.sql) —
+  // the nine matching flat fields above still live on this row too until migration 035 drops
+  // them; do not assume both are populated simultaneously.
+  items?: InquiryItem[]
 }
 
 export interface Order {
@@ -318,7 +342,11 @@ export type Database = {
         // payment_status is a STORED generated column (015_unified_payment_model.sql) — Row
         // only, never on Insert/Update.
         Row: { admin_notes: string; admin_price: number | null; discount: string; delivery_charge: string; order_type: 'cake' | 'other_item'; item_name: string; deposit_amount: number | null; amount_paid: number | null; allergen_dairy_free: boolean; allergen_egg_free: boolean; allergen_gluten_free: boolean; allergen_halal: boolean; allergen_nut_free: boolean; allergen_other: string; allergen_raw_sugar: boolean; fully_paid: boolean; cake_size: string; confirmation_token: string; confirmation_sent_at: string | null; created_at: string; customer_comments: string; customer_confirmed: boolean; customer_confirmed_at: string | null; customer_edit_diff: Json | null; customer_id: string | null; customer_name: string; customer_phone: string; decoration_style: string; delivery_type: string; event_date: string; flavor: string; id: string; message_on_cake: string; occasion: string; payment_method: string; payment_status: string; pickup_time: string | null; priority: number; quantity: number; source: string; special_requirements: string; status: string; theme: string; updated_at: string }
-        Insert: { admin_notes?: string; admin_price?: number | null; discount?: number; delivery_charge?: number; order_type?: 'cake' | 'other_item'; item_name?: string; deposit_amount?: number | null; amount_paid?: number | null; allergen_dairy_free?: boolean; allergen_egg_free?: boolean; allergen_nut_free?: boolean; allergen_other?: string; allergen_raw_sugar?: boolean; fully_paid?: boolean; cake_size: string; confirmation_token?: string; confirmation_sent_at?: string | null; created_at?: string; customer_comments?: string; customer_confirmed?: boolean; customer_confirmed_at?: string | null; customer_edit_diff?: Json | null; customer_id?: string | null; customer_name: string; customer_phone: string; decoration_style?: string; delivery_type?: string; event_date: string; flavor: string; id?: string; message_on_cake?: string; occasion?: string; payment_method?: string; pickup_time?: string | null; quantity?: number; source?: string; special_requirements?: string; status?: string; theme?: string; updated_at?: string }
+        // cake_size/flavor are optional here (unlike Row, which mirrors the live NOT NULL
+        // columns): migration 034 gives both a DEFAULT '' — same staged-deprecation pattern
+        // as decoration_style in 017_cake_details_consolidation.sql — since new inserts no
+        // longer set them at all (that data lives in inquiry_items now).
+        Insert: { admin_notes?: string; admin_price?: number | null; discount?: number; delivery_charge?: number; order_type?: 'cake' | 'other_item'; item_name?: string; deposit_amount?: number | null; amount_paid?: number | null; allergen_dairy_free?: boolean; allergen_egg_free?: boolean; allergen_nut_free?: boolean; allergen_other?: string; allergen_raw_sugar?: boolean; fully_paid?: boolean; cake_size?: string; confirmation_token?: string; confirmation_sent_at?: string | null; created_at?: string; customer_comments?: string; customer_confirmed?: boolean; customer_confirmed_at?: string | null; customer_edit_diff?: Json | null; customer_id?: string | null; customer_name: string; customer_phone: string; decoration_style?: string; delivery_type?: string; event_date: string; flavor?: string; id?: string; message_on_cake?: string; occasion?: string; payment_method?: string; pickup_time?: string | null; quantity?: number; source?: string; special_requirements?: string; status?: string; theme?: string; updated_at?: string }
         Update: { admin_notes?: string; admin_price?: number | null; discount?: number; delivery_charge?: number; order_type?: 'cake' | 'other_item'; item_name?: string; deposit_amount?: number | null; amount_paid?: number | null; allergen_dairy_free?: boolean; allergen_egg_free?: boolean; allergen_nut_free?: boolean; allergen_other?: string; allergen_raw_sugar?: boolean; fully_paid?: boolean; cake_size?: string; confirmation_token?: string; confirmation_sent_at?: string | null; created_at?: string; customer_comments?: string; customer_confirmed?: boolean; customer_confirmed_at?: string | null; customer_edit_diff?: Json | null; customer_id?: string | null; customer_name?: string; customer_phone?: string; decoration_style?: string; delivery_type?: string; event_date?: string; flavor?: string; id?: string; message_on_cake?: string; occasion?: string; payment_method?: string; pickup_time?: string | null; quantity?: number; source?: string; special_requirements?: string; status?: string; theme?: string; updated_at?: string }
         Relationships: [{ foreignKeyName: 'inquiries_customer_id_fkey'; columns: ['customer_id']; isOneToOne: false; referencedRelation: 'customers'; referencedColumns: ['id'] }]
       }
@@ -327,6 +355,12 @@ export type Database = {
         Insert: { caption?: string; created_at?: string; id?: string; image_type?: string; inquiry_id: string; uploaded_by: string; url_medium: string; url_original: string; url_thumb: string }
         Update: { caption?: string; created_at?: string; id?: string; image_type?: string; inquiry_id?: string; uploaded_by?: string; url_medium?: string; url_original?: string; url_thumb?: string }
         Relationships: [{ foreignKeyName: 'inquiry_images_inquiry_id_fkey'; columns: ['inquiry_id']; isOneToOne: false; referencedRelation: 'inquiries'; referencedColumns: ['id'] }]
+      }
+      inquiry_items: {
+        Row: { cake_size: string; created_at: string; flavor: string; id: string; inquiry_id: string; item_name: string; message_on_cake: string; occasion: string; order_type: 'cake' | 'other_item'; quantity: number; sort_order: number; special_requirements: string; theme: string }
+        Insert: { cake_size?: string; created_at?: string; flavor?: string; id?: string; inquiry_id: string; item_name?: string; message_on_cake?: string; occasion?: string; order_type?: 'cake' | 'other_item'; quantity?: number; sort_order?: number; special_requirements?: string; theme?: string }
+        Update: { cake_size?: string; created_at?: string; flavor?: string; id?: string; inquiry_id?: string; item_name?: string; message_on_cake?: string; occasion?: string; order_type?: 'cake' | 'other_item'; quantity?: number; sort_order?: number; special_requirements?: string; theme?: string }
+        Relationships: [{ foreignKeyName: 'inquiry_items_inquiry_id_fkey'; columns: ['inquiry_id']; isOneToOne: false; referencedRelation: 'inquiries'; referencedColumns: ['id'] }]
       }
       notifications: {
         Row: { body: string; created_at: string; id: string; inquiry_id: string | null; is_read: boolean; order_id: string | null; title: string; type: string }

@@ -1,19 +1,18 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import type { Customer } from '@/lib/supabase/types'
+import type { Customer, InquiryItem } from '@/lib/supabase/types'
 import { normalizePhone } from '@/lib/utils'
 
 type ActionResult<T> = { data: T; error: null } | { data: null; error: string }
 
-interface CustomerWithHistory {
+export interface CustomerWithHistory {
   customer: Customer
   recentInquiries: Array<{
     id: string
-    cake_size: string
-    flavor: string
     event_date: string
     status: string
+    items: InquiryItem[]
   }>
   totalCount: number
 }
@@ -35,9 +34,10 @@ export async function lookupCustomerByPhone(phone: string): Promise<ActionResult
 
   const { data: inquiries, count } = await supabase
     .from('inquiries')
-    .select('id, cake_size, flavor, event_date, status', { count: 'exact' })
+    .select('id, event_date, status, items:inquiry_items(*)', { count: 'exact' })
     .eq('customer_id', customer.id)
     .order('created_at', { ascending: false })
+    .order('sort_order', { referencedTable: 'inquiry_items' })
     .limit(5)
 
   return {

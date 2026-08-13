@@ -2,6 +2,7 @@ import { formatDate, formatTime, formatKWD, GOVERNORATE_LABELS } from '@/lib/uti
 import { hasAllergens, ALLERGEN_LABELS } from '@/lib/supabase/types'
 import { derivePaymentStatus, balanceOwed } from '@/lib/payments'
 import { BRAND_NAME } from '@/lib/brand'
+import type { InquiryItem } from '@/lib/supabase/types'
 
 interface Props {
   order: {
@@ -20,21 +21,13 @@ interface Props {
   inquiry: {
     customer_name: string
     customer_phone: string
-    order_type?: 'cake' | 'other_item'
-    item_name: string
-    cake_size: string
-    flavor: string
-    theme?: string
-    occasion?: string
-    message_on_cake?: string
-    quantity: number
+    items: InquiryItem[]
     event_date: string
     pickup_time: string | null
     admin_price: string | null
     discount: string | null
     fully_paid: boolean
     payment_method: string
-    special_requirements?: string
     allergen_nut_free: boolean
     allergen_dairy_free: boolean
     allergen_egg_free: boolean
@@ -171,61 +164,70 @@ export default function InvoicePrint({ order, inquiry, businessPhone, businessIn
       )}
 
       <div className="inv-divider" />
-      <div className="inv-section-title">Cake Details</div>
 
-      {inquiry.order_type === 'other_item' ? (
-        <>
-          <div className="inv-row">
-            <span className="inv-label">Item:</span>
-            <span>{inquiry.item_name}</span>
+      {/* Cake Details — one block per item, so a multi-item order shows N blocks */}
+      {inquiry.items.map((item, idx) => (
+        <div key={item.id ?? idx}>
+          {idx > 0 && <div className="inv-divider" />}
+          <div className="inv-section-title">
+            {inquiry.items.length > 1 ? `Cake Details ${idx + 1}` : 'Cake Details'}
           </div>
-          {inquiry.cake_size && (
-            <div className="inv-row">
-              <span className="inv-label">Size:</span>
-              <span>{inquiry.cake_size}</span>
-            </div>
+
+          {item.order_type === 'other_item' ? (
+            <>
+              <div className="inv-row">
+                <span className="inv-label">Item:</span>
+                <span>{item.item_name}</span>
+              </div>
+              {item.cake_size && (
+                <div className="inv-row">
+                  <span className="inv-label">Size:</span>
+                  <span>{item.cake_size}</span>
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              <div className="inv-row">
+                <span className="inv-label">Size:</span>
+                <span>{item.cake_size}</span>
+              </div>
+              <div className="inv-row">
+                <span className="inv-label">Flavor:</span>
+                <span>{item.flavor}</span>
+              </div>
+              {item.theme && (
+                <div className="inv-row">
+                  <span className="inv-label">Theme:</span>
+                  <span>{item.theme}</span>
+                </div>
+              )}
+              {item.occasion && (
+                <div className="inv-row">
+                  <span className="inv-label">Occasion:</span>
+                  <span>{item.occasion}</span>
+                </div>
+              )}
+              {item.message_on_cake && (
+                <div className="inv-row">
+                  <span className="inv-label">Message:</span>
+                  <span>"{item.message_on_cake}"</span>
+                </div>
+              )}
+            </>
           )}
-        </>
-      ) : (
-        <>
           <div className="inv-row">
-            <span className="inv-label">Size:</span>
-            <span>{inquiry.cake_size}</span>
+            <span className="inv-label">Quantity:</span>
+            <span>{item.quantity}</span>
           </div>
-          <div className="inv-row">
-            <span className="inv-label">Flavor:</span>
-            <span>{inquiry.flavor}</span>
-          </div>
-          {inquiry.theme && (
+          {item.special_requirements && (
             <div className="inv-row">
-              <span className="inv-label">Theme:</span>
-              <span>{inquiry.theme}</span>
+              <span className="inv-label">Notes:</span>
+              <span>{item.special_requirements}</span>
             </div>
           )}
-          {inquiry.occasion && (
-            <div className="inv-row">
-              <span className="inv-label">Occasion:</span>
-              <span>{inquiry.occasion}</span>
-            </div>
-          )}
-          {inquiry.message_on_cake && (
-            <div className="inv-row">
-              <span className="inv-label">Message:</span>
-              <span>"{inquiry.message_on_cake}"</span>
-            </div>
-          )}
-        </>
-      )}
-      <div className="inv-row">
-        <span className="inv-label">Quantity:</span>
-        <span>{inquiry.quantity}</span>
-      </div>
-      {inquiry.special_requirements && (
-        <div className="inv-row">
-          <span className="inv-label">Notes:</span>
-          <span>{inquiry.special_requirements}</span>
         </div>
-      )}
+      ))}
 
       {hasAllergens(inquiry) && (
         <>

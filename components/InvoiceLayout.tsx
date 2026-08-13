@@ -3,7 +3,7 @@ import { formatDate, formatTime, formatKWD, GOVERNORATE_LABELS } from '@/lib/uti
 import { hasAllergens, ALLERGEN_LABELS } from '@/lib/supabase/types'
 import { derivePaymentStatus, balanceOwed } from '@/lib/payments'
 import { BRAND_NAME } from '@/lib/brand'
-import type { DeliveryType } from '@/lib/supabase/types'
+import type { DeliveryType, InquiryItem } from '@/lib/supabase/types'
 
 interface Props {
   order: {
@@ -22,21 +22,13 @@ interface Props {
   inquiry: {
     customer_name: string
     customer_phone: string
-    order_type?: 'cake' | 'other_item'
-    item_name: string
-    cake_size: string
-    flavor: string
-    theme?: string
-    occasion?: string
-    message_on_cake?: string
-    quantity: number
+    items: InquiryItem[]
     event_date: string
     pickup_time: string | null
     admin_price: string | null
     discount: string | null
     fully_paid: boolean
     payment_method: string
-    special_requirements?: string
     allergen_nut_free: boolean
     allergen_dairy_free: boolean
     allergen_egg_free: boolean
@@ -175,39 +167,43 @@ export default function InvoiceLayout({ order, inquiry, adminMode, businessPhone
         )}
       </div>
 
-      {/* Divider */}
-      <div style={{ borderTop: '1px dashed var(--color-border)', margin: '0 24px' }} />
+      {/* Cake Details section(s) — one block per item, so a multi-item order shows N blocks */}
+      {inquiry.items.map((item, idx) => (
+        <div key={item.id ?? idx}>
+          {/* Divider */}
+          <div style={{ borderTop: '1px dashed var(--color-border)', margin: '0 24px' }} />
 
-      {/* Cake Details section */}
-      <div className="px-6 pt-4 pb-2">
-        <p
-          className="text-sm font-bold uppercase tracking-widest mb-3"
-          style={{ color: 'var(--color-ink-muted)' }}
-        >
-          Cake Details
-        </p>
+          <div className="px-6 pt-4 pb-2">
+            <p
+              className="text-sm font-bold uppercase tracking-widest mb-3"
+              style={{ color: 'var(--color-ink-muted)' }}
+            >
+              {inquiry.items.length > 1 ? `Cake Details ${idx + 1}` : 'Cake Details'}
+            </p>
 
-        {inquiry.order_type === 'other_item' ? (
-          <>
-            <InvRow label="Item" value={inquiry.item_name} />
-            {inquiry.cake_size && <InvRow label="Size" value={inquiry.cake_size} />}
-          </>
-        ) : (
-          <>
-            <InvRow label="Size" value={inquiry.cake_size} />
-            <InvRow label="Flavor" value={inquiry.flavor} />
-            {inquiry.theme && <InvRow label="Theme" value={inquiry.theme} />}
-            {inquiry.occasion && <InvRow label="Occasion" value={inquiry.occasion} />}
-            {inquiry.message_on_cake && (
-              <InvRow label="Message" value={`"${inquiry.message_on_cake}"`} />
+            {item.order_type === 'other_item' ? (
+              <>
+                <InvRow label="Item" value={item.item_name} />
+                {item.cake_size && <InvRow label="Size" value={item.cake_size} />}
+              </>
+            ) : (
+              <>
+                <InvRow label="Size" value={item.cake_size} />
+                <InvRow label="Flavor" value={item.flavor} />
+                {item.theme && <InvRow label="Theme" value={item.theme} />}
+                {item.occasion && <InvRow label="Occasion" value={item.occasion} />}
+                {item.message_on_cake && (
+                  <InvRow label="Message" value={`"${item.message_on_cake}"`} />
+                )}
+              </>
             )}
-          </>
-        )}
-        <InvRow label="Quantity" value={String(inquiry.quantity)} mono />
-        {inquiry.special_requirements && (
-          <InvRow label="Notes" value={inquiry.special_requirements} />
-        )}
-      </div>
+            <InvRow label="Quantity" value={String(item.quantity)} mono />
+            {item.special_requirements && (
+              <InvRow label="Notes" value={item.special_requirements} />
+            )}
+          </div>
+        </div>
+      ))}
 
       {/* Allergens */}
       {hasAllergens(inquiry) && allergenList.length > 0 && (

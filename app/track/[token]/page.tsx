@@ -6,7 +6,7 @@ import { getBusinessContactSettings } from '@/lib/supabase/business-settings'
 import { isValidToken, formatDate, formatTime, formatKWD, formatDateLong, orderSummary } from '@/lib/utils'
 import { balanceOwed } from '@/lib/payments'
 import type { Metadata } from 'next'
-import type { Order, OrderStatus, Payment } from '@/lib/supabase/types'
+import type { Order, OrderStatus, Payment, InquiryItem } from '@/lib/supabase/types'
 import { CheckCircle, Circle, Receipt, ShieldCheck, WhatsappLogo } from '@phosphor-icons/react/dist/ssr'
 import { BRAND_NAME } from '@/lib/brand'
 import { Navbar } from '@/components/public/Navbar'
@@ -41,7 +41,7 @@ export default async function TrackPage({ params }: Props) {
   const [{ data: order, error }, { businessPhone, businessInstagram }] = await Promise.all([
     supabase
       .from('orders')
-      .select('*, inquiry:inquiries(*, delivery_address:delivery_addresses(*))')
+      .select('*, inquiry:inquiries(*, delivery_address:delivery_addresses(*), items:inquiry_items(*))')
       .eq('tracking_token', token)
       .single(),
     getBusinessContactSettings(),
@@ -55,6 +55,28 @@ export default async function TrackPage({ params }: Props) {
 
   const o = order as unknown as Order
   const inq = o.inquiry
+  // Backfilled by migration 034 for every pre-existing inquiry, and required (min 1) by
+  // inquirySchema/publicInquirySchema for every new one — the flat-column fallback below only
+  // guards against an unexpected data gap, not the common case.
+  const items: InquiryItem[] = inq
+    ? (inq.items && inq.items.length > 0
+        ? [...inq.items].sort((a, b) => a.sort_order - b.sort_order)
+        : [{
+            id: inq.id,
+            inquiry_id: inq.id,
+            sort_order: 0,
+            order_type: inq.order_type,
+            item_name: inq.item_name,
+            cake_size: inq.cake_size,
+            flavor: inq.flavor,
+            occasion: inq.occasion,
+            theme: inq.theme,
+            message_on_cake: inq.message_on_cake,
+            quantity: inq.quantity,
+            special_requirements: inq.special_requirements,
+            created_at: inq.created_at,
+          }])
+    : []
   const currentStep = STATUS_ORDER[o.status as OrderStatus] ?? -1
   const isCancelled = o.status === 'cancelled'
 
@@ -321,21 +343,59 @@ export default async function TrackPage({ params }: Props) {
             {waNumber && inq && (
               <EditOrderModal
                 businessPhone={businessPhone}
-                cakeSummary={orderSummary(inq)}
+                cakeSummary={orderSummary(items)}
                 eventDate={formatDate(inq.event_date)}
               />
             )}
           </div>
 
-          <DetailRow label="Cake" value={inq ? orderSummary(inq) : '—'} />
-          {inq?.theme && inq.theme !== '' && (
-            <DetailRow label="Theme" value={inq.theme} dir="auto" />
-          )}
-          {inq?.occasion && inq.occasion !== '' && (
-            <DetailRow label="Occasion" value={inq.occasion} />
-          )}
-          {inq?.message_on_cake && inq.message_on_cake !== '' && (
-            <DetailRow label="Message" value={`"${inq.message_on_cake}"`} dir="auto" />
+          {items.length <= 1 ? (
+            <>
+              <DetailRow label="Cake" value={items.length ? orderSummary(items) : '—'} />
+              {items[0]?.theme && (
+                <DetailRow label="Theme" value={items[0].theme} dir="auto" />
+              )}
+              {items[0]?.occasion && (
+                <DetailRow label="Occasion" value={items[0].occasion} />
+              )}
+              {items[0]?.message_on_cake && (
+                <DetailRow label="Message" value={`"${items[0].message_on_cake}"`} dir="auto" />
+              )}
+            </>
+          ) : (
+            // More than one item — a single flat Cake/Theme/Occasion/Message row can't
+            // represent them all, so break each item out with its own mini-summary instead.
+            <div className="flex flex-col gap-3">
+              <span className="text-xs font-medium" style={{ color: 'var(--color-ink-muted)' }}>
+                Items ({items.length})
+              </span>
+              {items.map((item, i) => (
+                <div
+                  key={item.id}
+                  className={i > 0 ? 'flex flex-col gap-2 pt-3' : 'flex flex-col gap-2'}
+                  style={i > 0 ? { borderTop: '1px dashed var(--color-border)' } : undefined}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-semibold" style={{ color: 'var(--color-ink)' }}>
+                      {orderSummary([item])}
+                    </span>
+                    {item.quantity > 1 && (
+                      <span
+                        className="text-xs font-medium shrink-0"
+                        style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-ink-muted)' }}
+                      >
+                        ×{item.quantity}
+                      </span>
+                    )}
+                  </div>
+                  {item.theme && <DetailRow label="Theme" value={item.theme} dir="auto" />}
+                  {item.occasion && <DetailRow label="Occasion" value={item.occasion} />}
+                  {item.message_on_cake && (
+                    <DetailRow label="Message" value={`"${item.message_on_cake}"`} dir="auto" />
+                  )}
+                </div>
+              ))}
+            </div>
           )}
           <DetailRow label="Event Date" value={formatDate(inq?.event_date ?? '')} mono />
           {inq?.pickup_time && (

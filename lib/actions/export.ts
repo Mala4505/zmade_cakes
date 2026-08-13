@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { orderSummary } from '@/lib/format'
 
 export async function exportMonthlyOrdersCSV(year: number, month: number): Promise<{ data: string | null; error: string | null }> {
   const supabase = await createClient()
@@ -22,10 +23,9 @@ export async function exportMonthlyOrdersCSV(year: number, month: number): Promi
       inquiry:inquiries(
         customer_name,
         customer_phone,
-        cake_size,
-        flavor,
         event_date,
-        delivery_type
+        delivery_type,
+        items:inquiry_items(*)
       )
     `)
     .gte('created_at', from)
@@ -34,15 +34,17 @@ export async function exportMonthlyOrdersCSV(year: number, month: number): Promi
 
   if (error) return { data: null, error: error.message }
 
-  const header = 'Order ID,Customer,Phone,Cake Size,Flavor,Event Date,Delivery Type,Delivery Charge,Price,Status,Created At'
+  // One row per inquiry (order), not one per item — a business owner wants one
+  // fulfillment row per order. Multi-item orders collapse into a single Order
+  // Summary cell via orderSummary().
+  const header = 'Order ID,Customer,Phone,Order Summary,Event Date,Delivery Type,Delivery Charge,Price,Status,Created At'
   const rows = (data ?? []).map((o: any) => {
     const inq = o.inquiry ?? {}
     return [
       o.id,
       inq.customer_name ?? '',
       inq.customer_phone ?? '',
-      inq.cake_size ?? '',
-      inq.flavor ?? '',
+      orderSummary(inq.items ?? []),
       inq.event_date ?? '',
       o.delivery_type ?? '',
       o.delivery_charge ?? '',

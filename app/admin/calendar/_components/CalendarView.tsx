@@ -11,7 +11,7 @@ import { Modal } from '@/components/ui/Modal'
 import { StatusBadge, PaymentBadge } from '@/components/admin/StatusBadge'
 import { derivePaymentStatus } from '@/lib/payments'
 import { formatDate, formatTime, formatKWD, orderSummary } from '@/lib/utils'
-import type { InquiryStatus, OrderStatus } from '@/lib/supabase/types'
+import type { InquiryItem, InquiryStatus, OrderStatus } from '@/lib/supabase/types'
 
 const localizer = dateFnsLocalizer({
   format,
@@ -35,14 +35,7 @@ type EventDetails = {
   status: OrderStatus | InquiryStatus
   customerName: string
   customerPhone: string
-  cakeSize: string
-  flavor: string
-  orderType: string
-  itemName: string
-  quantity: number
-  theme: string
-  specialRequirements: string
-  messageOnCake: string
+  items: InquiryItem[]
   nutFree: boolean
   dairyFree: boolean
   eggFree: boolean
@@ -79,14 +72,7 @@ function toDetails(inq: any, opts: { linkId: string; linkKind: 'order' | 'inquir
     status: opts.status,
     customerName: inq.customer_name,
     customerPhone: inq.customer_phone,
-    cakeSize: inq.cake_size,
-    flavor: inq.flavor,
-    orderType: inq.order_type ?? 'cake',
-    itemName: inq.item_name ?? '',
-    quantity: inq.quantity ?? 1,
-    theme: inq.theme ?? '',
-    specialRequirements: inq.special_requirements ?? '',
-    messageOnCake: inq.message_on_cake ?? '',
+    items: inq.items ?? [],
     nutFree: !!inq.allergen_nut_free,
     dairyFree: !!inq.allergen_dairy_free,
     eggFree: !!inq.allergen_egg_free,
@@ -206,18 +192,26 @@ function EventDetailBody({ event }: { event: DetailEvent }) {
         <StatusBadge status={r.status} context="admin" />
       </div>
 
-      {/* Cake */}
+      {/* Cake(s) */}
       <div
-        className="flex flex-col gap-2.5 pt-3 border-t"
+        className="flex flex-col gap-3 pt-3 border-t"
         style={{ borderColor: 'var(--color-border)' }}
       >
-        <Row label="Cake">
-          {orderSummary({ order_type: r.orderType, item_name: r.itemName, cake_size: r.cakeSize, flavor: r.flavor })}
-          {r.quantity > 1 ? ` · ×${r.quantity}` : ''}
-        </Row>
-        <Row label="Theme">{r.theme || 'Normal'}</Row>
-        {r.specialRequirements && <Row label="Details">{r.specialRequirements}</Row>}
-        {r.messageOnCake && <Row label="Message on cake">&ldquo;{r.messageOnCake}&rdquo;</Row>}
+        {r.items.map((item, i) => (
+          <div
+            key={item.id ?? i}
+            className="flex flex-col gap-2.5"
+            style={i > 0 ? { paddingTop: '0.625rem', borderTop: '1px dashed var(--color-border)' } : undefined}
+          >
+            <Row label={r.items.length > 1 ? `Item ${i + 1}` : 'Cake'}>
+              {orderSummary([item])}
+              {item.quantity > 1 ? ` · ×${item.quantity}` : ''}
+            </Row>
+            <Row label="Theme">{item.theme || 'Normal'}</Row>
+            {item.special_requirements && <Row label="Details">{item.special_requirements}</Row>}
+            {item.message_on_cake && <Row label="Message on cake">&ldquo;{item.message_on_cake}&rdquo;</Row>}
+          </div>
+        ))}
         {dietary.length > 0 && (
           <div className="flex flex-wrap gap-1">
             {dietary.map(({ key, label }) => (
@@ -306,7 +300,7 @@ function EventContent({ event }: { event: CalendarEvent }) {
     <>
       {event.kind === 'inquiry-delivery' && '? '}
       <strong className="font-semibold">
-        {orderSummary({ order_type: r.orderType, item_name: r.itemName, cake_size: r.cakeSize, flavor: r.flavor })}
+        {orderSummary(r.items)}
       </strong>
       <span className="opacity-80"> · {r.customerName}</span>
     </>
@@ -368,7 +362,7 @@ export default function CalendarView({ orders, inquiries, blackouts, deliveryCou
         return {
           id: order.id,
           kind: 'order' as const,
-          title: `${orderSummary(inq)} · ${inq.customer_name}`,
+          title: `${orderSummary(inq.items ?? [])} · ${inq.customer_name}`,
           start: eventDate,
           end: eventDate,
           allDay: true as const,
@@ -390,7 +384,7 @@ export default function CalendarView({ orders, inquiries, blackouts, deliveryCou
       return {
         id: `inquiry-delivery-${inq.id}`,
         kind: 'inquiry-delivery' as const,
-        title: `? ${orderSummary(inq)} · ${inq.customer_name}`,
+        title: `? ${orderSummary(inq.items ?? [])} · ${inq.customer_name}`,
         start: eventDate,
         end: eventDate,
         allDay: true as const,

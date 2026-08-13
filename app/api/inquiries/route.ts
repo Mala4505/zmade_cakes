@@ -54,12 +54,14 @@ export async function POST(req: NextRequest) {
       .select('id').single()
     if (customerError) console.error('[inquiries] customer upsert failed:', customerError.message)
 
-    // cake_type is a UI-only convenience field (not a DB column) — strip before insert,
-    // along with the address fields that live in their own table.
+    // items targets a different table (inquiry_items, inserted separately below) — strip
+    // it, along with the address fields that live in their own table, before the
+    // inquiries insert. Per-item quantity now lives on each item (see inquiry_items
+    // below) instead of the hardcoded `quantity: 1` this route used to set.
     const {
       address_governorate, address_area, address_block, address_street, address_house_no, address_extra_notes,
       address_location_link,
-      cake_type: _cakeType,
+      items,
       reference_images,
       ...inquiryFields
     } = data
@@ -68,7 +70,6 @@ export async function POST(req: NextRequest) {
       .from('inquiries')
       .insert({
         ...inquiryFields,
-        quantity: 1,
         admin_price: null,
         deposit_amount: null,
         payment_method: '',
@@ -82,6 +83,19 @@ export async function POST(req: NextRequest) {
 
     if (inquiryError || !inquiry) {
       return NextResponse.json({ error: inquiryError?.message ?? 'Failed to create inquiry' }, { status: 500 })
+    }
+
+    // cake_type is UI-only (not a DB column on inquiry_items either) — strip per item.
+    const { error: itemsError } = await supabase.from('inquiry_items').insert(
+      items.map(({ cake_type: _cakeType, ...item }, i) => ({
+        ...item,
+        inquiry_id: inquiry.id,
+        sort_order: i,
+      }))
+    )
+    if (itemsError) {
+      console.error('[inquiries] item insert failed:', itemsError.message)
+      return NextResponse.json({ error: 'Failed to create inquiry' }, { status: 500 })
     }
 
     if (reference_images.length > 0) {

@@ -48,9 +48,10 @@ export async function createInquiry(
   } = await supabase.auth.getUser()
   if (!user) return { data: null, error: 'Unauthorized', fieldErrors: null }
 
-  // cake_type and payment_choice are UI-only convenience fields (not DB columns) — strip
-  // before insert. payment_choice only drove the real fully_paid/amount_paid fields above.
-  const { cake_type: _cakeType, payment_choice: _paymentChoice, ...inquiryData } = parsed.data
+  // items targets a different table (inquiry_items, inserted separately below) and
+  // payment_choice is a UI-only convenience field (not a DB column) — strip both before the
+  // inquiries insert. payment_choice only drove the real fully_paid/amount_paid fields above.
+  const { items, payment_choice: _paymentChoice, ...inquiryData } = parsed.data
 
   const { data: inquiry, error: inquiryError } = await supabase
     .from('inquiries')
@@ -60,6 +61,18 @@ export async function createInquiry(
 
   if (inquiryError || !inquiry) {
     return { data: null, error: inquiryError?.message ?? 'Failed to create inquiry', fieldErrors: null }
+  }
+
+  // cake_type is UI-only (not a DB column on inquiry_items either) — strip per item.
+  const { error: itemsError } = await supabase.from('inquiry_items').insert(
+    items.map(({ cake_type: _cakeType, ...item }, i) => ({
+      ...item,
+      inquiry_id: inquiry.id,
+      sort_order: i,
+    }))
+  )
+  if (itemsError) {
+    return { data: null, error: itemsError.message, fieldErrors: null }
   }
 
   if (referenceImages && referenceImages.length > 0) {
@@ -92,7 +105,7 @@ export async function createInquiry(
 
   {
     const title = 'New Inquiry Created'
-    const body = `${inquiry.customer_name} — ${inquiry.cake_size} ${inquiry.flavor} for ${inquiry.event_date}`
+    const body = `${inquiry.customer_name} — ${orderSummary(items)} for ${inquiry.event_date}`
     const { data } = await supabase
       .from('notifications')
       .insert({
@@ -141,9 +154,10 @@ export async function updateInquiry(
   } = await supabase.auth.getUser()
   if (!user) return { data: null, error: 'Unauthorized', fieldErrors: null }
 
-  // cake_type and payment_choice are UI-only convenience fields (not DB columns) — strip
-  // before update. payment_choice only drove the real fully_paid/amount_paid fields above.
-  const { cake_type: _cakeType, payment_choice: _paymentChoice, ...updateData } = parsed.data
+  // items targets a different table (inquiry_items, handled separately below) and
+  // payment_choice is a UI-only convenience field (not a DB column) — strip both before the
+  // inquiries update. payment_choice only drove the real fully_paid/amount_paid fields above.
+  const { items, payment_choice: _paymentChoice, ...updateData } = parsed.data
 
   const { data, error } = await supabase
     .from('inquiries')
@@ -154,6 +168,27 @@ export async function updateInquiry(
 
   if (error || !data) {
     return { data: null, error: error?.message ?? 'Failed to update inquiry', fieldErrors: null }
+  }
+
+  // `items` is optional on inquiryUpdateSchema — omitted entirely means "don't touch items".
+  // When provided, replace the full set: delete then reinsert. Single-admin, low-concurrency
+  // tool — a brief zero-items window on insert failure is an acceptable, easily-retried edge
+  // case, not worth a transactional RPC.
+  if (items !== undefined) {
+    const { error: deleteError } = await supabase.from('inquiry_items').delete().eq('inquiry_id', id)
+    if (deleteError) {
+      return { data: null, error: deleteError.message, fieldErrors: null }
+    }
+    const { error: itemsError } = await supabase.from('inquiry_items').insert(
+      items.map(({ cake_type: _cakeType, ...item }, i) => ({
+        ...item,
+        inquiry_id: id,
+        sort_order: i,
+      }))
+    )
+    if (itemsError) {
+      return { data: null, error: itemsError.message, fieldErrors: null }
+    }
   }
 
   if (data.delivery_type === 'delivery' && rawAddress) {
@@ -240,8 +275,9 @@ export async function confirmInquiry(
 
   const { data: inquiry, error: fetchError } = await supabase
     .from('inquiries')
-    .select('*, delivery_address:delivery_addresses(*)')
+    .select('*, delivery_address:delivery_addresses(*), items:inquiry_items(*)')
     .eq('confirmation_token', token)
+    .order('sort_order', { referencedTable: 'items' })
     .single()
 
   if (fetchError || !inquiry) {
@@ -266,8 +302,35 @@ export async function confirmInquiry(
   const { pickup_time, message_on_cake, special_requirements, customer_comments, delivery_address, action } =
     parsed.data
 
-  const customerEdits = { pickup_time, message_on_cake, special_requirements, customer_comments }
-  const editDiff = buildCustomerEditDiff(inquiry as any, customerEdits, delivery_address)
+  // Customer self-service editing is scoped to the order's first item only (see
+  // app/confirm/[token]/page.tsx) — a customer with a multi-item order can only edit their
+  // first cake's message/special requirements here; additional items stay admin-editable.
+  // inquiries.message_on_cake/special_requirements are legacy flat columns (staged for removal
+  // in migration 035, no longer written by createInquiry) — they no longer reflect what's
+  // shown to the customer, so this edit targets inquiry_items instead. pickup_time and
+  // customer_comments remain order-level and still live on `inquiries`.
+  const firstItem = inquiry.items?.[0] ?? null
+
+  const orderLevelEdits = { pickup_time, customer_comments }
+  const editDiff = buildCustomerEditDiff(
+    {
+      pickup_time: inquiry.pickup_time,
+      message_on_cake: firstItem?.message_on_cake ?? '',
+      special_requirements: firstItem?.special_requirements ?? '',
+      delivery_address: inquiry.delivery_address,
+    },
+    { pickup_time, message_on_cake, special_requirements },
+    delivery_address
+  )
+
+  async function applyFirstItemEdit() {
+    if (!firstItem) return
+    const { error: itemUpdateError } = await supabase
+      .from('inquiry_items')
+      .update({ message_on_cake, special_requirements })
+      .eq('id', firstItem.id)
+    if (itemUpdateError) console.error('[confirmInquiry] first-item edit failed:', itemUpdateError.message)
+  }
 
   if (action === 'confirm') {
     if (!inquiry.admin_price) {
@@ -281,7 +344,7 @@ export async function confirmInquiry(
     const { data: updatedInquiry, error: updateError } = await supabase
       .from('inquiries')
       .update({
-        ...customerEdits,
+        ...orderLevelEdits,
         status: 'confirmed',
         customer_confirmed: true,
         customer_confirmed_at: new Date().toISOString(),
@@ -294,6 +357,8 @@ export async function confirmInquiry(
     if (updateError || !updatedInquiry) {
       return { data: null, error: updateError?.message ?? 'Failed to confirm order', fieldErrors: null }
     }
+
+    await applyFirstItemEdit()
 
     if (inquiry.delivery_type === 'delivery' && delivery_address) {
       await supabase
@@ -369,7 +434,7 @@ export async function confirmInquiry(
 
     {
       const title = 'Customer Confirmed Order'
-      const body = `${inquiry.customer_name} confirmed — ${orderSummary(inquiry)}.${editSummary(editDiff)}`
+      const body = `${inquiry.customer_name} confirmed — ${orderSummary(inquiry.items ?? [])}.${editSummary(editDiff)}`
       const { data } = await supabase
         .from('notifications')
         .insert({
@@ -401,7 +466,7 @@ export async function confirmInquiry(
     const { data: updatedInquiry, error: updateError } = await supabase
       .from('inquiries')
       .update({
-        ...customerEdits,
+        ...orderLevelEdits,
         status: 'pending',
         customer_edit_diff: (editDiff.length > 0 ? editDiff : null) as unknown as Json,
       })
@@ -412,6 +477,8 @@ export async function confirmInquiry(
     if (updateError || !updatedInquiry) {
       return { data: null, error: updateError?.message ?? 'Failed to save changes', fieldErrors: null }
     }
+
+    await applyFirstItemEdit()
 
     if (inquiry.delivery_type === 'delivery' && delivery_address) {
       await supabase

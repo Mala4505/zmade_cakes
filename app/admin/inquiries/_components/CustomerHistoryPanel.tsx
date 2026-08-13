@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { cn, orderSummary } from '@/lib/utils'
-import type { Customer } from '@/lib/supabase/types'
+import type { Customer, InquiryItem } from '@/lib/supabase/types'
 import { updateCustomerNotes } from '@/lib/actions/customers'
 import { toast } from 'sonner'
 
@@ -11,23 +11,34 @@ interface CustomerWithHistory {
   customer: Customer
   recentInquiries: Array<{
     id: string
-    cake_size: string
-    flavor: string
     event_date: string
     status: string
-    // Not selected by every caller yet — treated as optional/tolerant here; falls back to
-    // 'cake' semantics (matches the DB default) when absent.
-    order_type?: string
-    item_name?: string
+    items: InquiryItem[]
   }>
   totalCount: number
 }
 
 export type MatchState = 'pending' | 'selected' | 'new'
 
+// The item shape the prefill button hands back to the form's `replace()` call (see
+// InquiryForm.tsx). Deliberately just the content fields a form item needs — not the full
+// InquiryItem row (id/inquiry_id/sort_order/created_at), since a form item has no db identity
+// of its own until it's saved.
+export interface PrefillItem {
+  order_type: 'cake' | 'other_item'
+  item_name: string
+  cake_size: string
+  flavor: string
+  occasion: string
+  theme: string
+  message_on_cake: string
+  quantity: number
+  special_requirements: string
+}
+
 interface Props {
   data: CustomerWithHistory
-  onPrefill?: (cakeSize: string, flavor: string) => void
+  onPrefill?: (items: PrefillItem[]) => void
   matchState: MatchState
   onUseExisting: () => void
   onNewCustomer: () => void
@@ -37,7 +48,19 @@ export function CustomerHistoryPanel({ data, onPrefill, matchState, onUseExistin
   const { customer, recentInquiries, totalCount } = data
   const [notes, setNotes] = useState(customer.notes ?? '')
   const last = recentInquiries[0]
-  const lastIsCake = !last || last.order_type !== 'other_item'
+  const lastIsCake = !last || last.items.some((item) => item.order_type !== 'other_item')
+
+  const prefillItems: PrefillItem[] = (last?.items ?? []).map((item) => ({
+    order_type: item.order_type,
+    item_name: item.item_name,
+    cake_size: item.cake_size,
+    flavor: item.flavor,
+    occasion: item.occasion,
+    theme: item.theme,
+    message_on_cake: item.message_on_cake,
+    quantity: item.quantity,
+    special_requirements: item.special_requirements,
+  }))
 
   async function handleBlur() {
     const result = await updateCustomerNotes(customer.id, notes)
@@ -132,26 +155,21 @@ export function CustomerHistoryPanel({ data, onPrefill, matchState, onUseExistin
         {last && (
           <div className="flex items-center gap-1.5 text-xs text-[var(--color-ink-secondary)]">
             <span className="text-[var(--color-ink-muted)]">Last order:</span>
-            <span>{orderSummary({
-              order_type: last.order_type ?? 'cake',
-              item_name: last.item_name ?? '',
-              cake_size: last.cake_size,
-              flavor: last.flavor,
-            })}</span>
+            <span>{orderSummary(last.items)}</span>
           </div>
         )}
 
-        {onPrefill && last && lastIsCake && (
+        {onPrefill && last && lastIsCake && prefillItems.length > 0 && (
           <button
             type="button"
-            onClick={() => onPrefill(last.cake_size, last.flavor)}
+            onClick={() => onPrefill(prefillItems)}
             className={cn(
               'self-start text-xs px-3 py-1.5 rounded-lg border font-medium transition-colors',
               'border-[var(--color-teal)] text-[var(--color-teal)]',
               'hover:bg-[var(--color-teal)] hover:text-white'
             )}
           >
-            Pre-fill from last order
+            {`Pre-fill ${prefillItems.length} item${prefillItems.length === 1 ? '' : 's'} from last order`}
           </button>
         )}
 

@@ -22,17 +22,24 @@ async function getAnalyticsData() {
       .gte('event_date', cutoff)
       .not('admin_price', 'is', null),
 
+    // Queried directly against inquiry_items (joined to inquiries only for the
+    // status filter) rather than one-flavor-per-inquiry, so a 2-item inquiry
+    // correctly contributes 2 counts to the aggregation below. This intentionally
+    // shifts the reported numbers vs. the old single-item aggregation — expected,
+    // not a bug.
     supabase
-      .from('inquiries')
-      .select('flavor')
-      .neq('status', 'cancelled')
-      .not('flavor', 'is', null),
+      .from('inquiry_items')
+      .select('flavor, inquiry:inquiries!inner(status)')
+      .eq('order_type', 'cake')
+      .neq('flavor', '')
+      .neq('inquiry.status', 'cancelled'),
 
     supabase
-      .from('inquiries')
-      .select('cake_size')
-      .neq('status', 'cancelled')
-      .not('cake_size', 'is', null),
+      .from('inquiry_items')
+      .select('cake_size, inquiry:inquiries!inner(status)')
+      .eq('order_type', 'cake')
+      .neq('cake_size', '')
+      .neq('inquiry.status', 'cancelled'),
 
     supabase
       .from('inquiries')

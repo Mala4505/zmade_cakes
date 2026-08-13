@@ -28,13 +28,13 @@ export function PageHeader({
           </Link>
         )}
         <h1
-          className="text-xl font-semibold tracking-tight leading-tight"
+          className="text-2xl font-bold tracking-tight leading-tight"
           style={{ color: 'var(--color-ink)' }}
         >
           {title}
         </h1>
         {subtitle && (
-          <p className="text-sm mt-0.5 truncate" style={{ color: 'var(--color-ink-muted)' }}>
+          <p className="text-sm mt-1 truncate" style={{ color: 'var(--color-ink-muted)' }}>
             {subtitle}
           </p>
         )}

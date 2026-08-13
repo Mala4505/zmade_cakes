@@ -1,6 +1,6 @@
 'use client'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useForm, type FieldPath } from 'react-hook-form'
+import { useFieldArray, useForm, type FieldPath } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useRouter } from 'next/navigation'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
@@ -15,7 +15,7 @@ import {
   type PublicInquiryData,
 } from '@/lib/validations/publicInquiry'
 import { Button, CakeLoader, Checkbox, DetailRow, Field, Input, RadioGroup, Select, Textarea } from '@/components/ui'
-import { Check, PencilSimple, X } from '@phosphor-icons/react'
+import { Check, PencilSimple, Plus, Trash, X } from '@phosphor-icons/react'
 
 interface Option { id: string; name: string }
 interface FlavorOption extends Option {
@@ -75,18 +75,37 @@ const STEP_LABELS_DELIVERY = ['About You', 'Cake Basics', 'Details', 'When & How
 // delivery branch, immediately after "When & How").
 const ADDRESS_STEP = 5
 
-// Fields validated before each step may advance. Shared for steps 1-4; step 5 differs
-// by branch (address fields for delivery, unused for pickup since step 4 skips
-// straight to Review).
-const STEP_FIELDS_BASE: Record<number, FieldPath<PublicInquiryInput>[]> = {
-  1: ['customer_name', 'customer_phone'],
-  2: ['cake_size', 'flavor', 'occasion', 'cake_type', 'theme'],
-  3: ['message_on_cake', 'special_requirements', 'allergen_other'],
-  4: ['event_date', 'pickup_time', 'delivery_type'],
-}
+// Fields validated before each step may advance. Steps 1, 3, 4 are static (order-level
+// fields only); step 2 (Cake Basics) is computed per-render from the live item count —
+// see `step2Fields` in the component body — since its fields are `items.${i}.*` for
+// every item, not a fixed set. Step 5 differs by branch (address fields for delivery,
+// unused for pickup since step 4 skips straight to Review).
+const STEP_1_FIELDS: FieldPath<PublicInquiryInput>[] = ['customer_name', 'customer_phone']
+// Message on Cake / Cake Details moved into the per-item block (Cake Basics, step 2)
+// since a message/special-requirement belongs to one specific cake now — Details (step 3)
+// keeps only order-level fields. Reference Photos has no registered field (plain React
+// state, not RHF-validated), so it never appears here.
+const STEP_3_FIELDS: FieldPath<PublicInquiryInput>[] = ['allergen_other']
+const STEP_4_FIELDS: FieldPath<PublicInquiryInput>[] = ['event_date', 'pickup_time', 'delivery_type']
 const ADDRESS_STEP_FIELDS: FieldPath<PublicInquiryInput>[] = [
   'address_governorate', 'address_area', 'address_block', 'address_street', 'address_house_no', 'address_extra_notes',
 ]
+// Per-item field keys validated for every item in Cake Basics — expanded to
+// `items.${i}.${key}` for each item present when the step advances.
+const ITEM_FIELD_KEYS = ['cake_size', 'flavor', 'occasion', 'cake_type', 'theme', 'message_on_cake', 'special_requirements'] as const
+
+// Blank item used both as the form's initial single item and as the template appended
+// by "Add another cake". A fresh shallow copy is spread at each use site so array
+// entries never accidentally share the same object reference.
+const defaultItem: PublicInquiryInput['items'][number] = {
+  cake_size: '',
+  flavor: '',
+  occasion: '',
+  cake_type: 'normal',
+  theme: '',
+  message_on_cake: '',
+  special_requirements: '',
+}
 
 export default function OrderForm({ flavors, sizes, occasions, blackouts, minLeadDays }: Props) {
   const router = useRouter()
@@ -108,13 +127,7 @@ export default function OrderForm({ flavors, sizes, occasions, blackouts, minLea
   const defaultValues: PublicInquiryInput = {
     customer_name: '',
     customer_phone: '',
-    cake_size: '',
-    flavor: '',
-    occasion: '',
-    cake_type: 'normal',
-    theme: '',
-    message_on_cake: '',
-    special_requirements: '',
+    items: [{ ...defaultItem }],
     allergen_nut_free: false,
     allergen_dairy_free: false,
     allergen_egg_free: false,
@@ -142,6 +155,7 @@ export default function OrderForm({ flavors, sizes, occasions, blackouts, minLea
     clearErrors,
     trigger,
     reset,
+    control,
     formState: { errors, isSubmitting },
   } = useForm<PublicInquiryInput, unknown, PublicInquiryData>({
     resolver: zodResolver(publicInquirySchema),
@@ -149,8 +163,11 @@ export default function OrderForm({ flavors, sizes, occasions, blackouts, minLea
     defaultValues,
   })
 
+  // Cake Basics (step 2) is the repeatable unit — one field-array entry per distinct
+  // cake in the order. The rest of the wizard's steps stay flat/order-level.
+  const { fields, append, remove } = useFieldArray({ control, name: 'items' })
+
   const form = watch()
-  const cakeType = form.cake_type
   const deliveryType = form.delivery_type
   const dateBlackedOut = isDateBlackedOut(form.event_date ?? '', blackouts)
 
@@ -159,16 +176,33 @@ export default function OrderForm({ flavors, sizes, occasions, blackouts, minLea
   const totalSteps = deliveryType === 'delivery' ? 6 : 5
   const reviewStep = totalSteps
   const STEP_LABELS = deliveryType === 'delivery' ? STEP_LABELS_DELIVERY : STEP_LABELS_PICKUP
+
+  // Recomputed each render from the live item count, so `trigger(STEP_FIELDS[2])` on
+  // "Next" validates every item's fields, not just a fixed set.
+  const step2Fields: FieldPath<PublicInquiryInput>[] = fields.flatMap((_, i) =>
+    ITEM_FIELD_KEYS.map(key => `items.${i}.${key}` as FieldPath<PublicInquiryInput>)
+  )
+  const STEP_FIELDS_BASE: Record<number, FieldPath<PublicInquiryInput>[]> = {
+    1: STEP_1_FIELDS,
+    2: step2Fields,
+    3: STEP_3_FIELDS,
+    4: STEP_4_FIELDS,
+  }
   const STEP_FIELDS: Record<number, FieldPath<PublicInquiryInput>[]> = deliveryType === 'delivery'
     ? { ...STEP_FIELDS_BASE, [ADDRESS_STEP]: ADDRESS_STEP_FIELDS }
     : STEP_FIELDS_BASE
 
-  const selectedFlavor = flavors.find(f => f.name === form.flavor) ?? null
-  // A flavor with no priced sizes hasn't been restricted yet — offer every size.
-  const availableSizes = selectedFlavor && selectedFlavor.prices.length > 0
-    ? sizes.filter(s => selectedFlavor.prices.some(p => p.size_id === s.id))
-    : sizes
-  const themeDisabled = selectedFlavor !== null && !selectedFlavor.theme_available
+  // Per-item derived flavor/size data — was a single flat computation when there was
+  // one cake; now one lookup per item, called from within the Cake Basics render loop.
+  function flavorMetaFor(flavorName: string) {
+    const selectedFlavor = flavors.find(f => f.name === flavorName) ?? null
+    // A flavor with no priced sizes hasn't been restricted yet — offer every size.
+    const availableSizes = selectedFlavor && selectedFlavor.prices.length > 0
+      ? sizes.filter(s => selectedFlavor.prices.some(p => p.size_id === s.id))
+      : sizes
+    const themeDisabled = selectedFlavor !== null && !selectedFlavor.theme_available
+    return { selectedFlavor, availableSizes, themeDisabled }
+  }
 
   const draftSaveTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
   // Mirrors `step` for the popstate handler below, which needs the step we're
@@ -269,20 +303,21 @@ export default function OrderForm({ flavors, sizes, occasions, blackouts, minLea
     }
   }, [form, step, referenceImages])
 
-  const handleFlavorChange = (flavorName: string) => {
+  const handleFlavorChange = (index: number, flavorName: string) => {
     const nextFlavor = flavors.find(f => f.name === flavorName) ?? null
+    const item = form.items?.[index]
 
-    if (nextFlavor && !nextFlavor.theme_available && cakeType === 'theme') {
-      setValue('cake_type', 'normal', { shouldDirty: true })
-      setValue('theme', '')
-      clearErrors('theme')
+    if (nextFlavor && !nextFlavor.theme_available && item?.cake_type === 'theme') {
+      setValue(`items.${index}.cake_type`, 'normal', { shouldDirty: true })
+      setValue(`items.${index}.theme`, '')
+      clearErrors(`items.${index}.theme`)
     }
 
     const nextSizes = nextFlavor && nextFlavor.prices.length > 0
       ? sizes.filter(s => nextFlavor.prices.some(p => p.size_id === s.id))
       : sizes
-    if (form.cake_size && !nextSizes.some(s => s.name === form.cake_size)) {
-      setValue('cake_size', '', { shouldValidate: true })
+    if (item?.cake_size && !nextSizes.some(s => s.name === item.cake_size)) {
+      setValue(`items.${index}.cake_size`, '', { shouldValidate: true })
     }
   }
 
@@ -305,8 +340,16 @@ export default function OrderForm({ flavors, sizes, occasions, blackouts, minLea
           })
 
           const dataSteps = Array.from({ length: reviewStep - 1 }, (_, i) => i + 1)
+          // zod's `flatten()` (run server-side in /api/inquiries) buckets every issue
+          // under its *top-level* path segment only — an error on `items.0.cake_size`
+          // comes back keyed as plain `"items"`, not the full dotted path. An exact-string
+          // match against STEP_FIELDS (whose Cake Basics entries are the full
+          // `items.${i}.${key}` paths) would then never match, leaving the customer
+          // stranded on Review with a server error banner but no indication which step —
+          // or which cake — needs fixing. Match by prefix as well so a bare `"items"`
+          // key still routes to step 2.
           const earliestStep = dataSteps.find(s =>
-            (STEP_FIELDS[s] ?? []).some(field => erroredFields.includes(field))
+            (STEP_FIELDS[s] ?? []).some(field => erroredFields.some(ef => field === ef || field.startsWith(`${ef}.`)))
           )
           if (earliestStep && earliestStep !== step) {
             goToStep(earliestStep, earliestStep < step ? -1 : 1)
@@ -478,98 +521,166 @@ export default function OrderForm({ flavors, sizes, occasions, blackouts, minLea
         </div>
       )}
 
-      {/* Step 2 — Cake Basics */}
+      {/* Step 2 — Cake Basics. The repeatable unit: one card per cake in the order. */}
       {step === 2 && (
         <div className="flex flex-col gap-5">
-          <h2 ref={focusStepHeading} tabIndex={-1} className="text-lg font-semibold mb-4 outline-none" style={{ color: 'var(--color-ink)' }}>Tell us about your cake</h2>
+          <h2 ref={focusStepHeading} tabIndex={-1} className="text-lg font-semibold mb-4 outline-none" style={{ color: 'var(--color-ink)' }}>
+            Tell us about your cake{fields.length > 1 ? 's' : ''}
+          </h2>
 
-          <Field label="Flavor" htmlFor="order-flavor" error={errors.flavor?.message} required>
-            <Select
-              id="order-flavor"
-              {...register('flavor', { onChange: e => handleFlavorChange(e.target.value) })}
-              required
-              aria-invalid={errors.flavor ? true : undefined}
-              size="base"
-            >
-              <option value="">Select a flavor…</option>
-              {flavors.map(f => <option key={f.id} value={f.name}>{f.name}</option>)}
-            </Select>
-          </Field>
+          <div className="flex flex-col gap-4">
+            {/* mode="popLayout" is required alongside `layout` here — without it, an
+                exiting card stays in normal document flow for the duration of its exit
+                animation, so the cards below it can't slide up into place until it
+                finally unmounts. That produces the double-jump/race the wizard shipped
+                with: nothing moves, then everything snaps at once. popLayout pulls the
+                exiting card out of flow (position: absolute) the instant it starts
+                exiting, so the remaining cards reflow smoothly right away while it
+                animates out independently. See framer-motion's AnimatePresence + layout
+                docs, and app/admin/orders/_components/AnimatedCardList.tsx, which
+                already solved this same problem the same way for the orders board. */}
+            <AnimatePresence initial={false} mode="popLayout">
+              {fields.map((itemField, index) => {
+                const item = form.items?.[index]
+                const itemErrors = errors.items?.[index]
+                const { selectedFlavor, availableSizes, themeDisabled } = flavorMetaFor(item?.flavor ?? '')
+                const itemCakeType = item?.cake_type
 
-          <Field
-            label="Cake Size"
-            error={errors.cake_size?.message}
-            required
-            hint={selectedFlavor && availableSizes.length < sizes.length ? 'Available sizes for this flavor' : undefined}
+                return (
+                  <motion.div
+                    key={itemField.id}
+                    layout={reduceMotion ? false : 'position'}
+                    initial={reduceMotion ? false : { opacity: 0, scale: 0.96 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.96 }}
+                    transition={{ duration: reduceMotion ? 0 : 0.18, ease: EASE_OUT_QUART }}
+                    className="rounded-xl border p-4 sm:p-5 flex flex-col gap-5"
+                    style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <p
+                        className="text-xs font-semibold uppercase tracking-widest"
+                        style={{ color: 'var(--color-ink-muted)', fontFamily: 'var(--font-mono)' }}
+                      >
+                        {fields.length > 1 ? `Cake ${index + 1}` : 'Your Cake'}
+                      </p>
+                      {fields.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => remove(index)}
+                          aria-label={`Remove Cake ${index + 1}`}
+                          className="inline-flex items-center gap-1.5 text-xs font-medium shrink-0 min-h-11 px-2 -my-2"
+                          style={{ color: 'var(--color-ink-muted)' }}
+                        >
+                          <Trash size={14} weight="bold" />
+                          Remove
+                        </button>
+                      )}
+                    </div>
+
+                    <Field label="Flavor" htmlFor={`order-flavor-${index}`} error={itemErrors?.flavor?.message} required>
+                      <Select
+                        id={`order-flavor-${index}`}
+                        {...register(`items.${index}.flavor`, { onChange: e => handleFlavorChange(index, e.target.value) })}
+                        required
+                        aria-invalid={itemErrors?.flavor ? true : undefined}
+                        size="base"
+                      >
+                        <option value="">Select a flavor…</option>
+                        {flavors.map(f => <option key={f.id} value={f.name}>{f.name}</option>)}
+                      </Select>
+                    </Field>
+
+                    <Field
+                      label="Cake Size"
+                      error={itemErrors?.cake_size?.message}
+                      required
+                      hint={selectedFlavor && availableSizes.length < sizes.length ? 'Available sizes for this flavor' : undefined}
+                    >
+                      <RadioGroup
+                        value={item?.cake_size || null}
+                        onChange={v => setValue(`items.${index}.cake_size`, v, { shouldValidate: true })}
+                        options={availableSizes.map(s => ({ value: s.name, label: s.name }))}
+                        className="flex-wrap"
+                        aria-label={`Cake ${index + 1} size`}
+                      />
+                    </Field>
+
+                    <Field label="Occasion" htmlFor={`order-occasion-${index}`} error={itemErrors?.occasion?.message}>
+                      <Select id={`order-occasion-${index}`} {...register(`items.${index}.occasion`)} size="base">
+                        <option value="">Select an occasion…</option>
+                        {occasions.map(o => <option key={o.id} value={o.name}>{o.name}</option>)}
+                      </Select>
+                    </Field>
+
+                    <Field
+                      label="Cake Type"
+                      error={itemErrors?.cake_type?.message}
+                      required
+                      hint={themeDisabled ? 'Theme cakes aren’t available for this flavor' : undefined}
+                    >
+                      <RadioGroup
+                        value={itemCakeType}
+                        onChange={v => {
+                          setValue(`items.${index}.cake_type`, v, { shouldDirty: true })
+                          if (v === 'normal') clearErrors(`items.${index}.theme`)
+                        }}
+                        options={[
+                          { value: 'normal', label: 'Normal cake', description: 'A classic ZMade Cakes design' },
+                          { value: 'theme', label: 'Theme cake', description: 'Designed around your idea', disabled: themeDisabled },
+                        ]}
+                        aria-label={`Cake ${index + 1} type`}
+                      />
+                    </Field>
+
+                    {itemCakeType === 'theme' && (
+                      <Field label="Your Theme" htmlFor={`order-theme-${index}`} error={itemErrors?.theme?.message} required>
+                        <Input
+                          id={`order-theme-${index}`}
+                          {...register(`items.${index}.theme`)}
+                          dir="auto"
+                          required
+                          aria-invalid={itemErrors?.theme ? true : undefined}
+                          size="base"
+                        />
+                      </Field>
+                    )}
+
+                    <Field label="Message on Cake" htmlFor={`order-message-on-cake-${index}`} error={itemErrors?.message_on_cake?.message}>
+                      <Input id={`order-message-on-cake-${index}`} {...register(`items.${index}.message_on_cake`)} dir="auto" size="base" />
+                    </Field>
+
+                    <Field
+                      label="Cake Details"
+                      htmlFor={`order-special-requirements-${index}`}
+                      error={itemErrors?.special_requirements?.message}
+                      hint="Colours, tiers, decoration ideas — anything that helps us picture it."
+                    >
+                      <Textarea id={`order-special-requirements-${index}`} {...register(`items.${index}.special_requirements`)} rows={3} dir="auto" size="base" />
+                    </Field>
+                  </motion.div>
+                )
+              })}
+            </AnimatePresence>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => append({ ...defaultItem })}
+            className="w-full flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold min-h-11 transition-colors hover:bg-[var(--color-surface-raised)]"
+            style={{ border: '1px dashed var(--color-border-strong)', color: 'var(--color-teal)' }}
           >
-            <RadioGroup
-              value={form.cake_size || null}
-              onChange={v => setValue('cake_size', v, { shouldValidate: true })}
-              options={availableSizes.map(s => ({ value: s.name, label: s.name }))}
-              className="flex-wrap"
-              aria-label="Cake size"
-            />
-          </Field>
-
-          <Field label="Occasion" htmlFor="order-occasion" error={errors.occasion?.message}>
-            <Select id="order-occasion" {...register('occasion')} size="base">
-              <option value="">Select an occasion…</option>
-              {occasions.map(o => <option key={o.id} value={o.name}>{o.name}</option>)}
-            </Select>
-          </Field>
-
-          <Field
-            label="Cake Type"
-            error={errors.cake_type?.message}
-            required
-            hint={themeDisabled ? 'Theme cakes aren’t available for this flavor' : undefined}
-          >
-            <RadioGroup
-              value={cakeType}
-              onChange={v => {
-                setValue('cake_type', v, { shouldDirty: true })
-                if (v === 'normal') clearErrors('theme')
-              }}
-              options={[
-                { value: 'normal', label: 'Normal cake', description: 'A classic ZMade Cakes design' },
-                { value: 'theme', label: 'Theme cake', description: 'Designed around your idea', disabled: themeDisabled },
-              ]}
-              aria-label="Cake type"
-            />
-          </Field>
-
-          {cakeType === 'theme' && (
-            <Field label="Your Theme" htmlFor="order-theme" error={errors.theme?.message} required>
-              <Input
-                id="order-theme"
-                {...register('theme')}
-                dir="auto"
-                required
-                aria-invalid={errors.theme ? true : undefined}
-                size="base"
-              />
-            </Field>
-          )}
+            <Plus size={16} weight="bold" />
+            Add another cake
+          </button>
         </div>
       )}
 
-      {/* Step 3 — Details */}
+      {/* Step 3 — Details. Message on Cake / Cake Details moved into each item's own card
+          in Cake Basics (step 2) — this step now covers only order-level extras. */}
       {step === 3 && (
         <div className="flex flex-col gap-5">
           <h2 ref={focusStepHeading} tabIndex={-1} className="text-lg font-semibold mb-4 outline-none" style={{ color: 'var(--color-ink)' }}>A few more details</h2>
-
-          <Field label="Message on Cake" htmlFor="order-message-on-cake" error={errors.message_on_cake?.message}>
-            <Input id="order-message-on-cake" {...register('message_on_cake')} dir="auto" size="base" />
-          </Field>
-
-          <Field
-            label="Cake Details"
-            htmlFor="order-special-requirements"
-            error={errors.special_requirements?.message}
-            hint="Colours, tiers, decoration ideas — anything that helps us picture it."
-          >
-            <Textarea id="order-special-requirements" {...register('special_requirements')} rows={3} dir="auto" size="base" />
-          </Field>
 
           <div>
             <p className="block text-xs font-medium mb-1.5" style={{ color: 'var(--color-ink-muted)' }}>
@@ -690,20 +801,34 @@ export default function OrderForm({ flavors, sizes, occasions, blackouts, minLea
             <DetailRow label="Phone" value={form.customer_phone ?? ''} mono />
           </section>
 
-          {/* Cake Basics summary */}
-          <section className="rounded-xl border p-4 flex flex-col gap-2" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
-            <SummaryHeader label="Cake Basics" onEdit={() => jumpToStep(2)} />
-            <DetailRow label="Size" value={form.cake_size ?? ''} />
-            <DetailRow label="Flavor" value={form.flavor ?? ''} />
-            {form.occasion && <DetailRow label="Occasion" value={form.occasion} />}
-            <DetailRow label="Type" value={cakeType === 'theme' ? `Theme cake — ${form.theme || ''}` : 'Normal cake'} dir="auto" />
-          </section>
+          {/* Cake Basics summary — one block per item. Message/Cake Details render inside
+              each item's own block now, since they're per-item, not order-level. */}
+          {(form.items ?? []).map((item, index) => (
+            <section
+              key={index}
+              className="rounded-xl border p-4 flex flex-col gap-2"
+              style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
+            >
+              <SummaryHeader
+                label={(form.items?.length ?? 1) > 1 ? `Cake ${index + 1}` : 'Cake Basics'}
+                onEdit={() => jumpToStep(2)}
+              />
+              <DetailRow label="Size" value={item.cake_size ?? ''} />
+              <DetailRow label="Flavor" value={item.flavor ?? ''} />
+              {item.occasion && <DetailRow label="Occasion" value={item.occasion} />}
+              <DetailRow
+                label="Type"
+                value={item.cake_type === 'theme' ? `Theme cake — ${item.theme || ''}` : 'Normal cake'}
+                dir="auto"
+              />
+              {item.message_on_cake && <DetailRow label="Message" value={item.message_on_cake} dir="auto" />}
+              {item.special_requirements && <DetailRow label="Cake Details" value={item.special_requirements} dir="auto" />}
+            </section>
+          ))}
 
-          {/* Details summary */}
+          {/* Details summary — order-level only (Reference Photos + Dietary) */}
           <section className="rounded-xl border p-4 flex flex-col gap-2" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
             <SummaryHeader label="Details" onEdit={() => jumpToStep(3)} />
-            {form.message_on_cake && <DetailRow label="Message" value={form.message_on_cake} dir="auto" />}
-            {form.special_requirements && <DetailRow label="Details" value={form.special_requirements} dir="auto" />}
             {referenceImages.length > 0 && (
               <DetailRow label="Reference Photos" value={`${referenceImages.length} attached`} />
             )}
@@ -719,7 +844,7 @@ export default function OrderForm({ flavors, sizes, occasions, blackouts, minLea
                 ].filter(Boolean).join(', ')}
               />
             )}
-            {!form.message_on_cake && !form.special_requirements && referenceImages.length === 0 &&
+            {referenceImages.length === 0 &&
               !form.allergen_nut_free && !form.allergen_dairy_free && !form.allergen_egg_free && !form.allergen_raw_sugar && !form.allergen_other && (
               <p className="text-sm" style={{ color: 'var(--color-ink-muted)' }}>No extra details added.</p>
             )}
@@ -781,12 +906,27 @@ export default function OrderForm({ flavors, sizes, occasions, blackouts, minLea
             Back
           </Button>
         )}
+        {/* The explicit `key`s here are load-bearing, not decorative. Without them, React
+            sees the same component type ("Button") at the same tree position on both
+            sides of this ternary and reconciles them as one instance — patching the
+            existing <button>'s `type` attribute from "button" to "submit" in place
+            rather than unmounting/remounting a fresh node. That patch happens moments
+            after the *same* click that just activated the Next button (inside
+            advanceStep's post-`await trigger()` continuation), and was verified (via a
+            real Playwright mouse click AND a keyboard Tab+Enter activation, both
+            reproducing every time; a raw `element.click()` did not) to make that click —
+            the ordinary "Next" press that carries the wizard from When&How into
+            Review — also fire a genuine, silent form submission. A customer would never
+            see Review or press "Send My Order"; the order would already be POSTed.
+            Giving the two branches distinct keys forces React to unmount the old
+            type="button" node and mount a brand-new type="submit" node instead of
+            mutating one into the other, which removes the shared-node window entirely. */}
         {step < reviewStep ? (
-          <Button type="button" size="lg" className="flex-1 rounded-xl" onClick={advanceStep}>
+          <Button key="next" type="button" size="lg" className="flex-1 rounded-xl" onClick={advanceStep}>
             Next
           </Button>
         ) : (
-          <Button type="submit" size="lg" className="flex-1 rounded-xl" loading={isSubmitting}>
+          <Button key="submit" type="submit" size="lg" className="flex-1 rounded-xl" loading={isSubmitting}>
             {isSubmitting ? 'Sending…' : 'Send My Order'}
           </Button>
         )}

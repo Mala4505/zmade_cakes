@@ -13,9 +13,56 @@ export function minPublicEventDate(minLeadDays: number): Date {
   return d
 }
 
-// Shared schema for the public /order form. Mirrors the admin inquiry schema's
-// cake_type <-> theme rule: 'theme' selection requires a theme description, and
-// switching back to 'normal' clears it on parse.
+// Per-item shape for the public /order form. Stricter than the admin inquiryItemSchema
+// (cake_size/flavor are required, not just refined-when-order_type-is-cake) since the public
+// form only ever creates 'cake' items — there is no public order_type/item_name concept
+// (that stays admin-only, for manually entered non-cake orders).
+const publicInquiryItemShape = {
+  cake_size: z.string().min(1, 'Please choose a size').max(100),
+  flavor: z.string().min(1, 'Please choose a flavor').max(150),
+  occasion: z.string().max(150).optional().default(''),
+  // UI-only convenience field — not a DB column; stripped before insert
+  // (see app/api/inquiries/route.ts).
+  cake_type: z.enum(['normal', 'theme']),
+  theme: z.string().max(200).optional().default(''),
+  message_on_cake: z.string().max(255, 'Message must be under 255 characters').optional().default(''),
+  special_requirements: z.string().max(1000).optional().default(''),
+  // Previously hardcoded to 1 at the API layer (it didn't exist on this schema at all) —
+  // now lives per item. Defaults to 1 since the public wizard doesn't yet expose a
+  // per-item quantity control; forms work can drop the default once it does.
+  quantity: z
+    .number({ error: 'Quantity must be a number' })
+    .int()
+    .min(1, 'Minimum 1 cake')
+    .max(50, 'Maximum 50 cakes')
+    .optional()
+    .default(1),
+}
+
+function publicItemRefine(
+  data: { cake_type?: 'normal' | 'theme'; theme?: string },
+  ctx: z.RefinementCtx
+) {
+  if (data.cake_type === 'theme' && !data.theme?.trim()) {
+    ctx.addIssue({ code: 'custom', message: 'Tell us the theme you have in mind', path: ['theme'] })
+  }
+}
+
+function clearThemeWhenNormal<T extends { cake_type?: 'normal' | 'theme'; theme?: string }>(
+  data: T
+): T {
+  return data.cake_type === 'normal' ? { ...data, theme: '' } : data
+}
+
+export const publicInquiryItemSchema = z
+  .object(publicInquiryItemShape)
+  .superRefine(publicItemRefine)
+  .transform(clearThemeWhenNormal)
+
+// Shared schema for the public /order form. Order-level fields (customer, event date,
+// delivery, allergens, reference photos) stay flat here; per-item fields (cake_size, flavor,
+// etc. — see publicInquiryItemSchema above) live in `items`, one entry per distinct item in
+// the order (see supabase/migrations/034_multi_item_inquiries.sql).
 export const publicInquirySchema = z
   .object({
     customer_name: z.string().min(2, 'Please enter your name').max(150).trim(),
@@ -23,15 +70,10 @@ export const publicInquirySchema = z
       .string()
       .regex(KUWAIT_PHONE_REGEX, 'Enter a valid phone number (e.g. +965 6685 7560)')
       .trim(),
-    cake_size: z.string().min(1, 'Please choose a size').max(100),
-    flavor: z.string().min(1, 'Please choose a flavor').max(150),
-    occasion: z.string().max(150).optional().default(''),
-    // UI-only convenience field — not a DB column; stripped before insert
-    // (see app/api/inquiries/route.ts).
-    cake_type: z.enum(['normal', 'theme']),
-    theme: z.string().max(200).optional().default(''),
-    message_on_cake: z.string().max(255, 'Message must be under 255 characters').optional().default(''),
-    special_requirements: z.string().max(1000).optional().default(''),
+    items: z
+      .array(publicInquiryItemSchema)
+      .min(1, 'Add at least one item')
+      .max(20, 'Maximum 20 items per order'),
     allergen_nut_free: z.boolean().default(false),
     allergen_dairy_free: z.boolean().default(false),
     allergen_egg_free: z.boolean().default(false),
@@ -61,9 +103,6 @@ export const publicInquirySchema = z
       .default([]),
   })
   .superRefine((data, ctx) => {
-    if (data.cake_type === 'theme' && !data.theme?.trim()) {
-      ctx.addIssue({ code: 'custom', message: 'Tell us the theme you have in mind', path: ['theme'] })
-    }
     if (data.delivery_type === 'delivery') {
       if (!data.address_area?.trim()) ctx.addIssue({ code: 'custom', message: 'Area is required for delivery', path: ['address_area'] })
       if (!data.address_block?.trim()) ctx.addIssue({ code: 'custom', message: 'Block is required', path: ['address_block'] })
@@ -71,7 +110,6 @@ export const publicInquirySchema = z
       if (!data.address_house_no?.trim()) ctx.addIssue({ code: 'custom', message: 'House number is required', path: ['address_house_no'] })
     }
   })
-  .transform((data) => (data.cake_type === 'normal' ? { ...data, theme: '' } : data))
 
 export type PublicInquiryInput = z.input<typeof publicInquirySchema>
 export type PublicInquiryData = z.infer<typeof publicInquirySchema>

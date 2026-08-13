@@ -29,14 +29,14 @@ async function getDashboardData() {
 
     supabase
       .from('inquiries')
-      .select('id, customer_name, cake_size, flavor, order_type, item_name, pickup_time, delivery_type, status')
+      .select('id, customer_name, pickup_time, delivery_type, status, items:inquiry_items(*)')
       .eq('event_date', today)
       .not('status', 'in', '(cancelled,delivered)')
       .order('pickup_time', { ascending: true }),
 
     supabase
       .from('orders')
-      .select('id, status, final_price, inquiry:inquiries(customer_name, cake_size, flavor, order_type, item_name, event_date, deposit_amount, amount_paid, admin_price, fully_paid)')
+      .select('id, status, final_price, inquiry:inquiries(customer_name, event_date, deposit_amount, amount_paid, admin_price, fully_paid, items:inquiry_items(*))')
       .in('status', ['confirmed', 'ready'])
       .order('created_at', { ascending: false })
       .limit(5),
@@ -73,7 +73,7 @@ async function getDashboardData() {
 
     supabase
       .from('orders')
-      .select('id, status, inquiry:inquiries(id, customer_name, cake_size, flavor, order_type, item_name, event_date)')
+      .select('id, status, inquiry:inquiries(id, customer_name, event_date, items:inquiry_items(*))')
       .in('status', ['confirmed']),
   ])
 
@@ -138,12 +138,12 @@ export default async function DashboardPage() {
       {/* Header */}
       <div className="mb-8">
         <h1
-          className="text-xl font-semibold tracking-tight"
+          className="text-2xl font-bold tracking-tight"
           style={{ color: 'var(--color-ink)' }}
         >
           Dashboard
         </h1>
-        <p className="text-sm mt-0.5" style={{ color: 'var(--color-ink-muted)' }}>
+        <p className="text-sm mt-1" style={{ color: 'var(--color-ink-muted)' }}>
           {formatDateLong(new Date().toISOString())}
         </p>
       </div>
@@ -207,7 +207,7 @@ export default async function DashboardPage() {
                   className="text-sm"
                   style={{ color: 'var(--color-warning)' }}
                 >
-                  {o.inquiry?.customer_name} — {o.inquiry ? orderSummary(o.inquiry) : ''} on {o.inquiry?.event_date}
+                  {o.inquiry?.customer_name} — {o.inquiry ? orderSummary(o.inquiry.items ?? []) : ''} on {o.inquiry?.event_date}
                 </a>
               </li>
             ))}
@@ -270,7 +270,7 @@ export default async function DashboardPage() {
                   {inq.customer_name}
                 </p>
                 <p className="text-xs mt-0.5 truncate" style={{ color: 'var(--color-ink-muted)' }}>
-                  {orderSummary(inq)}
+                  {orderSummary(inq.items ?? [])}
                 </p>
               </div>
               <div className="ml-4 text-right shrink-0">
@@ -311,7 +311,7 @@ export default async function DashboardPage() {
                   {order.inquiry?.customer_name ?? '—'}
                 </p>
                 <p className="text-xs mt-0.5" style={{ color: 'var(--color-ink-muted)' }}>
-                  {order.inquiry ? orderSummary(order.inquiry) : '—'} · {order.inquiry?.event_date ? formatDate(order.inquiry.event_date) : '—'}
+                  {order.inquiry ? orderSummary(order.inquiry.items ?? []) : '—'} · {order.inquiry?.event_date ? formatDate(order.inquiry.event_date) : '—'}
                 </p>
               </div>
               <div className="ml-4 shrink-0 text-right">

@@ -1,7 +1,7 @@
 'use client'
 
 import { useTransition, useEffect, useState, useRef } from 'react'
-import { useForm } from 'react-hook-form'
+import { useForm, useFieldArray, FormProvider } from 'react-hook-form'
 import { toast } from 'sonner'
 import PhoneInput from '@/components/PhoneInput'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -10,24 +10,20 @@ import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { EASE_OUT_QUART } from '@/lib/motion'
 import { inquirySchema } from '@/lib/validations/inquiry'
 import { createInquiry, updateInquiry } from '@/lib/actions/inquiries'
-import { lookupCustomerByPhone, searchCustomersByName, upsertCustomer } from '@/lib/actions/customers'
-import { createOption } from '@/lib/actions/options'
+import { lookupCustomerByPhone, searchCustomersByName, upsertCustomer, type CustomerWithHistory } from '@/lib/actions/customers'
 import { derivePaymentStatus, balanceOwed } from '@/lib/payments'
 import { PaymentBadge } from '@/components/admin/StatusBadge'
 import { PinnedOrderTotal } from '@/components/admin/PinnedOrderTotal'
-import { Button, Checkbox, Field, Input, RadioGroup, Select, Spinner, Textarea } from '@/components/ui'
-import { Check, X } from '@phosphor-icons/react'
+import { Button, Checkbox, Field, Input, RadioGroup, Select, Textarea } from '@/components/ui'
+import { Plus } from '@phosphor-icons/react'
 import type { OptionRow, Inquiry, BlackoutDate } from '@/lib/supabase/types'
 import { z } from 'zod'
 import { GOVERNORATE_LABELS } from '@/lib/utils'
 import { CustomerHistoryPanel } from './CustomerHistoryPanel'
+import { ItemFields, defaultItem } from './ItemFields'
 import ReferencePhotoUpload, { type ReferenceImage } from '@/components/ReferencePhotoUpload'
 
 type MatchState = 'pending' | 'selected' | 'new'
-
-// Sentinel value for the "+ Add new item" entry appended to the item <Select>.
-// Never a real option — intercepted in the onChange handler before it reaches form state.
-const NEW_ITEM_OPTION = '__add_new_item__'
 
 const fullSchema = inquirySchema.and(
   z.object({
@@ -72,42 +68,49 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
   // /order form) — attached as inquiry_images once createInquiry returns a real id.
   const [referenceImages, setReferenceImages] = useState<ReferenceImage[]>([])
 
-  // Inline "add new item" affordance for the Item dropdown (Other Item order type).
+  // Item catalog ("Other Item" dropdown) — kept here, shared across every item row, so a new
+  // option created from any one row is instantly visible in every row's dropdown.
   const [itemOptions, setItemOptions] = useState<OptionRow[]>(options.items)
-  const [isAddingItem, setIsAddingItem] = useState(false)
-  const [newItemName, setNewItemName] = useState('')
-  const [itemError, setItemError] = useState<string | null>(null)
-  const [itemPending, setItemPending] = useState(false)
-  const itemSelectRef = useRef<HTMLSelectElement>(null)
 
   useEffect(() => {
     setItemOptions(options.items)
   }, [options.items])
 
-  const {
-    register,
-    handleSubmit,
-    watch,
-    setValue,
-    setError,
-    clearErrors,
-    formState: { errors },
-  } = useForm<FormInput, unknown, FormOutput>({
+  const form = useForm<FormInput, unknown, FormOutput>({
     resolver: zodResolver(fullSchema),
     defaultValues: inquiry
       ? {
           customer_name: inquiry.customer_name,
           customer_phone: inquiry.customer_phone,
-          cake_size: inquiry.cake_size,
-          flavor: inquiry.flavor,
-          occasion: inquiry.occasion,
-          cake_type: inquiry.theme ? 'theme' : 'normal',
-          theme: inquiry.theme,
-          message_on_cake: inquiry.message_on_cake,
-          order_type: inquiry.order_type ?? 'cake',
-          item_name: inquiry.item_name ?? '',
-          quantity: inquiry.quantity,
-          special_requirements: inquiry.special_requirements,
+          items: inquiry.items?.length
+            ? [...inquiry.items]
+                .sort((a, b) => a.sort_order - b.sort_order)
+                .map((item) => ({
+                  cake_size: item.cake_size,
+                  flavor: item.flavor,
+                  occasion: item.occasion,
+                  cake_type: item.theme ? 'theme' as const : 'normal' as const,
+                  theme: item.theme,
+                  message_on_cake: item.message_on_cake,
+                  quantity: item.quantity,
+                  special_requirements: item.special_requirements,
+                  order_type: item.order_type,
+                  item_name: item.item_name,
+                }))
+            : [
+                {
+                  cake_size: inquiry.cake_size,
+                  flavor: inquiry.flavor,
+                  occasion: inquiry.occasion,
+                  cake_type: inquiry.theme ? 'theme' as const : 'normal' as const,
+                  theme: inquiry.theme,
+                  message_on_cake: inquiry.message_on_cake,
+                  order_type: inquiry.order_type ?? 'cake',
+                  item_name: inquiry.item_name ?? '',
+                  quantity: inquiry.quantity,
+                  special_requirements: inquiry.special_requirements,
+                },
+              ],
           allergen_nut_free: inquiry.allergen_nut_free,
           allergen_dairy_free: inquiry.allergen_dairy_free,
           allergen_egg_free: inquiry.allergen_egg_free,
@@ -127,11 +130,7 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
           admin_notes: inquiry.admin_notes,
         }
       : {
-          quantity: 1,
-          cake_type: 'normal',
-          theme: '',
-          order_type: 'cake',
-          item_name: '',
+          items: [defaultItem()],
           delivery_type: 'pickup',
           discount: 0,
           delivery_charge: 0,
@@ -146,21 +145,34 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
         },
   })
 
+  const {
+    register,
+    handleSubmit,
+    watch,
+    setValue,
+    setError,
+    clearErrors,
+    control,
+    formState: { errors },
+  } = form
+
+  const { fields, append, remove, replace } = useFieldArray({ control, name: 'items' })
+
   const deliveryType = watch('delivery_type')
-  const cakeType = watch('cake_type')
-  const orderType = watch('order_type')
   const paymentMethod = watch('payment_method')
   const watchedPhone = watch('customer_phone')
   const watchedCustomerName = watch('customer_name')
   const watchedEventDate = watch('event_date')
-  const watchedCakeSize = watch('cake_size')
+  // Suggested pricing is keyed off a single size — pricing stays order-level (no per-item
+  // pricing UI in this pass, see the multi-item plan), so this reads the first item's size
+  // as the representative one for a multi-item order.
+  const watchedCakeSize = watch('items.0.cake_size')
   const watchedPrice = watch('admin_price')
   const watchedDiscount = watch('discount')
   const watchedDeliveryCharge = watch('delivery_charge')
   const watchedAmountPaid = watch('amount_paid')
   const fullyPaid = watch('fully_paid')
   const paymentChoice = watch('payment_choice')
-  const watchedItemName = watch('item_name')
   const reduceMotion = useReducedMotion()
 
   const [showDietary, setShowDietary] = useState(() =>
@@ -173,45 +185,7 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
     ))
   )
 
-  const cancelAddItem = () => {
-    setIsAddingItem(false)
-    setNewItemName('')
-    setItemError(null)
-  }
-
-  const handleCreateItem = async () => {
-    const trimmed = newItemName.trim()
-    if (!trimmed || itemPending) return
-    setItemPending(true)
-    setItemError(null)
-    const result = await createOption('item_options', {
-      name: trimmed,
-      sort_order: itemOptions.length,
-      is_active: true,
-    })
-    setItemPending(false)
-    if (result.error !== null) {
-      setItemError(result.error)
-      return
-    }
-    if (result.fieldErrors !== null) {
-      setItemError(result.fieldErrors.name?.[0] ?? 'Could not add item')
-      return
-    }
-    const created = result.data
-    setItemOptions((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)))
-    setValue('item_name', created.name, { shouldDirty: true, shouldValidate: true })
-    setIsAddingItem(false)
-    setNewItemName('')
-    toast.success('Item added')
-    requestAnimationFrame(() => itemSelectRef.current?.focus())
-  }
-
-  const [customerHistory, setCustomerHistory] = useState<{
-    customer: { id: string; name: string; notes: string; vip: boolean; phone: string; created_at: string; updated_at: string }
-    recentInquiries: Array<{ id: string; cake_size: string; flavor: string; event_date: string; status: string; order_type?: string; item_name?: string }>
-    totalCount: number
-  } | null>(null)
+  const [customerHistory, setCustomerHistory] = useState<CustomerWithHistory | null>(null)
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null)
   const [matchState, setMatchState] = useState<MatchState>('pending')
 
@@ -398,6 +372,7 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
   }
 
   return (
+    <FormProvider {...form}>
     <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-8">
       {/* Customer info */}
       <Section title="Customer">
@@ -452,191 +427,62 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
             matchState={matchState}
             onUseExisting={handleUseExisting}
             onNewCustomer={handleNewCustomer}
-            onPrefill={(cakeSize, flavor) => {
-              setValue('cake_size', cakeSize)
-              setValue('flavor', flavor)
+            onPrefill={(items) => {
+              replace(
+                items.map((item) => ({
+                  cake_size: item.cake_size,
+                  flavor: item.flavor,
+                  occasion: item.occasion,
+                  cake_type: item.theme ? ('theme' as const) : ('normal' as const),
+                  theme: item.theme,
+                  message_on_cake: item.message_on_cake,
+                  quantity: item.quantity,
+                  special_requirements: item.special_requirements,
+                  order_type: item.order_type,
+                  item_name: item.item_name,
+                }))
+              )
             }}
           />
         )}
       </Section>
 
-      {/* Cake */}
+      {/* Cake — one repeatable block per item (see supabase/migrations/034_multi_item_
+          inquiries.sql). A single item renders with no extra chrome, matching the original
+          single-item form exactly; a second+ item adds an "Item N" label and remove button. */}
       <Section title="Cake">
-        <div className="grid grid-cols-2 gap-4">
-          <Field label="Order Type" error={errors.order_type?.message} required className="col-span-2">
-            <RadioGroup
-              value={orderType}
-              onChange={(v) => setValue('order_type', v, { shouldDirty: true, shouldValidate: true })}
-              options={[
-                { value: 'cake', label: 'Cake' },
-                { value: 'other_item', label: 'Other Item' },
-              ]}
-              aria-label="Order type"
-            />
-          </Field>
-          {orderType === 'other_item' ? (
-            <Field label="Item" error={errors.item_name?.message} required>
-              <Select
-                ref={itemSelectRef}
-                value={isAddingItem ? NEW_ITEM_OPTION : watchedItemName ?? ''}
-                onChange={(e) => {
-                  const val = e.target.value
-                  if (val === NEW_ITEM_OPTION) {
-                    setIsAddingItem(true)
-                    setItemError(null)
-                    return
-                  }
-                  setIsAddingItem(false)
-                  setNewItemName('')
-                  setItemError(null)
-                  setValue('item_name', val, { shouldDirty: true, shouldValidate: true })
-                }}
-                required
-                aria-invalid={errors.item_name ? true : undefined}
-              >
-                <option value="">Select item</option>
-                {itemOptions.map((o) => <option key={o.id} value={o.name}>{o.name}</option>)}
-                <option value={NEW_ITEM_OPTION}>+ Add new item…</option>
-              </Select>
-              {isAddingItem && (
-                <div className="mt-2 flex items-start gap-2">
-                  <div className="flex-1">
-                    <Input
-                      autoFocus
-                      value={newItemName}
-                      onChange={(e) => {
-                        setNewItemName(e.target.value)
-                        setItemError(null)
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault()
-                          void handleCreateItem()
-                        }
-                        if (e.key === 'Escape') {
-                          e.preventDefault()
-                          cancelAddItem()
-                        }
-                      }}
-                      placeholder="New item name…"
-                      disabled={itemPending}
-                      aria-invalid={itemError ? true : undefined}
-                    />
-                    {itemError && (
-                      <p className="mt-1 text-xs" style={{ color: 'var(--color-danger)' }}>{itemError}</p>
-                    )}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => void handleCreateItem()}
-                    disabled={itemPending || !newItemName.trim()}
-                    className="shrink-0 p-2.5 rounded-lg border transition-all active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed"
-                    style={{
-                      borderColor: 'var(--color-border)',
-                      backgroundColor: 'var(--color-teal-light)',
-                      color: 'var(--color-teal-deep)',
-                    }}
-                    title="Add item"
-                  >
-                    {itemPending ? <Spinner size={14} /> : <Check size={14} weight="bold" />}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={cancelAddItem}
-                    disabled={itemPending}
-                    className="shrink-0 p-2.5 rounded-lg border transition-all active:scale-[0.97] disabled:opacity-50"
-                    style={{
-                      borderColor: 'var(--color-border)',
-                      backgroundColor: 'var(--color-surface-raised)',
-                      color: 'var(--color-ink-secondary)',
-                    }}
-                    title="Cancel"
-                  >
-                    <X size={14} />
-                  </button>
-                </div>
-              )}
-            </Field>
-          ) : (
-            <Field label="Flavor" error={errors.flavor?.message} required>
-              <Select {...register('flavor')} required aria-invalid={errors.flavor ? true : undefined}>
-                <option value="">Select flavor</option>
-                {options.flavors.map((o) => <option key={o.id} value={o.name}>{o.name}</option>)}
-              </Select>
-            </Field>
-          )}
-          {orderType === 'other_item' ? (
-            <Field label="Size" error={errors.cake_size?.message} hint="Optional — free text">
-              <Input {...register('cake_size')} placeholder="500ml, 1kg, small jar…" aria-invalid={errors.cake_size ? true : undefined} />
-            </Field>
-          ) : (
-            <Field label="Size" error={errors.cake_size?.message} required>
-              <Select {...register('cake_size')} required aria-invalid={errors.cake_size ? true : undefined}>
-                <option value="">Select size</option>
-                {options.sizes.map((o) => <option key={o.id} value={o.name}>{o.name}</option>)}
-              </Select>
-            </Field>
-          )}
-          {orderType === 'cake' && (
-            <Field label="Occasion" error={errors.occasion?.message}>
-              <Select {...register('occasion')}>
-                <option value="">— Optional —</option>
-                {options.occasions.map((o) => <option key={o.id} value={o.name}>{o.name}</option>)}
-              </Select>
-            </Field>
-          )}
-          <Field label="Quantity" error={errors.quantity?.message} required>
-            <Input
-              {...register('quantity', { valueAsNumber: true })}
-              type="number"
-              min={1}
-              max={50}
-              required
-              aria-invalid={errors.quantity ? true : undefined}
-            />
-          </Field>
-          {orderType === 'cake' && (
-            <Field label="Cake Type" error={errors.cake_type?.message} required className="col-span-2">
-              <RadioGroup
-                value={cakeType}
-                onChange={(v) => {
-                  setValue('cake_type', v, { shouldDirty: true })
-                  if (v === 'normal') clearErrors('theme')
-                }}
-                options={[
-                  { value: 'normal', label: 'Normal cake' },
-                  { value: 'theme', label: 'Theme cake' },
-                ]}
-                aria-label="Cake type"
+        <AnimatePresence initial={false}>
+          {fields.map((field, index) => (
+            <motion.div
+              key={field.id}
+              initial={reduceMotion ? { opacity: 0 } : { opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={reduceMotion ? { opacity: 0 } : { opacity: 0, height: 0 }}
+              transition={{ duration: reduceMotion ? 0 : 0.16, ease: EASE_OUT_QUART }}
+              className="overflow-hidden"
+            >
+              <ItemFields
+                index={index}
+                options={{ flavors: options.flavors, sizes: options.sizes, occasions: options.occasions }}
+                itemOptions={itemOptions}
+                onItemOptionCreated={(opt) =>
+                  setItemOptions((prev) => [...prev, opt].sort((a, b) => a.name.localeCompare(b.name)))
+                }
+                showChrome={fields.length > 1}
+                onRemove={() => remove(index)}
               />
-            </Field>
-          )}
-          {orderType === 'cake' && cakeType === 'theme' && (
-            <Field label="Theme" error={errors.theme?.message} required className="col-span-2">
-              <Input
-                {...register('theme')}
-                required
-                aria-invalid={errors.theme ? true : undefined}
-              />
-            </Field>
-          )}
-          {orderType === 'cake' && (
-          <Field label="Message on Cake" error={errors.message_on_cake?.message} className="col-span-2">
-            <Input {...register('message_on_cake')} />
-          </Field>
-          )}
-          <Field
-            label="Cake Details"
-            error={errors.special_requirements?.message}
-            className="col-span-2"
-          >
-            <Textarea
-              {...register('special_requirements')}
-              rows={3}
-              placeholder="Tiers, colours, decoration, toppers — everything the bake needs."
-            />
-          </Field>
-        </div>
+            </motion.div>
+          ))}
+        </AnimatePresence>
+        <button
+          type="button"
+          onClick={() => append(defaultItem())}
+          className="flex items-center justify-center gap-2 text-sm rounded-lg border-2 border-dashed px-3 w-full transition-colors hover:border-[color:var(--color-border-strong)] mt-4"
+          style={{ minHeight: 44, borderColor: 'var(--color-border)', color: 'var(--color-ink-muted)' }}
+        >
+          <Plus size={16} weight="bold" />
+          <span>Add another item</span>
+        </button>
       </Section>
 
       <Section title="Dietary Requirements">
@@ -998,6 +844,7 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
 
       <PinnedOrderTotal anchorRef={ledgerRef} total={orderTotalAmt} />
     </form>
+    </FormProvider>
   )
 }
 

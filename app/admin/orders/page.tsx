@@ -34,11 +34,12 @@ async function getOrders(includeCancelled: boolean) {
     .select(`
       id, status, final_price, delivery_type, created_at, tracking_token,
       inquiry:inquiries (
-        id, customer_name, customer_phone, cake_size, flavor, order_type, item_name, event_date,
+        id, customer_name, customer_phone, event_date,
         pickup_time, occasion, theme, message_on_cake,
         allergen_nut_free, allergen_gluten_free, allergen_dairy_free, allergen_egg_free,
         allergen_halal, allergen_raw_sugar, allergen_other,
-        admin_price, deposit_amount, amount_paid, fully_paid
+        admin_price, deposit_amount, amount_paid, fully_paid,
+        items:inquiry_items(*)
       )
     `)
     .in('status', statuses)
@@ -167,7 +168,7 @@ function OrderCard({ order }: { order: any }) {
             {inq?.customer_name ?? '—'}
           </Link>
           <p className="text-xs mt-0.5 truncate" style={{ color: 'var(--color-ink-muted)' }}>
-            {inq ? orderSummary(inq) : '—'}
+            {inq ? orderSummary(inq.items ?? []) : '—'}
           </p>
         </div>
         {paymentStatus && <PaymentBadge status={paymentStatus} />}

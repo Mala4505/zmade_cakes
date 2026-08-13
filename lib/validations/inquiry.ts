@@ -1,32 +1,27 @@
 import { z } from 'zod'
+import { inquiryItemSchema } from './inquiryItem'
 
 export const KUWAIT_PHONE_REGEX = /^\+?[0-9\s\-]{7,20}$/
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 const SHORT_TOKEN_REGEX = /^[A-Za-z0-9]{8,14}$/
 
 // Base shape, kept separate from the exported schemas below so both the full (create) and
-// .partial() (update) variants can share the same cake_type <-> theme refinement/transform.
+// .partial() (update) variants can share the same order-level refinements. The nine
+// item-level fields (cake_size, flavor, occasion, cake_type, theme, message_on_cake,
+// quantity, special_requirements, order_type, item_name) live on `items` now — see
+// lib/validations/inquiryItem.ts (supabase/migrations/034_multi_item_inquiries.sql).
 const inquiryShape = {
   customer_name: z.string().min(2, 'Name must be at least 2 characters').max(150).trim(),
   customer_phone: z
     .string()
     .regex(KUWAIT_PHONE_REGEX, 'Enter a valid phone number (e.g. +965 6685 7560)')
     .trim(),
-  cake_size: z.string().max(100).optional().default(''),
-  flavor: z.string().max(150).optional().default(''),
-  occasion: z.string().max(150).optional().default(''),
-  // UI-only convenience field — 'theme' selection just means theme !== ''. Not a DB column;
-  // must be stripped before any insert/update (see lib/actions/inquiries.ts).
-  cake_type: z.enum(['normal', 'theme']),
-  theme: z.string().max(200).optional().default(''),
-  message_on_cake: z.string().max(255, 'Message must be under 255 characters').optional().default(''),
-  quantity: z
-    .number({ error: 'Quantity must be a number' })
-    .int()
-    .min(1, 'Minimum 1 cake')
-    .max(50, 'Maximum 50 cakes'),
-  // "Cake Details" — consolidated free-text field (decoration dropdown folded into this).
-  special_requirements: z.string().max(1000).optional().default(''),
+  // One inquiry now has N items — each fully validated by inquiryItemSchema (per-item
+  // cake_type/order_type refinements and the theme-clearing transform live there).
+  items: z
+    .array(inquiryItemSchema)
+    .min(1, 'Add at least one item')
+    .max(20, 'Maximum 20 items per order'),
   allergen_nut_free: z.boolean().default(false),
   allergen_dairy_free: z.boolean().default(false),
   allergen_egg_free: z.boolean().default(false),
@@ -61,32 +56,11 @@ const inquiryShape = {
   // Set by the admin when delivery_type is 'delivery'; must be 0 on a pickup order —
   // see deliveryChargeRefine below.
   delivery_charge: z.number().min(0).max(9999).optional().default(0),
-  order_type: z.enum(['cake', 'other_item']).default('cake'),
-  item_name: z.string().max(150).optional().default(''),
   customer_id: z.string().uuid().optional().nullable(),
   deposit_amount: z.number().positive().max(9999).optional().nullable(),
   payment_method: z.enum(['', 'cash', 'wamd']).default(''),
   admin_notes: z.string().max(2000).optional().default(''),
   source: z.enum(['admin', 'public_form']).default('admin'),
-}
-
-function cakeTypeRefine(
-  data: { cake_type?: 'normal' | 'theme'; theme?: string },
-  ctx: z.RefinementCtx
-) {
-  if (data.cake_type === 'theme' && !data.theme?.trim()) {
-    ctx.addIssue({
-      code: 'custom',
-      message: 'Theme is required for a theme cake',
-      path: ['theme'],
-    })
-  }
-}
-
-function clearThemeWhenNormal<T extends { cake_type?: 'normal' | 'theme'; theme?: string }>(
-  data: T
-): T {
-  return data.cake_type === 'normal' ? { ...data, theme: '' } : data
 }
 
 function discountRefine(
@@ -128,54 +102,22 @@ function paymentChoiceRefine(
   }
 }
 
-function orderTypeRefine(
-  data: { order_type?: 'cake' | 'other_item'; cake_size?: string; flavor?: string; item_name?: string },
-  ctx: z.RefinementCtx
-) {
-  if (data.order_type === 'cake') {
-    if (!data.cake_size?.trim()) {
-      ctx.addIssue({
-        code: 'custom',
-        message: 'Select a size',
-        path: ['cake_size'],
-      })
-    }
-    if (!data.flavor?.trim()) {
-      ctx.addIssue({
-        code: 'custom',
-        message: 'Select a flavor',
-        path: ['flavor'],
-      })
-    }
-  } else if (data.order_type === 'other_item') {
-    if (!data.item_name?.trim()) {
-      ctx.addIssue({
-        code: 'custom',
-        message: 'Item name is required',
-        path: ['item_name'],
-      })
-    }
-  }
-}
-
 export const inquirySchema = z
   .object(inquiryShape)
-  .superRefine(cakeTypeRefine)
   .superRefine(discountRefine)
   .superRefine(deliveryChargeRefine)
-  .superRefine(orderTypeRefine)
   .superRefine(paymentChoiceRefine)
-  .transform(clearThemeWhenNormal)
 
+// .partial() makes `items` itself optional — omitting it from an update payload means "don't
+// touch items" (see updateInquiry in lib/actions/inquiries.ts). It does NOT relax validation
+// of any item that IS provided: .partial() only widens the outer object's own keys, so each
+// element of `items`, when present, is still fully validated by inquiryItemSchema.
 export const inquiryUpdateSchema = z
   .object(inquiryShape)
   .partial()
-  .superRefine(cakeTypeRefine)
   .superRefine(discountRefine)
   .superRefine(deliveryChargeRefine)
-  .superRefine(orderTypeRefine)
   .superRefine(paymentChoiceRefine)
-  .transform(clearThemeWhenNormal)
 
 export const deliveryAddressSchema = z.object({
   governorate: z.enum(

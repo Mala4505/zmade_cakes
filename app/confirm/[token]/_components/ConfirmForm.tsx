@@ -28,6 +28,11 @@ interface Props {
   currentSpecialRequirements: string
   existingAddress: Address | null
   waNumber: string
+  // Message on Cake / Special Requirements below always edit the order's first item only —
+  // these describe that item for the reader when the order has more than one, so "Your
+  // Preferences" doesn't read as if it covers everything in a multi-item order.
+  firstItemLabel: string
+  hasMultipleItems: boolean
 }
 
 const GOVERNORATES = Object.entries(GOVERNORATE_LABELS) as [string, string][]
@@ -59,6 +64,8 @@ export default function ConfirmForm({
   currentSpecialRequirements,
   existingAddress,
   waNumber,
+  firstItemLabel,
+  hasMultipleItems,
 }: Props) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
@@ -381,13 +388,20 @@ export default function ConfirmForm({
         className="rounded-2xl border p-5 flex flex-col gap-4"
         style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
       >
-        <div className="flex items-center justify-between">
-          <h2
-            className="text-xs font-semibold uppercase tracking-widest"
-            style={{ color: 'var(--color-ink-muted)' }}
-          >
-            Your Preferences
-          </h2>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h2
+              className="text-xs font-semibold uppercase tracking-widest"
+              style={{ color: 'var(--color-ink-muted)' }}
+            >
+              Your Preferences
+            </h2>
+            {hasMultipleItems && (
+              <p className="text-xs mt-1" style={{ color: 'var(--color-ink-muted)' }}>
+                Message &amp; special requirements for your {firstItemLabel}
+              </p>
+            )}
+          </div>
           <button
             type="button"
             onClick={() => (editing ? cancelEdit() : setEditing(true))}

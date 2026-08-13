@@ -123,7 +123,10 @@ export function AdminSidebar({
         style={{ borderColor: 'var(--color-border)' }}
       >
         <Image src="/logo.svg" alt="" width={36} height={36} style={{ width: 36, height: 36, flexShrink: 0 }} priority />
-        <span className="text-base font-semibold tracking-tight" style={{ color: 'var(--color-ink)' }}>
+        <span
+          className="text-lg font-semibold tracking-tight"
+          style={{ fontFamily: 'var(--font-display)', color: 'var(--color-ink)' }}
+        >
           ZMade Cakes
         </span>
       </div>

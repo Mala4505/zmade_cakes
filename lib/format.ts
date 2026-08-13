@@ -23,10 +23,22 @@ export function formatKWD(value: string | null | undefined): string {
   return `KD ${parseFloat(value).toFixed(3)}`
 }
 
-// Short display string for what was ordered — a cake's size/flavor, or the free-text
-// item name for non-cake orders (see order_type on Inquiry).
-export function orderSummary(inq: { order_type: string; item_name: string; cake_size: string; flavor: string }): string {
-  return inq.order_type === 'other_item' ? inq.item_name : `${inq.cake_size} · ${inq.flavor}`
+type OrderSummaryItem = { order_type: string; item_name: string; cake_size: string; flavor: string; quantity: number }
+
+function itemDescription(item: OrderSummaryItem): string {
+  return item.order_type === 'other_item' ? item.item_name : `${item.cake_size} · ${item.flavor}`
+}
+
+// Short display string for everything ordered on an inquiry — a cake's size/flavor, or the
+// free-text item name for non-cake items (see order_type on InquiryItem), joined across all
+// items in the order. Renders identically to the old single-item shape when there's exactly
+// one item (still the common case). With more than one item, each is prefixed with its
+// quantity so the list reads unambiguously, e.g.
+// "2× Medium · Chocolate, 1× Large · Red Velvet".
+export function orderSummary(items: OrderSummaryItem[]): string {
+  if (items.length === 0) return ''
+  if (items.length === 1) return itemDescription(items[0])
+  return items.map((item) => `${item.quantity}× ${itemDescription(item)}`).join(', ')
 }
 
 export function formatAddress(addr: {

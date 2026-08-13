@@ -3,14 +3,11 @@ import { formatDate, formatKWD, orderSummary } from '@/lib/utils'
 import AnimatedCardList from './AnimatedCardList'
 import { PaymentBadge } from '@/components/admin/StatusBadge'
 import { derivePaymentStatus } from '@/lib/payments'
-import { hasAllergens, ALLERGEN_LABELS, type AllergenFlags } from '@/lib/supabase/types'
+import { hasAllergens, ALLERGEN_LABELS, type AllergenFlags, type InquiryItem } from '@/lib/supabase/types'
 
 interface OrderInquiry {
   customer_name?: string | null
-  cake_size?: string | null
-  flavor?: string | null
-  order_type?: string | null
-  item_name?: string | null
+  items?: InquiryItem[] | null
   event_date?: string | null
   admin_price?: string | number | null
   deposit_amount?: string | number | null
@@ -67,7 +64,7 @@ function MobileOrderCard({ order }: { order: MobileOrder }) {
             {inq?.customer_name ?? '—'}
           </p>
           <p className="text-xs mt-0.5 truncate" style={{ color: 'var(--color-ink-muted)' }}>
-            {inq ? orderSummary({ order_type: inq.order_type ?? 'cake', item_name: inq.item_name ?? '', cake_size: inq.cake_size ?? '', flavor: inq.flavor ?? '' }) : '—'}
+            {inq ? orderSummary(inq.items ?? []) : '—'}
           </p>
         </div>
         {paymentStatus && <PaymentBadge status={paymentStatus} />}

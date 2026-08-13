@@ -6,19 +6,16 @@ import { StatusBadge } from '@/components/admin/StatusBadge'
 import Link from 'next/link'
 import CustomerDetail from './_components/CustomerDetail'
 import type { Metadata } from 'next'
-import type { InquiryStatus } from '@/lib/supabase/types'
+import type { InquiryItem, InquiryStatus } from '@/lib/supabase/types'
 
 type InquiryRow = {
   id: string
-  cake_size: string
-  flavor: string
-  order_type: string
-  item_name: string
   occasion: string
   event_date: string
   status: InquiryStatus
   admin_price: string | null
   created_at: string
+  items: InquiryItem[]
 }
 
 interface Props {
@@ -46,7 +43,7 @@ export default async function CustomerDetailPage({ params }: Props) {
 
   const { data: inquiries, error: inquiriesError } = await supabase
     .from('inquiries')
-    .select('id, cake_size, flavor, order_type, item_name, occasion, event_date, status, admin_price, created_at')
+    .select('id, occasion, event_date, status, admin_price, created_at, items:inquiry_items(*)')
     .eq('customer_id', id)
     .order('event_date', { ascending: false })
 
@@ -140,7 +137,7 @@ export default async function CustomerDetailPage({ params }: Props) {
                   >
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium" style={{ color: 'var(--color-ink)' }}>
-                        {orderSummary(inq)}
+                        {orderSummary(inq.items ?? [])}
                         {inq.occasion ? ` · ${inq.occasion}` : ''}
                       </p>
                       <div className="flex items-center gap-3 mt-1 flex-wrap">

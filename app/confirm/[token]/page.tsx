@@ -10,7 +10,7 @@ import { DetailRow } from '@/components/ui'
 import { BRAND_NAME } from '@/lib/brand'
 import { Info } from '@phosphor-icons/react/dist/ssr'
 import type { Metadata } from 'next'
-import type { Inquiry } from '@/lib/supabase/types'
+import type { Inquiry, InquiryItem } from '@/lib/supabase/types'
 
 interface Props { params: Promise<{ token: string }> }
 
@@ -26,7 +26,7 @@ export default async function ConfirmPage({ params }: Props) {
   const [{ data: rawInquiry, error }, { businessPhone, businessInstagram }] = await Promise.all([
     supabase
       .from('inquiries')
-      .select('*, delivery_address:delivery_addresses(*)')
+      .select('*, delivery_address:delivery_addresses(*), items:inquiry_items(*)')
       .eq('confirmation_token', token)
       .single(),
     getBusinessContactSettings(),
@@ -49,6 +49,14 @@ export default async function ConfirmPage({ params }: Props) {
     : ''
 
   const inquiry = rawInquiry as unknown as Inquiry
+
+  // Backfilled by migration 034 for every pre-existing inquiry, and required (min 1) by
+  // inquirySchema/publicInquirySchema for every new one — the empty-array fallback below only
+  // guards against an unexpected data gap, not the common case.
+  const items: InquiryItem[] = (inquiry.items ?? []).length > 0
+    ? [...(inquiry.items as InquiryItem[])].sort((a, b) => a.sort_order - b.sort_order)
+    : []
+  const firstItem: InquiryItem | null = items[0] ?? null
 
   if (inquiry.status === 'cancelled') {
     return (
@@ -146,18 +154,62 @@ export default async function ConfirmPage({ params }: Props) {
               className="text-2xl font-bold leading-tight mt-2"
               style={{ fontFamily: 'var(--font-display)', color: 'var(--color-ink)' }}
             >
-              {orderSummary(inquiry)}
-              {inquiry.quantity > 1 && (
+              {items.length > 0 ? orderSummary(items) : '—'}
+              {items.length === 1 && firstItem && firstItem.quantity > 1 && (
                 <span className="text-lg font-medium" style={{ color: 'var(--color-ink-secondary)' }}>
-                  {' '}× {inquiry.quantity}
+                  {' '}× {firstItem.quantity}
                 </span>
               )}
             </p>
-            {(inquiry.occasion || inquiry.theme || inquiry.decoration_style) && (
-              <div className="flex flex-wrap gap-1.5 mt-3">
-                {inquiry.occasion && <SelectionPill label={inquiry.occasion} />}
-                {inquiry.theme && <SelectionPill label={inquiry.theme} />}
-                {inquiry.decoration_style && <SelectionPill label={inquiry.decoration_style} />}
+
+            {items.length <= 1 ? (
+              (firstItem?.occasion || firstItem?.theme || inquiry.decoration_style) && (
+                <div className="flex flex-wrap gap-1.5 mt-3">
+                  {firstItem?.occasion && <SelectionPill label={firstItem.occasion} />}
+                  {firstItem?.theme && <SelectionPill label={firstItem.theme} />}
+                  {inquiry.decoration_style && <SelectionPill label={inquiry.decoration_style} />}
+                </div>
+              )
+            ) : (
+              // More than one item: the headline above already joins every item into one
+              // string, so break each one out here instead of a single ambiguous pill row —
+              // occasion/theme differ per item and can't be represented as one set of pills.
+              <div className="flex flex-col gap-3 mt-4">
+                {inquiry.decoration_style && (
+                  <div className="flex flex-wrap gap-1.5">
+                    <SelectionPill label={inquiry.decoration_style} />
+                  </div>
+                )}
+                {items.map((item, i) => (
+                  <div
+                    key={item.id}
+                    className={i > 0 ? 'pt-3' : undefined}
+                    style={i > 0 ? { borderTop: '1px dashed var(--color-border)' } : undefined}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-sm font-semibold" style={{ color: 'var(--color-ink)' }}>
+                        {orderSummary([item])}
+                      </p>
+                      {item.quantity > 1 && (
+                        <span
+                          className="text-xs font-medium shrink-0"
+                          style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-ink-muted)' }}
+                        >
+                          ×{item.quantity}
+                        </span>
+                      )}
+                    </div>
+                    {(item.occasion || item.theme) && (
+                      <div className="flex flex-wrap gap-1.5 mt-2">
+                        {item.occasion && <SelectionPill label={item.occasion} />}
+                        {item.theme && <SelectionPill label={item.theme} />}
+                      </div>
+                    )}
+                  </div>
+                ))}
+                <p className="text-xs" style={{ color: 'var(--color-ink-muted)' }}>
+                  You can edit your first cake&apos;s message and special requirements below. To change anything about the other items, message us directly.
+                </p>
               </div>
             )}
           </div>
@@ -264,10 +316,12 @@ export default async function ConfirmPage({ params }: Props) {
             inquiryId={inquiry.id}
             deliveryType={inquiry.delivery_type}
             currentPickupTime={inquiry.pickup_time}
-            currentMessageOnCake={inquiry.message_on_cake}
-            currentSpecialRequirements={inquiry.special_requirements}
+            currentMessageOnCake={firstItem?.message_on_cake ?? ''}
+            currentSpecialRequirements={firstItem?.special_requirements ?? ''}
             existingAddress={addr}
             waNumber={waNumber}
+            firstItemLabel={firstItem ? orderSummary([firstItem]) : 'cake'}
+            hasMultipleItems={items.length > 1}
           />
         ) : (
           <section

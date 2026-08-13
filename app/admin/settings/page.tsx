@@ -10,10 +10,10 @@ export default function SettingsPage() {
     <>
       {/* Mobile: the card grid is the settings hub (sidebar is hidden < md) */}
       <div className="md:hidden px-4 py-6">
-        <h1 className="text-xl font-semibold tracking-tight" style={{ color: 'var(--color-ink)' }}>
+        <h1 className="text-2xl font-bold tracking-tight" style={{ color: 'var(--color-ink)' }}>
           Settings
         </h1>
-        <p className="text-sm mt-0.5 mb-5" style={{ color: 'var(--color-ink-muted)' }}>
+        <p className="text-sm mt-1 mb-5" style={{ color: 'var(--color-ink-muted)' }}>
           Configure your ZMade Cakes workspace
         </p>
 

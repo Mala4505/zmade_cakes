@@ -14,13 +14,18 @@ import { StatusBadge } from '@/components/admin/StatusBadge'
 import { orderSummary, formatKWD } from '@/lib/utils'
 import type { InquiryStatus, OrderStatus } from '@/lib/supabase/types'
 
-interface OrderResult {
-  id: string
-  cake_size: string
-  flavor: string
+interface OrderResultItem {
   order_type: string
   item_name: string
+  cake_size: string
+  flavor: string
   occasion: string
+  quantity: number
+}
+
+interface OrderResult {
+  id: string
+  items: OrderResultItem[]
   event_date: string
   status: string
   created_at: string
@@ -341,13 +346,17 @@ function MyOrdersContent({ businessPhone, businessInstagram }: Props) {
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <p className="text-sm font-semibold" style={{ fontFamily: 'var(--font-display)', color: 'var(--color-ink)' }}>
-                      {orderSummary(item)}
+                      {orderSummary(item.items)}
                     </p>
-                    {item.occasion && (
+                    {item.items.length === 1 && item.items[0].occasion ? (
                       <p className="text-xs mt-0.5" style={{ color: 'var(--color-ink-muted)' }}>
-                        {item.occasion}
+                        {item.items[0].occasion}
                       </p>
-                    )}
+                    ) : item.items.length > 1 ? (
+                      <p className="text-xs mt-0.5" style={{ color: 'var(--color-ink-muted)' }}>
+                        {item.items.length} items
+                      </p>
+                    ) : null}
                   </div>
                   <StatusBadge
                     status={(item.order?.status ?? item.status) as OrderStatus | InquiryStatus}

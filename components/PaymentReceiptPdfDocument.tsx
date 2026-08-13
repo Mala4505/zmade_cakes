@@ -3,7 +3,7 @@ import { formatDate, formatKWD } from '@/lib/utils'
 import { derivePaymentStatus, balanceOwed } from '@/lib/payments'
 import { BRAND_NAME } from '@/lib/brand'
 import { registerPdfFonts } from '@/lib/pdfFonts'
-import type { PaymentMethod } from '@/lib/supabase/types'
+import type { PaymentMethod, InquiryItem } from '@/lib/supabase/types'
 
 registerPdfFonts()
 
@@ -22,12 +22,7 @@ interface Props {
   inquiry: {
     customer_name: string
     customer_phone: string
-    order_type?: 'cake' | 'other_item'
-    item_name: string
-    cake_size: string
-    flavor: string
-    theme?: string
-    occasion?: string
+    items: InquiryItem[]
     event_date: string
     pickup_time: string | null
     fully_paid: boolean
@@ -218,17 +213,24 @@ export default function PaymentReceiptPdfDocument({ payment, order, inquiry, bus
           <Text style={styles.sectionTitle}>Order Reference</Text>
           <Row label="Customer" value={inquiry.customer_name} />
           <Row label="Phone" value={inquiry.customer_phone} mono />
-          {inquiry.order_type === 'other_item' ? (
-            <>
-              <Row label="Item" value={inquiry.item_name} />
-              {inquiry.cake_size && <Row label="Size" value={inquiry.cake_size} />}
-            </>
-          ) : (
-            <>
-              <Row label="Size" value={inquiry.cake_size} />
-              <Row label="Flavor" value={inquiry.flavor} />
-            </>
-          )}
+          {inquiry.items.map((item, idx) => {
+            const n = inquiry.items.length > 1 ? ` ${idx + 1}` : ''
+            return (
+              <View key={item.id ?? idx}>
+                {item.order_type === 'other_item' ? (
+                  <>
+                    <Row label={`Item${n}`} value={item.item_name} />
+                    {item.cake_size && <Row label={`Size${n}`} value={item.cake_size} />}
+                  </>
+                ) : (
+                  <>
+                    <Row label={`Size${n}`} value={item.cake_size} />
+                    <Row label={`Flavor${n}`} value={item.flavor} />
+                  </>
+                )}
+              </View>
+            )
+          })}
           <Row label="Event Date" value={formatDate(inquiry.event_date)} mono />
         </View>
 

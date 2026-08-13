@@ -29,9 +29,14 @@ export function EmptyState({
           {icon}
         </div>
       )}
-      <p className="text-sm font-semibold text-[var(--color-ink)]">{title}</p>
+      <p
+        className="text-base font-bold"
+        style={{ fontFamily: 'var(--font-display)', color: 'var(--color-ink)' }}
+      >
+        {title}
+      </p>
       {description && (
-        <p className="mt-1 max-w-sm text-sm text-[var(--color-ink-muted)]">
+        <p className="mt-1.5 max-w-sm text-sm text-[var(--color-ink-muted)]">
           {description}
         </p>
       )}

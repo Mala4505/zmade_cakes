@@ -19,7 +19,7 @@ export default async function PaymentReceiptPage({ params }: Props) {
   const [{ data: payment, error }, { businessPhone, businessInstagram }] = await Promise.all([
     supabase
       .from('payments')
-      .select('*, order:orders(*, inquiry:inquiries(*, delivery_address:delivery_addresses(*)))')
+      .select('*, order:orders(*, inquiry:inquiries(*, delivery_address:delivery_addresses(*), items:inquiry_items(*)))')
       .eq('receipt_token', token)
       .single(),
     getBusinessContactSettings(),

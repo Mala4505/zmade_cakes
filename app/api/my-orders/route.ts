@@ -28,13 +28,19 @@ async function getRatelimit() {
 
 // ── Order query helper ─────────────────────────────────────────────────────────
 
-type OrderResult = {
-  id: string
-  cake_size: string
-  flavor: string
+type OrderResultItem = {
   order_type: string
   item_name: string
+  cake_size: string
+  flavor: string
   occasion: string
+  quantity: number
+  sort_order: number
+}
+
+type OrderResult = {
+  id: string
+  items: OrderResultItem[]
   event_date: string
   status: string
   created_at: string
@@ -47,19 +53,18 @@ async function fetchOrdersForCustomer(
 ): Promise<OrderResult[]> {
   const { data: inquiries } = await supabase
     .from('inquiries')
-    .select('id, cake_size, flavor, order_type, item_name, occasion, event_date, status, created_at, orders(id, tracking_token, status, final_price)')
+    .select('id, event_date, status, created_at, items:inquiry_items(order_type, item_name, cake_size, flavor, occasion, quantity, sort_order), orders(id, tracking_token, status, final_price)')
     .eq('customer_id', customerId)
     .order('event_date', { ascending: false })
     .limit(50)
 
   return (inquiries ?? []).map((inq: any) => {
+    const items: OrderResultItem[] = (inq.items ?? [])
+      .slice()
+      .sort((a: OrderResultItem, b: OrderResultItem) => a.sort_order - b.sort_order)
     const result: OrderResult = {
       id: inq.id,
-      cake_size: inq.cake_size,
-      flavor: inq.flavor,
-      order_type: inq.order_type,
-      item_name: inq.item_name,
-      occasion: inq.occasion,
+      items,
       event_date: inq.event_date,
       status: inq.status,
       created_at: inq.created_at,

@@ -2,7 +2,7 @@ import Image from 'next/image'
 import { formatDate, formatKWD } from '@/lib/utils'
 import { derivePaymentStatus, balanceOwed } from '@/lib/payments'
 import { BRAND_NAME } from '@/lib/brand'
-import type { PaymentMethod } from '@/lib/supabase/types'
+import type { PaymentMethod, InquiryItem } from '@/lib/supabase/types'
 
 interface Props {
   payment: {
@@ -19,12 +19,7 @@ interface Props {
   inquiry: {
     customer_name: string
     customer_phone: string
-    order_type?: 'cake' | 'other_item'
-    item_name: string
-    cake_size: string
-    flavor: string
-    theme?: string
-    occasion?: string
+    items: InquiryItem[]
     event_date: string
     pickup_time: string | null
     fully_paid: boolean
@@ -114,17 +109,24 @@ export default function PaymentReceiptLayout({ payment, order, inquiry, business
         <InvRow label="Customer" value={inquiry.customer_name} />
         <InvRow label="Phone" value={inquiry.customer_phone} mono />
 
-        {inquiry.order_type === 'other_item' ? (
-          <>
-            <InvRow label="Item" value={inquiry.item_name} />
-            {inquiry.cake_size && <InvRow label="Size" value={inquiry.cake_size} />}
-          </>
-        ) : (
-          <>
-            <InvRow label="Size" value={inquiry.cake_size} />
-            <InvRow label="Flavor" value={inquiry.flavor} />
-          </>
-        )}
+        {inquiry.items.map((item, idx) => {
+          const n = inquiry.items.length > 1 ? ` ${idx + 1}` : ''
+          return (
+            <div key={item.id ?? idx}>
+              {item.order_type === 'other_item' ? (
+                <>
+                  <InvRow label={`Item${n}`} value={item.item_name} />
+                  {item.cake_size && <InvRow label={`Size${n}`} value={item.cake_size} />}
+                </>
+              ) : (
+                <>
+                  <InvRow label={`Size${n}`} value={item.cake_size} />
+                  <InvRow label={`Flavor${n}`} value={item.flavor} />
+                </>
+              )}
+            </div>
+          )
+        })}
 
         <InvRow label="Event Date" value={formatDate(inquiry.event_date)} mono />
       </div>

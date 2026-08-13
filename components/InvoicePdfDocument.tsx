@@ -4,7 +4,7 @@ import { hasAllergens, ALLERGEN_LABELS } from '@/lib/supabase/types'
 import { derivePaymentStatus, balanceOwed } from '@/lib/payments'
 import { BRAND_NAME } from '@/lib/brand'
 import { registerPdfFonts } from '@/lib/pdfFonts'
-import type { DeliveryType } from '@/lib/supabase/types'
+import type { DeliveryType, InquiryItem } from '@/lib/supabase/types'
 
 registerPdfFonts()
 
@@ -25,21 +25,13 @@ interface Props {
   inquiry: {
     customer_name: string
     customer_phone: string
-    order_type?: 'cake' | 'other_item'
-    item_name: string
-    cake_size: string
-    flavor: string
-    theme?: string
-    occasion?: string
-    message_on_cake?: string
-    quantity: number
+    items: InquiryItem[]
     event_date: string
     pickup_time: string | null
     admin_price: string | null
     discount: string | null
     fully_paid: boolean
     payment_method: string
-    special_requirements?: string
     allergen_nut_free: boolean
     allergen_dairy_free: boolean
     allergen_egg_free: boolean
@@ -307,26 +299,31 @@ export default function InvoicePdfDocument({ order, inquiry, businessPhone, busi
 
         <View style={styles.divider} />
 
-        {/* Cake Details */}
-        <View>
-          <Text style={styles.sectionTitle}>Cake Details</Text>
-          {inquiry.order_type === 'other_item' ? (
-            <>
-              <Row label="Item" value={inquiry.item_name} />
-              {inquiry.cake_size && <Row label="Size" value={inquiry.cake_size} />}
-            </>
-          ) : (
-            <>
-              <Row label="Size" value={inquiry.cake_size} />
-              <Row label="Flavor" value={inquiry.flavor} />
-              {inquiry.theme && <Row label="Theme" value={inquiry.theme} />}
-              {inquiry.occasion && <Row label="Occasion" value={inquiry.occasion} />}
-              {inquiry.message_on_cake && <Row label="Message" value={`"${inquiry.message_on_cake}"`} />}
-            </>
-          )}
-          <Row label="Quantity" value={String(inquiry.quantity)} mono />
-          {inquiry.special_requirements && <Row label="Notes" value={inquiry.special_requirements} />}
-        </View>
+        {/* Cake Details — one block per item, so a multi-item order shows N blocks */}
+        {inquiry.items.map((item, idx) => (
+          <View key={item.id ?? idx}>
+            {idx > 0 && <View style={styles.divider} />}
+            <Text style={styles.sectionTitle}>
+              {inquiry.items.length > 1 ? `Cake Details ${idx + 1}` : 'Cake Details'}
+            </Text>
+            {item.order_type === 'other_item' ? (
+              <>
+                <Row label="Item" value={item.item_name} />
+                {item.cake_size && <Row label="Size" value={item.cake_size} />}
+              </>
+            ) : (
+              <>
+                <Row label="Size" value={item.cake_size} />
+                <Row label="Flavor" value={item.flavor} />
+                {item.theme && <Row label="Theme" value={item.theme} />}
+                {item.occasion && <Row label="Occasion" value={item.occasion} />}
+                {item.message_on_cake && <Row label="Message" value={`"${item.message_on_cake}"`} />}
+              </>
+            )}
+            <Row label="Quantity" value={String(item.quantity)} mono />
+            {item.special_requirements && <Row label="Notes" value={item.special_requirements} />}
+          </View>
+        ))}
 
         {/* Allergens */}
         {hasAllergens(inquiry) && allergenList.length > 0 && (

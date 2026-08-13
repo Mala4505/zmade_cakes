@@ -100,7 +100,7 @@ export default async function InquiryDetailPage({ params }: Props) {
 
   const { data: inquiry, error } = await supabase
     .from('inquiries')
-    .select('*, delivery_address:delivery_addresses(*)')
+    .select('*, delivery_address:delivery_addresses(*), items:inquiry_items(*)')
     .eq('id', id)
     .single()
 
@@ -183,7 +183,10 @@ export default async function InquiryDetailPage({ params }: Props) {
       >
         <div className="min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <h1 className="text-lg font-bold" style={{ color: 'var(--color-ink)' }}>
+            <h1
+              className="text-xl font-bold"
+              style={{ fontFamily: 'var(--font-display)', color: 'var(--color-ink)' }}
+            >
               {inquiry.customer_name}
             </h1>
             {customerData?.vip && (
@@ -196,7 +199,7 @@ export default async function InquiryDetailPage({ params }: Props) {
             )}
           </div>
           <p className="text-sm mt-0.5" style={{ color: 'var(--color-ink-muted)' }}>
-            {orderSummary(inquiry)}
+            {orderSummary(inquiry.items ?? [])}
             {inquiry.admin_price ? ` · ${formatKWD(inquiry.admin_price?.toString())}` : ''}
           </p>
         </div>
