@@ -13,7 +13,7 @@ export function SettingsMobileBar() {
 
   return (
     <div
-      className="md:hidden sticky top-14 z-10 flex items-center border-b px-2 py-2"
+      className="md:hidden sticky top-0 z-10 flex items-center border-b px-2 py-2"
       style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-cream)' }}
     >
       <Link

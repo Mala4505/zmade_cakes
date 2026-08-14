@@ -71,7 +71,7 @@ export default async function CalendarPage() {
   }
 
   return (
-    <div className="px-4 py-6 md:px-8 md:py-8 flex flex-col" style={{ minHeight: 'calc(100vh - 80px)' }}>
+    <div className="px-4 py-6 md:px-8 md:py-8 flex flex-col" style={{ minHeight: '100%' }}>
       <PageHeader title="Calendar" subtitle="Order schedule" />
       <CalendarView
         orders={orders as any[]}

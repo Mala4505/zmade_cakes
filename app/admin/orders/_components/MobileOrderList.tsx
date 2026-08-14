@@ -142,7 +142,7 @@ export default function MobileOrderList({ orders }: { orders: MobileOrder[] }) {
         return (
           <div key={status}>
             <div
-              className="sticky top-14 z-10 px-4 py-2 text-xs font-semibold uppercase tracking-widest"
+              className="sticky top-0 z-10 px-4 py-2 text-xs font-semibold uppercase tracking-widest"
               style={{
                 backgroundColor: 'var(--color-surface-raised)',
                 color: 'var(--color-ink-muted)',

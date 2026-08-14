@@ -13,12 +13,15 @@ import {
   Gear,
   Users,
   DotsThreeOutline,
+  ArrowLeft,
 } from '@phosphor-icons/react'
 import { LogOut, Layers } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { signOut } from '@/lib/actions/auth'
 import { useNavPending } from './NavPendingContext'
+import { useAdminHeaderOverride } from './AdminHeaderContext'
 import { NotificationBellMobile } from './NotificationBellMobile'
+import { NotificationBellDesktop } from './NotificationBellDesktop'
 import { Modal } from '@/components/ui/Modal'
 import type { User } from '@supabase/supabase-js'
 import type React from 'react'
@@ -129,6 +132,8 @@ export function AdminSidebar({
         >
           ZMade Cakes
         </span>
+        <span className="flex-1" />
+        <NotificationBellDesktop />
       </div>
 
       <nav className="flex-1 overflow-y-auto px-3 py-4 flex flex-col gap-1">
@@ -256,11 +261,11 @@ export function AdminBottomNav({
   return (
     <>
       <nav
-        className="md:hidden fixed bottom-0 inset-x-0 z-40 flex border-t"
+        className="md:hidden shrink-0 flex border-t"
         style={{
           backgroundColor: 'var(--color-cream)',
           borderColor: 'var(--color-border)',
-          paddingBottom: 'env(safe-area-inset-bottom)',
+          paddingBottom: 'var(--safe-b)',
         }}
       >
         {primaryItems.map(({ href, label, Icon, exact }) => (
@@ -339,24 +344,112 @@ export function AdminBottomNav({
 export function AdminMobileTopBar() {
   const pathname = usePathname()
   const current = currentNavItem(pathname)
+  const override = useAdminHeaderOverride()
+  const [moreOpen, setMoreOpen] = useState(false)
+
+  // Page-specific actions (e.g. Print, Cancel Order) get a beat to let the
+  // modal's own exit animation finish before firing — Modal portals to
+  // document.body outside the page's `.no-print` wrapper, so an action like
+  // window.print() invoked in the same tick as closing risks catching the
+  // modal mid-close in the print snapshot.
+  const runMenuAction = (fn: () => void) => {
+    setMoreOpen(false)
+    setTimeout(fn, 200)
+  }
 
   return (
-    <header
-      className="md:hidden flex items-center gap-2.5 h-14 px-4 border-b shrink-0 sticky top-0 z-30"
-      style={{
-        backgroundColor: 'var(--color-cream)',
-        borderColor: 'var(--color-border)',
-        boxShadow: '0 1px 0 var(--color-border)',
-      }}
-    >
-      <Image src="/logo.svg" alt="" width={28} height={28} style={{ width: 28, height: 28, flexShrink: 0 }} priority />
-      <span
-        className="text-base font-semibold tracking-tight truncate"
-        style={{ fontFamily: 'var(--font-display)', color: 'var(--color-ink)' }}
+    <>
+      <header
+        className="md:hidden flex items-center gap-2.5 h-14 px-4 border-b shrink-0 z-30"
+        style={{
+          backgroundColor: 'var(--color-cream)',
+          borderColor: 'var(--color-border)',
+          boxShadow: '0 1px 0 var(--color-border)',
+        }}
       >
-        {current?.label ?? 'ZMade Cakes'}
-      </span>
-      <NotificationBellMobile />
-    </header>
+        {override ? (
+          <>
+            <Link
+              href={override.backHref}
+              aria-label="Back"
+              className="w-11 h-11 -ml-2 flex items-center justify-center rounded-lg shrink-0"
+              style={{ color: 'var(--color-ink-muted)' }}
+            >
+              <ArrowLeft size={20} weight="bold" aria-hidden="true" />
+            </Link>
+            <span
+              className="text-base font-semibold tracking-tight truncate min-w-0"
+              style={{ fontFamily: 'var(--font-display)', color: 'var(--color-ink)' }}
+            >
+              {override.title}
+            </span>
+          </>
+        ) : (
+          <>
+            <Image src="/logo.svg" alt="" width={28} height={28} style={{ width: 28, height: 28, flexShrink: 0 }} priority />
+            <span
+              className="text-base font-semibold tracking-tight truncate"
+              style={{ fontFamily: 'var(--font-display)', color: 'var(--color-ink)' }}
+            >
+              {current?.label ?? 'ZMade Cakes'}
+            </span>
+          </>
+        )}
+        <span className="flex-1 min-w-0" />
+        <NotificationBellMobile />
+        <button
+          type="button"
+          onClick={() => setMoreOpen(true)}
+          aria-label="More actions"
+          className="w-11 h-11 -mr-2 flex items-center justify-center rounded-lg transition-colors"
+          style={{ color: 'var(--color-ink-muted)' }}
+        >
+          <DotsThreeOutline size={20} aria-hidden="true" />
+        </button>
+      </header>
+
+      <Modal open={moreOpen} onClose={() => setMoreOpen(false)} title="More actions" size="sm">
+        <div className="flex flex-col gap-1 -mx-1">
+          {override?.menuItems && override.menuItems.length > 0 && (
+            <>
+              {override.menuItems.map((item) => (
+                <button
+                  key={item.key}
+                  type="button"
+                  disabled={item.disabled}
+                  onClick={() => runMenuAction(item.onClick)}
+                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors disabled:opacity-60"
+                  style={{ color: item.danger ? 'var(--color-danger)' : 'var(--color-ink-secondary)' }}
+                >
+                  <item.icon size={18} aria-hidden="true" className={item.spinning ? 'animate-spin' : undefined} />
+                  <span>{item.label}</span>
+                </button>
+              ))}
+              <div className="my-1 border-t" style={{ borderColor: 'var(--color-border)' }} />
+            </>
+          )}
+          <Link
+            href="/admin/settings"
+            onClick={() => setMoreOpen(false)}
+            className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors text-[color:var(--color-ink-secondary)] hover:bg-[var(--color-surface-raised)]"
+          >
+            <Gear size={18} aria-hidden="true" />
+            <span>Settings</span>
+          </Link>
+          <div className="mt-2 pt-2 border-t" style={{ borderColor: 'var(--color-border)' }}>
+            <form action={signOut}>
+              <button
+                type="submit"
+                className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors"
+                style={{ color: 'var(--color-danger)' }}
+              >
+                <LogOut size={18} />
+                <span>Sign out</span>
+              </button>
+            </form>
+          </div>
+        </div>
+      </Modal>
+    </>
   )
 }

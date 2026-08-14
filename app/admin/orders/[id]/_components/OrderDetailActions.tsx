@@ -6,6 +6,7 @@ import { updateOrderStatus, cancelOrder } from '@/lib/actions/orders'
 import { toast } from 'sonner'
 import { Copy, Check, Printer, ArrowRight, X, Image, Spinner } from '@phosphor-icons/react'
 import { toPng } from 'html-to-image'
+import { useAdminHeader } from '@/components/admin/AdminHeaderContext'
 import type { OrderStatus } from '@/lib/supabase/types'
 
 const NEXT_STATUS: Partial<Record<OrderStatus, { status: OrderStatus; label: string }>> = {
@@ -30,6 +31,7 @@ export default function OrderDetailActions({
 
   const pending = advancing || cancelling
   const next = NEXT_STATUS[order.status]
+  const canCancel = order.status !== 'delivered' && order.status !== 'cancelled'
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(trackingLink)
@@ -80,6 +82,45 @@ export default function OrderDetailActions({
     }
   }
 
+  // Mobile: the customer's name replaces the sticky header's default section
+  // title, with a back link to the orders list. Print / Download / Cancel
+  // move into that header's overflow menu (the buttons below are hidden on
+  // mobile) — they're occasional or destructive, and this keeps them
+  // reachable without scrolling to the bottom of a long order page.
+  useAdminHeader({
+    title: inquiry.customer_name || 'Order',
+    backHref: '/admin/orders',
+    menuItems: [
+      {
+        key: 'print',
+        label: 'Print / Save PDF',
+        icon: Printer,
+        onClick: () => window.print(),
+      },
+      {
+        key: 'download',
+        label: downloading ? 'Generating…' : 'Download as Image',
+        icon: downloading ? Spinner : Image,
+        spinning: downloading,
+        disabled: downloading,
+        onClick: handleDownloadImage,
+      },
+      ...(canCancel
+        ? [
+            {
+              key: 'cancel',
+              label: cancelling ? 'Cancelling…' : 'Cancel Order',
+              icon: cancelling ? Spinner : X,
+              spinning: cancelling,
+              disabled: pending,
+              danger: true,
+              onClick: handleCancel,
+            },
+          ]
+        : []),
+    ],
+  })
+
   return (
     <div className="flex flex-col gap-3 mb-8">
       {/* Tracking link */}
@@ -122,11 +163,11 @@ export default function OrderDetailActions({
         </button>
       )}
 
-      {/* Print / Save PDF */}
+      {/* Print / Save PDF — mobile reaches this via the sticky header's overflow menu */}
       <button
         type="button"
         onClick={() => window.print()}
-        className="flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium border transition-colors"
+        className="hidden md:flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium border transition-colors"
         style={{
           borderColor: 'var(--color-border)',
           backgroundColor: 'var(--color-surface-raised)',
@@ -137,12 +178,12 @@ export default function OrderDetailActions({
         Print / Save PDF
       </button>
 
-      {/* Download as Image */}
+      {/* Download as Image — mobile reaches this via the sticky header's overflow menu */}
       <button
         type="button"
         onClick={handleDownloadImage}
         disabled={downloading}
-        className="flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium border transition-colors disabled:opacity-60"
+        className="hidden md:flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium border transition-colors disabled:opacity-60"
         style={{
           borderColor: 'var(--color-border)',
           backgroundColor: 'var(--color-surface-raised)',
@@ -153,13 +194,13 @@ export default function OrderDetailActions({
         {downloading ? 'Generating…' : 'Download as Image'}
       </button>
 
-      {/* Cancel */}
-      {order.status !== 'delivered' && order.status !== 'cancelled' && (
+      {/* Cancel — mobile reaches this via the sticky header's overflow menu */}
+      {canCancel && (
         <button
           type="button"
           onClick={handleCancel}
           disabled={pending}
-          className="flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium border transition-colors disabled:opacity-60"
+          className="hidden md:flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium border transition-colors disabled:opacity-60"
           style={{
             borderColor: 'var(--color-danger-light)',
             color: 'var(--color-danger)',

@@ -90,7 +90,7 @@ export function ProductsClient({
     <div className="flex flex-col md:h-svh md:overflow-hidden">
       {/* Top segmented tabs — identical on mobile and desktop */}
       <div
-        className="sticky top-14 z-10 md:static flex items-center gap-1 border-b px-3 py-2 shrink-0"
+        className="sticky top-0 z-10 md:static flex items-center gap-1 border-b px-3 py-2 shrink-0"
         style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-cream)' }}
       >
         {([

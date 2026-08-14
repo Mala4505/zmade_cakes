@@ -2,10 +2,11 @@ import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { AdminSidebar, AdminBottomNav, AdminMobileTopBar } from '@/components/admin/AdminNav'
+import { AdminScrollRegion } from '@/components/admin/AdminScrollRegion'
+import { AdminHeaderProvider } from '@/components/admin/AdminHeaderContext'
 import { NavPendingProvider } from '@/components/admin/NavPendingContext'
 import { NavigationOverlay } from '@/components/admin/NavigationOverlay'
 import { NotificationProvider } from '@/components/admin/NotificationContext'
-import { NotificationBellDesktop } from '@/components/admin/NotificationBellDesktop'
 import { ServiceWorkerRegistration } from '@/components/admin/ServiceWorkerRegistration'
 import type { Notification } from '@/lib/supabase/types'
 
@@ -45,23 +46,22 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   return (
     <NotificationProvider initialNotifications={initialNotifications}>
       <NavPendingProvider>
-        <ServiceWorkerRegistration />
-        <NotificationBellDesktop />
-        <div className="flex min-h-svh" style={{ backgroundColor: 'var(--color-surface)' }}>
-          <AdminSidebar pendingCount={pendingCount} readyCount={readyCount} user={user} />
+        <AdminHeaderProvider>
+          <ServiceWorkerRegistration />
+          <div className="flex h-svh" style={{ backgroundColor: 'var(--color-surface)' }}>
+            <AdminSidebar pendingCount={pendingCount} readyCount={readyCount} user={user} />
 
-          <div className="relative flex-1 flex flex-col min-w-0">
-            <AdminMobileTopBar />
+            <div className="relative flex-1 flex flex-col min-w-0 min-h-0">
+              <AdminMobileTopBar />
 
-            <main className="admin-main flex-1 pb-20 md:pb-0" style={{ backgroundColor: 'var(--color-cream)' }}>
-              {children}
-            </main>
+              <AdminScrollRegion>{children}</AdminScrollRegion>
 
-            <NavigationOverlay />
+              <NavigationOverlay />
+            </div>
+
+            <AdminBottomNav pendingCount={pendingCount} readyCount={readyCount} />
           </div>
-
-          <AdminBottomNav pendingCount={pendingCount} readyCount={readyCount} />
-        </div>
+        </AdminHeaderProvider>
       </NavPendingProvider>
     </NotificationProvider>
   )

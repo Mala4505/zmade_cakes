@@ -89,12 +89,38 @@
   --animate-spin: spin 0.7s linear infinite;
 }
 
+/* ---- Admin shell chrome ----
+   One set of tokens for header height, tab-bar height, and safe-area
+   insets, so every consumer reads the same numbers instead of each
+   guessing 56px / 80px / top-14 independently. viewportFit: 'cover' in
+   app/layout.tsx is what makes the env() calls below resolve non-zero. */
+:root {
+  --admin-header-h: 56px;
+  --admin-tabbar-h: 56px;
+  --safe-t: env(safe-area-inset-top, 0px);
+  --safe-b: env(safe-area-inset-bottom, 0px);
+}
+
+/* PinnedOrderTotal sits `fixed`, so it positions against the viewport
+   regardless of where it's mounted in the DOM — it needs to clear the real
+   (non-fixed) tab bar's top edge on mobile, but on desktop there's no tab
+   bar at all, so it should hug the true bottom edge instead. */
+:root {
+  --pinned-total-bottom: calc(var(--admin-tabbar-h) + var(--safe-b));
+}
+@media (min-width: 768px) {
+  :root {
+    --pinned-total-bottom: 16px;
+  }
+}
+
 /* ---- Base ---- */
 
 html {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
+  overscroll-behavior-y: none;
 }
 
 body {

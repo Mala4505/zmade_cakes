@@ -33,7 +33,7 @@ export function NotificationBellDesktop() {
   }, [open])
 
   return (
-    <div className="hidden md:block fixed top-4 right-4 z-40" ref={containerRef}>
+    <div className="relative" ref={containerRef}>
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}

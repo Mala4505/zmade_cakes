@@ -16,9 +16,18 @@ const T = [0, 0.26, 0.32, 0.42, 0.5, 0.64, 0.72, 0.86, 0.92, 1]
  * a Stitch reference: mixing bowl -> tilt-pour into a pan -> two-tier cake
  * rises -> frosting swirl piped on -> swapped for a lit candle, then resets.
  *
- * Every element animates only `opacity` and `transform` (via wrapping `<g>`
+ * Every element animates `opacity` and `transform` (via wrapping `<g>`
  * offsets, never the SVG `x`/`y`/`cx`/`cy` attributes directly) to stay on
- * the same rule the rest of the app's motion follows.
+ * the same rule the rest of the app's motion follows. The one exception is
+ * the frosting swirl's `clipPath` wipe, which is confined to that single
+ * small path.
+ *
+ * No `filter` anywhere, deliberately. An earlier version blurred the whole
+ * scene by 1.5px at the two shape-swap moments to bridge the silhouettes.
+ * A scene-wide filter rasterises every element — including the ones not
+ * crossfading — and Framer drives `filter` on the main thread, so the
+ * softness outlasted its keyframes during a form submit. The swaps already
+ * crossfade over 260-350ms on their own opacity tracks, which is enough.
  */
 export function CakeLoader({
   size = 96,
@@ -124,100 +133,88 @@ export function CakeLoader({
     values: [0, 1.2, 0],
     transition: { duration: 0.9, repeat: Infinity, ease: EASE_OUT_QUART },
   }
-  // The two shape-swap moments (bowl->pour, pour->cake) get a brief blur to
-  // bridge the silhouettes, since both are moments where genuinely
-  // different shapes overlap.
-  const sceneBlur = {
-    values: [
-      'blur(0px)', 'blur(1.5px)', 'blur(0px)', 'blur(0px)', 'blur(1.5px)',
-      'blur(0px)', 'blur(0px)', 'blur(0px)', 'blur(0px)', 'blur(0px)',
-    ],
-    transition: { duration: DURATION, times: T, repeat: Infinity, ease: EASE_OUT_QUART },
-  }
 
   return (
     <div className={cn('flex flex-col items-center gap-3', className)}>
       <svg width={size} height={size} viewBox="0 0 100 100" fill="none" aria-hidden="true">
-        <motion.g animate={{ filter: sceneBlur.values }} transition={sceneBlur.transition}>
-          {/* Mixing bowl + whisk */}
-          <motion.g animate={{ opacity: bowl.values }} transition={bowl.transition}>
-            <motion.g animate={{ rotate: bowlJiggle.values }} transition={bowlJiggle.transition} style={{ originX: '50px', originY: '65px' }}>
-              <path
-                d="M28 46 Q26 46 27 50 L33 74 Q35 80 42 80 L58 80 Q65 80 67 74 L73 50 Q74 46 72 46 Q60 44 50 44 Q40 44 28 46 Z"
-                fill="var(--color-ink)"
-              />
-              <rect x="44" y="79" width="12" height="5" rx="2" fill="var(--color-ink)" />
-            </motion.g>
-            <motion.g
-              animate={{ rotate: whiskRotate.values }}
-              transition={whiskRotate.transition}
-              style={{ originX: '68px', originY: '22px' }}
-            >
-              <line x1="68" y1="22" x2="52" y2="46" stroke="var(--color-ink)" strokeWidth="5" strokeLinecap="round" />
-              <path d="M52 46 Q45 53 48 61 Q50 65 52 61 Q54 53 52 46" stroke="var(--color-ink)" strokeWidth="1.6" fill="none" />
-              <path d="M52 46 Q59 53 56 61 Q54 65 52 61" stroke="var(--color-ink)" strokeWidth="1.6" fill="none" />
-            </motion.g>
-          </motion.g>
-
-          {/* Tilt-pour into pan. Pan painted first so the stream (painted
-              after) stays visible flowing down into it. The vessel animates
-              its own tip-over instead of appearing already-tilted. */}
-          <motion.g animate={{ opacity: pour.values }} transition={pour.transition}>
-            <ellipse cx="58" cy="78" rx="26" ry="9" fill="var(--color-ink)" />
-            <motion.g animate={{ rotate: vessel.values }} transition={vessel.transition} style={{ originX: '36px', originY: '38px' }}>
-              <path
-                d="M20 30 Q18 30 19 34 L24 46 Q26 50 32 50 L42 50 Q48 50 50 46 L54 34 Q55 30 53 30 Q42 27 36 27 Q28 27 20 30 Z"
-                fill="var(--color-ink)"
-              />
-            </motion.g>
-            <motion.path
-              d="M44 44 Q48 52 52 60 Q57 68 61 74 Q63 77 60 79 Q55 76 51 70 Q45 60 41 48 Z"
+        {/* Mixing bowl + whisk */}
+        <motion.g animate={{ opacity: bowl.values }} transition={bowl.transition}>
+          <motion.g animate={{ rotate: bowlJiggle.values }} transition={bowlJiggle.transition} style={{ originX: '50px', originY: '65px' }}>
+            <path
+              d="M28 46 Q26 46 27 50 L33 74 Q35 80 42 80 L58 80 Q65 80 67 74 L73 50 Q74 46 72 46 Q60 44 50 44 Q40 44 28 46 Z"
               fill="var(--color-ink)"
-              animate={{ scaleY: stream.values, opacity: stream.opacityValues }}
-              transition={stream.transition}
-              style={{ originX: '48px', originY: '45px' }}
             />
-            <path d="M34 75 Q58 68 82 75" stroke="var(--color-cream)" strokeWidth="1.6" fill="none" />
+            <rect x="44" y="79" width="12" height="5" rx="2" fill="var(--color-ink)" />
           </motion.g>
-
-          {/* Two-tier cake body — shared between the swirl and candle stages */}
-          <motion.g animate={{ opacity: cakeOpacity.values, y: cakeY.values }} transition={cakeOpacity.transition}>
-            <rect x="26" y="64" width="48" height="17" rx="4" fill="var(--color-ink)" />
-            <rect x="34" y="50" width="32" height="15" rx="4" fill="var(--color-ink)" />
-            <rect x="32" y="63" width="36" height="2" fill="var(--color-cream)" />
+          <motion.g
+            animate={{ rotate: whiskRotate.values }}
+            transition={whiskRotate.transition}
+            style={{ originX: '68px', originY: '22px' }}
+          >
+            <line x1="68" y1="22" x2="52" y2="46" stroke="var(--color-ink)" strokeWidth="5" strokeLinecap="round" />
+            <path d="M52 46 Q45 53 48 61 Q50 65 52 61 Q54 53 52 46" stroke="var(--color-ink)" strokeWidth="1.6" fill="none" />
+            <path d="M52 46 Q59 53 56 61 Q54 65 52 61" stroke="var(--color-ink)" strokeWidth="1.6" fill="none" />
           </motion.g>
+        </motion.g>
 
-          {/* Frosting swirl, piped on bottom-up */}
+        {/* Tilt-pour into pan. Pan painted first so the stream (painted
+            after) stays visible flowing down into it. The vessel animates
+            its own tip-over instead of appearing already-tilted. */}
+        <motion.g animate={{ opacity: pour.values }} transition={pour.transition}>
+          <ellipse cx="58" cy="78" rx="26" ry="9" fill="var(--color-ink)" />
+          <motion.g animate={{ rotate: vessel.values }} transition={vessel.transition} style={{ originX: '36px', originY: '38px' }}>
+            <path
+              d="M20 30 Q18 30 19 34 L24 46 Q26 50 32 50 L42 50 Q48 50 50 46 L54 34 Q55 30 53 30 Q42 27 36 27 Q28 27 20 30 Z"
+              fill="var(--color-ink)"
+            />
+          </motion.g>
           <motion.path
-            d="M46 50 Q44 44 48 40 Q52 36 50 32 Q54 34 55 38 Q57 42 53 46 Q50 49 46 50 Z"
+            d="M44 44 Q48 52 52 60 Q57 68 61 74 Q63 77 60 79 Q55 76 51 70 Q45 60 41 48 Z"
             fill="var(--color-ink)"
-            animate={{ opacity: swirlOpacity.values, clipPath: swirlClip.values }}
-            transition={swirlOpacity.transition}
+            animate={{ scaleY: stream.values, opacity: stream.opacityValues }}
+            transition={stream.transition}
+            style={{ originX: '48px', originY: '45px' }}
           />
+          <path d="M34 75 Q58 68 82 75" stroke="var(--color-cream)" strokeWidth="1.6" fill="none" />
+        </motion.g>
 
-          {/* Candle — the single accent color. Landing ripple, then the flame
-              flickers continuously on its own faster loop. */}
-          <motion.circle
-            cx="50"
-            cy="48"
-            r="4.5"
-            fill="none"
-            stroke="var(--color-teal)"
-            strokeWidth="1.5"
-            animate={{ opacity: ripple.opacityValues, scale: ripple.scaleValues }}
-            transition={ripple.transition}
-            style={{ originX: '50px', originY: '48px' }}
+        {/* Two-tier cake body — shared between the swirl and candle stages */}
+        <motion.g animate={{ opacity: cakeOpacity.values, y: cakeY.values }} transition={cakeOpacity.transition}>
+          <rect x="26" y="64" width="48" height="17" rx="4" fill="var(--color-ink)" />
+          <rect x="34" y="50" width="32" height="15" rx="4" fill="var(--color-ink)" />
+          <rect x="32" y="63" width="36" height="2" fill="var(--color-cream)" />
+        </motion.g>
+
+        {/* Frosting swirl, piped on bottom-up */}
+        <motion.path
+          d="M46 50 Q44 44 48 40 Q52 36 50 32 Q54 34 55 38 Q57 42 53 46 Q50 49 46 50 Z"
+          fill="var(--color-ink)"
+          animate={{ opacity: swirlOpacity.values, clipPath: swirlClip.values }}
+          transition={swirlOpacity.transition}
+        />
+
+        {/* Candle — the single accent color. Landing ripple, then the flame
+            flickers continuously on its own faster loop. */}
+        <motion.circle
+          cx="50"
+          cy="48"
+          r="4.5"
+          fill="none"
+          stroke="var(--color-teal)"
+          strokeWidth="1.5"
+          animate={{ opacity: ripple.opacityValues, scale: ripple.scaleValues }}
+          transition={ripple.transition}
+          style={{ originX: '50px', originY: '48px' }}
+        />
+        <motion.g animate={{ opacity: candleOpacity.values, y: candleY.values }} transition={{ opacity: candleOpacity.transition, y: candleY.transition }}>
+          <rect x="48" y="32" width="4" height="17" rx="1" fill="var(--color-ink)" />
+          <motion.path
+            d="M50 20 Q46 26 47.5 30 Q48.5 32.5 50 32.5 Q51.5 32.5 52.5 30 Q54 26 50 20 Z"
+            fill="var(--color-teal)"
+            animate={{ scaleY: flame.values, rotate: flame.rotate }}
+            transition={flame.transition}
+            style={{ originX: '50px', originY: '32px' }}
           />
-          <motion.g animate={{ opacity: candleOpacity.values, y: candleY.values }} transition={{ opacity: candleOpacity.transition, y: candleY.transition }}>
-            <rect x="48" y="32" width="4" height="17" rx="1" fill="var(--color-ink)" />
-            <motion.path
-              d="M50 20 Q46 26 47.5 30 Q48.5 32.5 50 32.5 Q51.5 32.5 52.5 30 Q54 26 50 20 Z"
-              fill="var(--color-teal)"
-              animate={{ scaleY: flame.values, rotate: flame.rotate }}
-              transition={flame.transition}
-              style={{ originX: '50px', originY: '32px' }}
-            />
-          </motion.g>
         </motion.g>
       </svg>
       {label && (

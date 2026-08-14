@@ -34,7 +34,7 @@ export function PinnedOrderTotal({ anchorRef, total }: Props) {
   if (!pinned || total === null) return null
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-30 px-4 pointer-events-none" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+    <div className="fixed inset-x-0 z-30 px-4 pointer-events-none" style={{ bottom: 'var(--pinned-total-bottom)' }}>
       <div
         className="mx-auto max-w-lg rounded-t-xl border border-b-0 px-4 py-2.5 flex items-center justify-between pointer-events-auto"
         style={{
