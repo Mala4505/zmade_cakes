@@ -102,6 +102,34 @@ function LogoutButton() {
   )
 }
 
+/**
+ * Desktop-only, full-width top bar. Replaces cramming the wordmark and the
+ * notification bell into the sidebar's own 240px-wide header row — that row
+ * was ~30-40px too narrow to hold both without overflowing its edge. This
+ * gives both room, and the sidebar goes back to being nav-only.
+ */
+export function AdminTopBar() {
+  return (
+    <header
+      className="hidden lg:flex items-center gap-2.5 h-14 px-6 border-b shrink-0"
+      style={{
+        backgroundColor: 'var(--color-cream)',
+        borderColor: 'var(--color-border)',
+      }}
+    >
+      <Image src="/logo.svg" alt="" width={32} height={32} style={{ width: 32, height: 32, flexShrink: 0 }} priority />
+      <span
+        className="text-lg font-semibold tracking-tight"
+        style={{ fontFamily: 'var(--font-display)', color: 'var(--color-ink)' }}
+      >
+        ZMade Cakes
+      </span>
+      <span className="flex-1" />
+      <NotificationBellDesktop />
+    </header>
+  )
+}
+
 export function AdminSidebar({
   pendingCount,
   readyCount,
@@ -115,27 +143,12 @@ export function AdminSidebar({
 
   return (
     <aside
-      className="hidden md:flex flex-col w-60 h-svh sticky top-0 shrink-0 border-r drop-shadow-sm"
+      className="hidden lg:flex flex-col w-60 shrink-0 border-r"
       style={{
         backgroundColor: 'var(--color-cream)',
         borderColor: 'var(--color-border)',
       }}
     >
-      <div
-        className="flex items-center gap-2.5 h-14 px-5 border-b shrink-0"
-        style={{ borderColor: 'var(--color-border)' }}
-      >
-        <Image src="/logo.svg" alt="" width={36} height={36} style={{ width: 36, height: 36, flexShrink: 0 }} priority />
-        <span
-          className="text-lg font-semibold tracking-tight"
-          style={{ fontFamily: 'var(--font-display)', color: 'var(--color-ink)' }}
-        >
-          ZMade Cakes
-        </span>
-        <span className="flex-1" />
-        <NotificationBellDesktop />
-      </div>
-
       <nav className="flex-1 overflow-y-auto px-3 py-4 flex flex-col gap-1">
         {NAV_ITEMS.map(({ href, label, Icon, exact }) => {
           const active = isActive(pathname, href, exact)
@@ -261,11 +274,15 @@ export function AdminBottomNav({
   return (
     <>
       <nav
-        className="md:hidden shrink-0 flex border-t"
+        className="lg:hidden shrink-0 flex border-t"
         style={{
           backgroundColor: 'var(--color-cream)',
           borderColor: 'var(--color-border)',
-          paddingBottom: 'var(--safe-b)',
+          // A little cushion beyond the raw inset: env(safe-area-inset-bottom)
+          // reports 0 on Android and outside an installed PWA, so without an
+          // always-on minimum the tab labels sit flush against the literal
+          // bottom edge of the screen on those devices.
+          paddingBottom: 'calc(var(--safe-b) + 8px)',
         }}
       >
         {primaryItems.map(({ href, label, Icon, exact }) => (
@@ -360,7 +377,7 @@ export function AdminMobileTopBar() {
   return (
     <>
       <header
-        className="md:hidden flex items-center gap-2.5 h-14 px-4 border-b shrink-0 z-30"
+        className="lg:hidden flex items-center gap-2.5 h-14 px-4 border-b shrink-0 z-30"
         style={{
           backgroundColor: 'var(--color-cream)',
           borderColor: 'var(--color-border)',

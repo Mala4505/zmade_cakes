@@ -10,7 +10,7 @@ export function SettingsSidebar() {
 
   return (
     <aside
-      className="hidden md:flex flex-col w-52 shrink-0 border-r h-svh sticky top-0"
+      className="hidden lg:flex flex-col w-52 shrink-0 border-r"
       style={{
         backgroundColor: 'var(--color-surface)',
         borderColor: 'var(--color-border)',

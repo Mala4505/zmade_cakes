@@ -8,8 +8,8 @@ export const metadata: Metadata = { title: 'Settings' }
 export default function SettingsPage() {
   return (
     <>
-      {/* Mobile: the card grid is the settings hub (sidebar is hidden < md) */}
-      <div className="md:hidden px-4 py-6">
+      {/* Mobile: the card grid is the settings hub (sidebar is hidden < lg) */}
+      <div className="lg:hidden px-4 py-6">
         <h1 className="text-2xl font-bold tracking-tight" style={{ color: 'var(--color-ink)' }}>
           Settings
         </h1>
@@ -42,7 +42,7 @@ export default function SettingsPage() {
       </div>
 
       {/* Desktop: sidebar already lists sections, so the index is a quiet prompt */}
-      <div className="hidden md:flex flex-col items-center justify-center h-svh gap-3 text-center px-6" style={{ color: 'var(--color-ink-muted)' }}>
+      <div className="hidden lg:flex flex-col items-center justify-center h-full min-h-[50vh] gap-3 text-center px-6" style={{ color: 'var(--color-ink-muted)' }}>
         <SlidersHorizontal size={40} weight="thin" />
         <div>
           <p className="text-sm font-medium" style={{ color: 'var(--color-ink-secondary)' }}>
