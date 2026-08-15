@@ -4,7 +4,7 @@ import { PageHeader } from '@/components/admin/PageHeader'
 import InquiryForm from '../_components/InquiryForm'
 import type { Metadata } from 'next'
 
-export const metadata: Metadata = { title: 'New Inquiry' }
+export const metadata: Metadata = { title: 'New Order' }
 
 export default async function NewInquiryPage() {
   const [flavors, sizes, occasions, items, settingsResult, blackoutsResult] = await Promise.all([
@@ -36,7 +36,7 @@ export default async function NewInquiryPage() {
   return (
     <div className="px-4 py-6 md:px-8 md:py-8 max-w-2xl mx-auto">
       <PageHeader
-        title="New Inquiry"
+        title="New Order"
         subtitle="Fill in the customer's order details"
         backHref="/admin/inquiries"
         backLabel="Inquiries"

@@ -1,7 +1,42 @@
 import { createServiceClient } from '@/lib/supabase/server'
 import OrderForm from './_components/OrderForm'
 
-export default async function OrderPage() {
+// Landing-page flavor names (app/_components/LandingPage.tsx) and this table's
+// `name` column have drifted apart over time — different casing, some flavors
+// only exist on one side. Resolve loosely instead of requiring an exact match,
+// so a flavor card's "Order this cake" link still finds its flavor even when
+// the wording isn't byte-identical. Returns undefined (leaving the field blank)
+// rather than guessing wrong.
+function normalizeFlavorName(name: string): string {
+  return name.trim().toLowerCase().replace(/\s+cake$/, '')
+}
+
+function resolveFlavorName(param: string | undefined, flavors: { name: string }[]): string | undefined {
+  if (!param) return undefined
+  const target = normalizeFlavorName(param)
+  if (!target) return undefined
+  const targetWords = target.split(/\s+/).filter(Boolean)
+
+  for (const f of flavors) {
+    if (normalizeFlavorName(f.name) === target) return f.name
+  }
+  for (const f of flavors) {
+    const candidate = normalizeFlavorName(f.name)
+    if (candidate.startsWith(target) || target.startsWith(candidate)) return f.name
+  }
+  for (const f of flavors) {
+    const candidate = normalizeFlavorName(f.name)
+    if (targetWords.every(word => candidate.includes(word))) return f.name
+  }
+  return undefined
+}
+
+export default async function OrderPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ flavor?: string; type?: string }>
+}) {
+  const { flavor: flavorParam, type: typeParam } = await searchParams
   const supabase = createServiceClient()
 
   const [flavorsRes, sizesRes, occasionsRes, blackoutsRes, minLeadDaysRow] = await Promise.all([
@@ -27,6 +62,11 @@ export default async function OrderPage() {
   }
 
   const minLeadDays = parseInt((minLeadDaysRow.data?.value as string) ?? '3')
+  const resolvedFlavor = resolveFlavorName(flavorParam, flavorsRes.data ?? [])
+  const matchedFlavor = (flavorsRes.data ?? []).find(f => f.name === resolvedFlavor)
+  // Only honor "customize" (theme cake) when the resolved flavor actually supports it —
+  // otherwise fall back to the normal cake type instead of pre-selecting a disabled option.
+  const initialCakeType = typeParam === 'theme' && matchedFlavor?.theme_available ? 'theme' : undefined
 
   return (
     <OrderForm
@@ -35,6 +75,8 @@ export default async function OrderPage() {
       occasions={occasionsRes.data ?? []}
       blackouts={(blackoutsRes.data ?? []) as { id: string; date_from: string; date_to: string; reason: string }[]}
       minLeadDays={minLeadDays}
+      initialFlavor={resolvedFlavor}
+      initialCakeType={initialCakeType}
     />
   )
 }

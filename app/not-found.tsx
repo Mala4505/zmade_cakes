@@ -1,9 +1,8 @@
 import { createServiceClient } from '@/lib/supabase/server'
 import { Navbar } from '@/components/public/Navbar'
-import { BRAND_NAME } from '@/lib/brand'
 import type { Metadata } from 'next'
 
-export const metadata: Metadata = { title: `Page Not Found — ${BRAND_NAME}` }
+export const metadata: Metadata = { title: 'Page Not Found' }
 
 export default async function NotFound() {
   const supabase = createServiceClient()

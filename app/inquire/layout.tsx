@@ -3,7 +3,7 @@ import { Navbar } from '@/components/public/Navbar'
 import { BRAND_NAME } from '@/lib/brand'
 
 export const metadata: Metadata = {
-  title: `Order a Cake — ${BRAND_NAME}`,
+  title: 'Inquire About a Cake',
   description: `Submit a custom cake inquiry to ${BRAND_NAME}`,
 }
 

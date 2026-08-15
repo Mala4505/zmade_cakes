@@ -1,38 +1,43 @@
 import { Badge, type BadgeVariant } from '@/components/ui/Badge'
-import type { InquiryStatus, OrderStatus, PaymentStatus } from '@/lib/supabase/types'
+import type { Inquiry, InquiryStatus, OrderStatus, PaymentStatus } from '@/lib/supabase/types'
+import { pendingRecordLabel } from '@/lib/format'
 
 type Status = InquiryStatus | OrderStatus
 
-// Admin-facing labels: 'delivered' reads as "Dispatched" — the DB value is unchanged, this is
-// a UI-only relabel for the admin flow (Confirmed -> Ready -> Dispatched).
+// Admin and customer now share identical wording end to end (no more admin-only "Dispatched"
+// vs customer-facing "Delivered" split — that distinction was confusing and has been dropped).
+// The two configs are kept separate because call sites still pass a `context` prop and may
+// diverge again later; today they resolve to the same labels. The 'pending' label below is
+// the fallback used when no `source` is passed in — pass `source` to get the record-accurate
+// "Order" / "Inquiry" wording via pendingRecordLabel() instead.
 const ADMIN_STATUS_CONFIG: Record<Status, { label: string; variant: BadgeVariant }> = {
   pending:                { label: 'Inquired',          variant: 'neutral' },
   confirmed:              { label: 'Confirmed',         variant: 'teal'    },
-  ready:                  { label: 'Ready',             variant: 'success' },
-  delivered:              { label: 'Dispatched',        variant: 'neutral' },
+  delivered:              { label: 'Delivered',         variant: 'neutral' },
   cancelled:              { label: 'Cancelled',         variant: 'danger'  },
 }
 
-// Customer-facing labels keep "Delivered" copy — never show "Dispatched" to customers.
 const CUSTOMER_STATUS_CONFIG: Record<Status, { label: string; variant: BadgeVariant }> = {
   ...ADMIN_STATUS_CONFIG,
-  delivered: { label: 'Delivered', variant: 'neutral' },
 }
 
 export function StatusBadge({
   status,
+  source,
   className,
   context = 'admin',
 }: {
   status: Status
+  source?: Inquiry['source']
   className?: string
   context?: 'admin' | 'customer'
 }) {
   const config = context === 'customer' ? CUSTOMER_STATUS_CONFIG : ADMIN_STATUS_CONFIG
   const cfg = config[status] ?? config.pending
+  const label = status === 'pending' && source ? pendingRecordLabel(source) : cfg.label
   return (
     <Badge variant={cfg.variant} className={className}>
-      {cfg.label}
+      {label}
     </Badge>
   )
 }

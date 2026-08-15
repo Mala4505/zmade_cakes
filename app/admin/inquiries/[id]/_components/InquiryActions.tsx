@@ -6,7 +6,6 @@ import { updateInquiryStatus } from '@/lib/actions/inquiries'
 import { toast } from 'sonner'
 import {
   CheckCircle,
-  Package,
   Truck,
   Spinner,
   WhatsappLogo,
@@ -19,16 +18,14 @@ import WhatsAppButton from '@/components/admin/WhatsAppButton'
 
 const NEXT_STEP: Record<string, { label: string; Icon: React.ElementType } | null> = {
   pending: { label: 'Mark as Confirmed', Icon: CheckCircle },
-  confirmed: { label: 'Mark as Ready', Icon: Package },
-  ready: { label: 'Mark as Dispatched', Icon: Truck },
+  confirmed: { label: 'Mark as Delivered', Icon: Truck },
   delivered: null,
   cancelled: null,
 }
 
 const STATUS_PROGRESSION: Record<string, InquiryStatus> = {
   pending: 'confirmed',
-  confirmed: 'ready',
-  ready: 'delivered',
+  confirmed: 'delivered',
 }
 
 export default function InquiryActions({
@@ -143,7 +140,7 @@ export default function InquiryActions({
           Quick Message
         </p>
 
-        {/* Single status-driven WhatsApp action: confirmation, balance due, or order ready — never more than one */}
+        {/* Single status-driven WhatsApp action: confirmation, balance due, or order delivered — never more than one */}
         {waAction.kind !== 'plain' && (
           <div className="flex gap-2">
             <div className="flex-1">

@@ -29,6 +29,9 @@ interface Props {
   occasions: Option[]
   blackouts: Blackout[]
   minLeadDays: number
+  /** Pre-selected from a flavor card's "Order this cake" / "Customize" link on the landing page. */
+  initialFlavor?: string
+  initialCakeType?: 'theme'
 }
 
 function isDateBlackedOut(date: string, blackouts: Blackout[]): boolean {
@@ -107,7 +110,15 @@ const defaultItem: PublicInquiryInput['items'][number] = {
   special_requirements: '',
 }
 
-export default function OrderForm({ flavors, sizes, occasions, blackouts, minLeadDays }: Props) {
+export default function OrderForm({
+  flavors,
+  sizes,
+  occasions,
+  blackouts,
+  minLeadDays,
+  initialFlavor,
+  initialCakeType,
+}: Props) {
   const router = useRouter()
   const [step, setStep] = useState(1)
   // 1 = forward, -1 = back; drives the slide direction of step transitions.
@@ -127,7 +138,11 @@ export default function OrderForm({ flavors, sizes, occasions, blackouts, minLea
   const defaultValues: PublicInquiryInput = {
     customer_name: '',
     customer_phone: '',
-    items: [{ ...defaultItem }],
+    items: [{
+      ...defaultItem,
+      ...(initialFlavor ? { flavor: initialFlavor } : {}),
+      ...(initialCakeType ? { cake_type: initialCakeType } : {}),
+    }],
     allergen_nut_free: false,
     allergen_dairy_free: false,
     allergen_egg_free: false,
@@ -220,7 +235,7 @@ export default function OrderForm({ flavors, sizes, occasions, blackouts, minLea
   // page load with step info — not adding a new entry (which would give an extra,
   // no-op Back press). Note this only tags the *current* entry; it doesn't
   // synthesize a full stack of entries for steps below a restored one, so Back
-  // from a restored mid-wizard position leaves /order rather than stepping down
+  // from a restored mid-wizard position leaves /inquire rather than stepping down
   // through the wizard — an accepted gap since sessionStorage restore-on-refresh
   // is a separate, already-solved concern from history navigation.
   useEffect(() => {
@@ -243,7 +258,7 @@ export default function OrderForm({ flavors, sizes, occasions, blackouts, minLea
   }, [])
 
   // Listen for the browser/OS Back (and Forward) button so it steps the wizard
-  // instead of leaving /order. This uses the native History API directly rather
+  // instead of leaving /inquire. This uses the native History API directly rather
   // than next/navigation's router: per the Next.js docs (see
   // node_modules/next/dist/docs/01-app/01-getting-started/04-linking-and-navigating.md,
   // "Native History API" section), `window.history.pushState`/`replaceState` are
@@ -363,7 +378,7 @@ export default function OrderForm({ flavors, sizes, occasions, blackouts, minLea
       }
       sessionStorage.removeItem(DRAFT_STORAGE_KEY)
       await holdMinimumVisible(startedAt, 1400)
-      router.push('/order/success')
+      router.push('/inquire/success')
     } catch {
       setServerError('Network error. Please try again.')
     }
@@ -401,7 +416,7 @@ export default function OrderForm({ flavors, sizes, occasions, blackouts, minLea
         aria-live="polite"
         aria-busy="true"
       >
-        <CakeLoader size={110} label="Sending your order…" />
+        <CakeLoader size={110} label="Sending your inquiry…" />
       </div>
     )
   }
@@ -792,7 +807,7 @@ export default function OrderForm({ flavors, sizes, occasions, blackouts, minLea
       {/* Review & Submit — the wizard's final step, whichever step number that is for the current branch */}
       {step === reviewStep && (
         <div className="flex flex-col gap-5">
-          <h2 ref={focusStepHeading} tabIndex={-1} className="text-lg font-semibold mb-4 outline-none" style={{ color: 'var(--color-ink)' }}>Review your order</h2>
+          <h2 ref={focusStepHeading} tabIndex={-1} className="text-lg font-semibold mb-4 outline-none" style={{ color: 'var(--color-ink)' }}>Review your inquiry</h2>
 
           {/* Customer summary */}
           <section className="rounded-xl border p-4 flex flex-col gap-2" style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
@@ -879,7 +894,7 @@ export default function OrderForm({ flavors, sizes, occasions, blackouts, minLea
           )}
 
           <p className="text-xs" style={{ color: 'var(--color-ink-muted)' }}>
-            We&apos;ll review your order and send a confirmation link on WhatsApp, usually within a few hours.
+            We&apos;ll review your inquiry and send a confirmation link on WhatsApp, usually within a few hours.
           </p>
         </div>
       )}
@@ -927,7 +942,7 @@ export default function OrderForm({ flavors, sizes, occasions, blackouts, minLea
           </Button>
         ) : (
           <Button key="submit" type="submit" size="lg" className="flex-1 rounded-xl" loading={isSubmitting}>
-            {isSubmitting ? 'Sending…' : 'Send My Order'}
+            {isSubmitting ? 'Sending…' : 'Send My Inquiry'}
           </Button>
         )}
       </div>

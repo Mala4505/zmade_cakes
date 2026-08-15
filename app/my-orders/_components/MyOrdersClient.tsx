@@ -305,11 +305,11 @@ function MyOrdersContent({ businessPhone, businessInstagram }: Props) {
               Submitted a new order recently? It may take a moment to appear.
             </p>
             <Link
-              href="/order"
+              href="/inquire"
               className="text-sm font-medium mt-1"
               style={{ color: 'var(--color-teal)' }}
             >
-              Place a new order →
+              Submit a new inquiry →
             </Link>
           </div>
         )}

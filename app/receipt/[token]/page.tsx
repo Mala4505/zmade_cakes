@@ -5,12 +5,11 @@ import { Navbar } from '@/components/public/Navbar'
 import { getBusinessContactSettings } from '@/lib/supabase/business-settings'
 import { PrintButton } from '@/app/invoice/[token]/_components/PrintButton'
 import { DownloadPaymentReceiptButton } from './_components/DownloadPaymentReceiptButton'
-import { BRAND_NAME } from '@/lib/brand'
 import type { Metadata } from 'next'
 
 interface Props { params: Promise<{ token: string }> }
 
-export const metadata: Metadata = { title: `Payment Receipt — ${BRAND_NAME}` }
+export const metadata: Metadata = { title: 'Payment Receipt' }
 
 export default async function PaymentReceiptPage({ params }: Props) {
   const { token } = await params

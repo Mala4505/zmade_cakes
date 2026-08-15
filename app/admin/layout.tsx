@@ -24,15 +24,17 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   if (!user) redirect('/login')
 
-  const [pendingRes, readyRes, notificationsRes] = await Promise.all([
+  const [pendingRes, activeOrdersRes, notificationsRes] = await Promise.all([
     supabase
       .from('inquiries')
       .select('id', { count: 'exact', head: true })
       .eq('status', 'pending'),
+    // "Active orders" = confirmed but not yet delivered — the natural needs-attention
+    // bucket now that the 'ready' status no longer exists.
     supabase
       .from('orders')
       .select('id', { count: 'exact', head: true })
-      .eq('status', 'ready'),
+      .eq('status', 'confirmed'),
     supabase
       .from('notifications')
       .select('*')
@@ -40,7 +42,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       .limit(50),
   ])
   const pendingCount = pendingRes.count ?? 0
-  const readyCount = readyRes.count ?? 0
+  const activeOrdersCount = activeOrdersRes.count ?? 0
   const initialNotifications = (notificationsRes.data ?? []) as Notification[]
 
   return (
@@ -56,7 +58,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             <AdminMobileTopBar />
 
             <div className="flex flex-1 min-h-0">
-              <AdminSidebar pendingCount={pendingCount} readyCount={readyCount} user={user} />
+              <AdminSidebar pendingCount={pendingCount} activeOrdersCount={activeOrdersCount} user={user} />
 
               <div className="relative flex-1 flex flex-col min-w-0 min-h-0">
                 <AdminScrollRegion>{children}</AdminScrollRegion>
@@ -65,7 +67,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
               </div>
             </div>
 
-            <AdminBottomNav pendingCount={pendingCount} readyCount={readyCount} />
+            <AdminBottomNav pendingCount={pendingCount} activeOrdersCount={activeOrdersCount} />
           </div>
         </AdminHeaderProvider>
       </NavPendingProvider>

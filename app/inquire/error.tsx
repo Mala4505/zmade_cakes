@@ -19,7 +19,7 @@ export default function OrderError({
 
   return (
     <ErrorState
-      title="We couldn't load the order form"
+      title="We couldn't load the inquiry form"
       description="Something went wrong on our side. Please try again, or reach out to us on WhatsApp if it keeps happening."
       onRetry={() => (unstable_retry ?? reset)()}
     />

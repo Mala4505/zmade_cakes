@@ -104,7 +104,7 @@ export async function createInquiry(
   }
 
   {
-    const title = 'New Inquiry Created'
+    const title = 'New Order Created'
     const body = `${inquiry.customer_name} — ${orderSummary(items)} for ${inquiry.event_date}`
     const { data } = await supabase
       .from('notifications')
@@ -530,7 +530,7 @@ export async function updateInquiryStatus(
   if (!user) return { data: null, error: 'Unauthorized', fieldErrors: null }
 
   // Orders are the source of truth from 'confirmed' onward — sync_order_status mirrors
-  // ready/delivered/cancelled back onto the inquiry. Without this, admins progressing an
+  // delivered/cancelled back onto the inquiry. Without this, admins progressing an
   // inquiry through the status dropdown/next-step button (rather than the customer
   // confirmation link) would set inquiries.status with no matching orders row, making the
   // order invisible everywhere that reads from `orders` (e.g. the calendar).
@@ -541,7 +541,7 @@ export async function updateInquiryStatus(
     .maybeSingle()
   if (orderLookupError) return { data: null, error: orderLookupError.message, fieldErrors: null }
 
-  if (existingOrder && (status === 'ready' || status === 'delivered' || status === 'cancelled')) {
+  if (existingOrder && (status === 'delivered' || status === 'cancelled')) {
     const { error } = await supabase.rpc('sync_order_status', {
       p_order_id: existingOrder.id,
       p_new_status: status,

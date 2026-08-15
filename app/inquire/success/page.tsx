@@ -5,7 +5,7 @@ import type { Metadata } from 'next'
 import { BRAND_NAME } from '@/lib/brand'
 import { Button } from '@/components/ui/Button'
 
-export const metadata: Metadata = { title: `Order Received — ${BRAND_NAME}` }
+export const metadata: Metadata = { title: 'Inquiry Received' }
 
 export default async function OrderSuccessPage() {
   const { businessPhone: phone, businessInstagram: instagram } = await getBusinessContactSettings()
@@ -19,7 +19,7 @@ export default async function OrderSuccessPage() {
         <CheckCircle size={64} weight="fill" />
       </div>
       <div className="flex flex-col gap-2">
-        <h1 className="text-2xl font-bold" style={{ color: 'var(--color-ink)' }}>We've received your order!</h1>
+        <h1 className="text-2xl font-bold" style={{ color: 'var(--color-ink)' }}>We've received your inquiry!</h1>
         <p className="text-sm" style={{ color: 'var(--color-ink-secondary)' }}>
           We'll review your request and send you a confirmation link on WhatsApp soon.
         </p>
@@ -27,7 +27,7 @@ export default async function OrderSuccessPage() {
       <div className="w-full flex flex-col gap-3">
         {waNumber && (
           <Button
-            href={`https://wa.me/${waNumber}?text=${encodeURIComponent(`Hi, I just submitted a cake order on ${BRAND_NAME}!`)}`}
+            href={`https://wa.me/${waNumber}?text=${encodeURIComponent(`Hi, I just submitted a cake inquiry on ${BRAND_NAME}!`)}`}
             variant="primary"
             size="lg"
             className="rounded-xl w-full"

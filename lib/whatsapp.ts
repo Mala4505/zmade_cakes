@@ -29,7 +29,7 @@ export interface WhatsAppActionInput {
   delivery_charge?: string | null
   final_price?: string | number | null   // order-stage frozen price, takes precedence over admin_price/discount when present
   confirmationLinkUrl?: string       // precomputed server-side (confirmationLink(token))
-  fallbackLinkUrl?: string           // precomputed tracking/my-orders link, used for order-ready & balance-due messages
+  fallbackLinkUrl?: string           // precomputed tracking/my-orders link, used for order-delivered & balance-due messages
 }
 
 function withGuaranteedLink(text: string, link?: string): string {
@@ -40,7 +40,7 @@ function withGuaranteedLink(text: string, link?: string): string {
 export function pickWhatsAppAction(
   input: WhatsAppActionInput,
   templates: WhatsAppTemplates | undefined
-): { label: string; text: string; linkUrl?: string; kind: 'confirmation' | 'balance-due' | 'order-ready' | 'plain' } {
+): { label: string; text: string; linkUrl?: string; kind: 'confirmation' | 'balance-due' | 'order-delivered' | 'plain' } {
   const firstName = input.customer_name.split(' ')[0]
 
   // 1. Not yet confirmed by the customer
@@ -75,17 +75,17 @@ export function pickWhatsAppAction(
         }
       }
       // no link available for balance-due — downgrade to plain below
-    } else if (input.status === 'confirmed' || input.status === 'ready' || input.status === undefined) {
-      // 3. Order ready (or order-stage call site with no status field at all)
+    } else if (input.status === 'confirmed' || input.status === undefined) {
+      // 3. Order delivered (or order-stage call site with no status field at all)
       if (input.fallbackLinkUrl) {
         const rawText = interpolate(
-          templates?.orderReady ?? DEFAULT_WHATSAPP_TEMPLATES.orderReady,
+          templates?.orderDelivered ?? DEFAULT_WHATSAPP_TEMPLATES.orderDelivered,
           { name: firstName, link: input.fallbackLinkUrl }
         )
         const text = withGuaranteedLink(rawText, input.fallbackLinkUrl)
-        return { label: 'Order Ready', text, linkUrl: input.fallbackLinkUrl, kind: 'order-ready' }
+        return { label: 'Order Delivered', text, linkUrl: input.fallbackLinkUrl, kind: 'order-delivered' }
       }
-      // no link available for order-ready — downgrade to plain below
+      // no link available for order-delivered — downgrade to plain below
     }
   }
 

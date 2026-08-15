@@ -5,20 +5,19 @@ import { useRouter } from 'next/navigation'
 import { Check, Spinner } from '@phosphor-icons/react'
 import { updateInquiryStatus } from '@/lib/actions/inquiries'
 import { toast } from 'sonner'
-import type { InquiryStatus } from '@/lib/supabase/types'
+import type { Inquiry, InquiryStatus } from '@/lib/supabase/types'
+import { pendingRecordLabel } from '@/lib/format'
 
 const STATUS_OPTIONS: { value: InquiryStatus; label: string }[] = [
   { value: 'pending', label: 'Inquired' },
   { value: 'confirmed', label: 'Confirmed' },
-  { value: 'ready', label: 'Ready' },
-  { value: 'delivered', label: 'Dispatched' },
+  { value: 'delivered', label: 'Delivered' },
   { value: 'cancelled', label: 'Cancelled' },
 ]
 
 const STATUS_STYLE: Record<InquiryStatus, { bg: string; color: string }> = {
   pending: { bg: 'var(--color-surface-raised)', color: 'var(--color-ink-muted)' },
   confirmed: { bg: 'var(--color-teal-light)', color: 'var(--color-teal-deep)' },
-  ready: { bg: '#f0e6ff', color: '#6b21a8' },
   delivered: { bg: 'var(--color-success-light)', color: 'var(--color-success)' },
   cancelled: { bg: 'var(--color-danger-light)', color: 'var(--color-danger)' },
 }
@@ -26,10 +25,18 @@ const STATUS_STYLE: Record<InquiryStatus, { bg: string; color: string }> = {
 export function InquiryStatusSelect({
   inquiryId,
   value,
+  source,
 }: {
   inquiryId: string
   value: InquiryStatus
+  source?: Inquiry['source']
 }) {
+  // 'pending' is the only stage where Order/Inquiry terminology differs; every other
+  // status label is unambiguous regardless of source (see pendingRecordLabel).
+  const labelFor = (status: InquiryStatus) =>
+    status === 'pending' && source
+      ? pendingRecordLabel(source)
+      : STATUS_OPTIONS.find((o) => o.value === status)?.label ?? status
   const router = useRouter()
   const [editing, setEditing] = useState(false)
   const [selected, setSelected] = useState<InquiryStatus>(value)
@@ -96,7 +103,7 @@ export function InquiryStatusSelect({
         style={{ backgroundColor: style.bg, color: style.color }}
         title="Click to change status"
       >
-        {STATUS_OPTIONS.find(o => o.value === value)?.label ?? value}
+        {labelFor(value)}
       </button>
     )
   }
@@ -115,7 +122,7 @@ export function InquiryStatusSelect({
         }}
       >
         {STATUS_OPTIONS.map(o => (
-          <option key={o.value} value={o.value}>{o.label}</option>
+          <option key={o.value} value={o.value}>{labelFor(o.value)}</option>
         ))}
       </select>
       <button

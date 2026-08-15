@@ -29,12 +29,11 @@ interface MobileOrder {
 
 const STATUS_LABELS: Record<string, string> = {
   confirmed: 'Confirmed',
-  ready: 'Ready',
-  delivered: 'Dispatched',
+  delivered: 'Delivered',
   cancelled: 'Cancelled',
 }
 
-const STATUS_ORDER = ['confirmed', 'ready', 'delivered', 'cancelled']
+const STATUS_ORDER = ['confirmed', 'delivered', 'cancelled']
 
 function daysUntil(dateStr: string): number {
   const today = new Date()

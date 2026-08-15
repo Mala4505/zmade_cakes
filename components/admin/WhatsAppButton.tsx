@@ -3,7 +3,7 @@
 import { WhatsappLogo } from '@phosphor-icons/react'
 import { whatsappUrl, whatsappUrlNoText } from '@/lib/whatsapp'
 
-type WhatsAppKind = 'confirmation' | 'balance-due' | 'order-ready' | 'plain'
+type WhatsAppKind = 'confirmation' | 'balance-due' | 'order-delivered' | 'plain'
 
 interface ResolvedWhatsAppAction {
   label: string
@@ -14,11 +14,11 @@ interface ResolvedWhatsAppAction {
 
 // Color language matches what each kind of WhatsApp action already used across the
 // admin surfaces before this consolidation: teal for confirmation, WhatsApp-green
-// for "order ready", a darker green for "balance due", and a neutral outline for
+// for "order delivered", a darker green for "balance due", and a neutral outline for
 // the freeform fallback.
 const PILL_STYLES: Record<WhatsAppKind, { bg?: string; fg: string; border?: string }> = {
   confirmation: { bg: 'var(--color-teal)', fg: 'var(--color-cream)' },
-  'order-ready': { bg: '#25D366', fg: '#fff' },
+  'order-delivered': { bg: '#25D366', fg: '#fff' },
   'balance-due': { bg: '#1a9e4c', fg: '#fff' },
   plain: {
     border: 'var(--color-border)',
@@ -31,7 +31,7 @@ const PILL_STYLES: Record<WhatsAppKind, { bg?: string; fg: string; border?: stri
 // rather than a filled background.
 const ICON_COLORS: Record<WhatsAppKind, string> = {
   confirmation: 'var(--color-teal)',
-  'order-ready': '#25D366',
+  'order-delivered': '#25D366',
   'balance-due': '#1a9e4c',
   plain: 'var(--color-ink-muted)',
 }

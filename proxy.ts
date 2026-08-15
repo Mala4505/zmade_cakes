@@ -137,9 +137,11 @@ export async function proxy(request: NextRequest) {
   const isAdminRoute =
     pathname.startsWith('/(admin)') ||
     (pathname !== '/login' &&
+      pathname !== '/' && // public landing page, not gated behind admin auth
       !pathname.startsWith('/confirm') &&
       !pathname.startsWith('/track') &&
-      !pathname.startsWith('/order') &&
+      !pathname.startsWith('/inquire') &&
+      !pathname.startsWith('/order') && // legacy path, kept public so next.config's redirect to /inquire can resolve before any auth gate
       !pathname.startsWith('/invoice') &&
       !pathname.startsWith('/my-orders') &&
       !pathname.startsWith('/api') &&
@@ -160,6 +162,6 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|manifest.json|sw.js|.*\\.(?:svg|png|jpg|jpeg|gif|webp|woff|woff2|ttf|otf)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|manifest.json|sw.js|.*\\.(?:svg|png|jpg|jpeg|gif|webp|woff|woff2|ttf|otf|pdf)$).*)',
   ],
 }

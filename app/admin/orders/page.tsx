@@ -15,8 +15,7 @@ export const metadata: Metadata = { title: 'Orders' }
 
 const BASE_COLUMNS: { status: OrderStatus; label: string }[] = [
   { status: 'confirmed', label: 'Confirmed' },
-  { status: 'ready', label: 'Ready' },
-  { status: 'delivered', label: 'Dispatched' },
+  { status: 'delivered', label: 'Delivered' },
 ]
 
 const CANCELLED_COLUMN: { status: OrderStatus; label: string } = {
@@ -27,8 +26,8 @@ const CANCELLED_COLUMN: { status: OrderStatus; label: string } = {
 async function getOrders(includeCancelled: boolean) {
   const supabase = await createClient()
   const statuses: OrderStatus[] = includeCancelled
-    ? ['confirmed', 'ready', 'delivered', 'cancelled']
-    : ['confirmed', 'ready', 'delivered']
+    ? ['confirmed', 'delivered', 'cancelled']
+    : ['confirmed', 'delivered']
   const { data, error } = await supabase
     .from('orders')
     .select(`

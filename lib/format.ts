@@ -132,22 +132,26 @@ export const GOVERNORATE_LABELS: Record<Governorate, string> = {
   mubarak_al_kabeer: 'Mubarak Al-Kabeer',
 }
 
-// Admin-facing labels. 'delivered' reads as "Dispatched" here — the DB value is unchanged,
-// this is a UI-only relabel for the admin flow (Confirmed -> Ready -> Dispatched).
-// Customer-facing copy (e.g. app/track, app/my-orders) keeps its own separate "Delivered"
-// wording and does not import this map — do not repoint those pages at this constant without
-// checking that first.
+// Admin-facing labels. Admin and customer copy now agree end to end (no more admin-only
+// "Dispatched" vs customer "Delivered" split — that distinction was confusing and dropped).
 export const INQUIRY_STATUS_LABELS: Record<InquiryStatus, string> = {
   pending: 'Inquired',
   confirmed: 'Confirmed',
-  ready: 'Ready',
-  delivered: 'Dispatched',
+  delivered: 'Delivered',
   cancelled: 'Cancelled',
 }
 
 export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
   confirmed: 'Order Confirmed',
-  ready: 'Ready for Pickup',
-  delivered: 'Dispatched',
+  delivered: 'Delivered',
   cancelled: 'Cancelled',
+}
+
+// 'pending' is the one status where the record's nature is still ambiguous — an admin-created
+// pending row is effectively an order-in-waiting, while a public-form pending row is a genuine
+// inquiry that hasn't been priced/confirmed yet. Once confirmed/delivered/cancelled the record
+// unambiguously *is* an order regardless of origin, so INQUIRY_STATUS_LABELS/ORDER_STATUS_LABELS
+// above already work for both and don't need source-awareness.
+export function pendingRecordLabel(source: 'admin' | 'public_form'): string {
+  return source === 'admin' ? 'Order' : 'Inquiry'
 }

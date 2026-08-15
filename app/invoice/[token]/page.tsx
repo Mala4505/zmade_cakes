@@ -4,13 +4,12 @@ import InvoiceLayout from '@/components/InvoiceLayout'
 import { Navbar } from '@/components/public/Navbar'
 import { PrintButton } from './_components/PrintButton'
 import { DownloadPdfButton } from './_components/DownloadPdfButton'
-import { BRAND_NAME } from '@/lib/brand'
 import { derivePaymentStatus } from '@/lib/payments'
 import type { Metadata } from 'next'
 
 interface Props { params: Promise<{ token: string }> }
 
-export const metadata: Metadata = { title: `Your Invoice — ${BRAND_NAME}` }
+export const metadata: Metadata = { title: 'Your Invoice' }
 
 export default async function PublicInvoicePage({ params }: Props) {
   const { token } = await params

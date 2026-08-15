@@ -13,7 +13,7 @@ import type { NotificationPrefs, NotificationType, PushSubscriptionRow } from '@
 const TYPE_CONFIG: { key: NotificationType; label: string; description: string }[] = [
   { key: 'inquiry_created', label: 'New inquiry', description: 'When a customer submits a new inquiry' },
   { key: 'customer_confirmed', label: 'Customer confirms', description: 'When a customer confirms their order' },
-  { key: 'order_update', label: 'Order ready/dispatched', description: 'When you mark an order ready or dispatched' },
+  { key: 'order_update', label: 'Order delivered', description: 'When you mark an order delivered' },
   { key: 'general', label: 'Customer requests changes', description: 'When a customer asks to change their order' },
 ]
 

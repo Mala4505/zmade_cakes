@@ -16,18 +16,16 @@ import { EditOrderModal } from './_components/EditOrderModal'
 
 interface Props { params: Promise<{ token: string }> }
 
-export const metadata: Metadata = { title: `Track Your Order — ${BRAND_NAME}` }
+export const metadata: Metadata = { title: 'Track Your Order' }
 
 const STEPS: { status: OrderStatus; label: string; sublabel: string }[] = [
   { status: 'confirmed', label: 'Order Confirmed', sublabel: 'Your order is with us' },
-  { status: 'ready', label: 'Ready', sublabel: 'Your cake is ready — please arrange pickup or await delivery' },
   { status: 'delivered', label: 'Delivered', sublabel: `Enjoy every bite. Thank you for choosing ${BRAND_NAME}` },
 ]
 
 const STATUS_ORDER: Record<OrderStatus, number> = {
   confirmed: 0,
-  ready: 1,
-  delivered: 2,
+  delivered: 1,
   cancelled: -1,
 }
 
@@ -90,7 +88,7 @@ export default async function TrackPage({ params }: Props) {
   const hasSecurityDeposit = Number(o.deposit_amount ?? 0) !== 0
 
   let finishedImages: any[] = []
-  if ((o.status === 'ready' || o.status === 'delivered') && inq?.id) {
+  if (o.status === 'delivered' && inq?.id) {
     const { data: images, error: imagesError } = await supabase
       .from('inquiry_images')
       .select('*')
@@ -295,6 +293,43 @@ export default async function TrackPage({ params }: Props) {
                 </a>
               ))}
             </div>
+          </section>
+        )}
+
+        {/* Cake Care Guide — shown once the cake is out for pickup/delivery, so
+            customers see storage/serving tips right when they need them. */}
+        {o.status === 'delivered' && (
+          <section
+            className="rounded-2xl border p-5"
+            style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
+          >
+            <h2
+              className="text-xs font-semibold uppercase tracking-widest mb-4"
+              style={{ color: 'var(--color-ink-muted)' }}
+            >
+              Cake Care Guide
+            </h2>
+            <a
+              href="/Guide.jpeg"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block rounded-xl overflow-hidden border"
+              style={{
+                borderColor: 'var(--color-border)',
+                width: 160,
+                height: 400,
+                flexShrink: 0,
+              }}
+            >
+              <Image
+                src="/Guide.jpeg"
+                alt="Cake Care Guide"
+                width={160}
+                height={400}
+                sizes="160px"
+                className="w-full h-full object-cover"
+              />
+            </a>
           </section>
         )}
 

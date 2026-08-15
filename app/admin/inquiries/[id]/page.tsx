@@ -4,6 +4,7 @@ import { getOptions } from '@/lib/actions/options'
 import { getSettings, getBlackouts } from '@/lib/actions/settings'
 import { getInquiryImages } from '@/lib/actions/images'
 import { formatKWD, confirmationLink, myOrdersLink, orderSummary } from '@/lib/utils'
+import { pendingRecordLabel } from '@/lib/format'
 import { generatePortalToken } from '@/lib/portal'
 import { StatusBadge } from '@/components/admin/StatusBadge'
 import InquiryActions from './_components/InquiryActions'
@@ -23,26 +24,25 @@ interface Props {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params
   const supabase = await createClient()
-  const { data } = await supabase.from('inquiries').select('customer_name').eq('id', id).single()
-  return { title: data?.customer_name ? `${data.customer_name} — Inquiry` : 'Inquiry' }
+  const { data } = await supabase.from('inquiries').select('customer_name, status, source').eq('id', id).single()
+  const recordLabel = data?.status === 'pending' ? pendingRecordLabel(data.source as 'admin' | 'public_form') : 'Order'
+  return { title: data?.customer_name ? `${data.customer_name} — ${recordLabel}` : recordLabel }
 }
 
 const TIMELINE_STEPS: { status: InquiryStatus; label: string }[] = [
   { status: 'pending', label: 'Inquired' },
   { status: 'confirmed', label: 'Confirmed' },
-  { status: 'ready', label: 'Ready' },
-  { status: 'delivered', label: 'Dispatched' },
+  { status: 'delivered', label: 'Delivered' },
 ]
 
 const STATUS_ORDER: Record<string, number> = {
   pending: 0,
   confirmed: 1,
-  ready: 2,
-  delivered: 3,
+  delivered: 2,
   cancelled: -1,
 }
 
-function OrderTimeline({ currentStatus }: { currentStatus: InquiryStatus }) {
+function OrderTimeline({ currentStatus, source }: { currentStatus: InquiryStatus; source: 'admin' | 'public_form' }) {
   const currentIdx = STATUS_ORDER[currentStatus] ?? 0
 
   return (
@@ -52,6 +52,9 @@ function OrderTimeline({ currentStatus }: { currentStatus: InquiryStatus }) {
         const isPast = stepIdx < currentIdx
         const isCurrent = stepIdx === currentIdx
         const isFuture = stepIdx > currentIdx
+        // Every step but 'pending' already reads unambiguously as an order stage —
+        // only the pending step's label depends on how the record originated.
+        const label = step.status === 'pending' ? pendingRecordLabel(source) : step.label
 
         return (
           <div key={step.status} className="flex items-center">
@@ -75,7 +78,7 @@ function OrderTimeline({ currentStatus }: { currentStatus: InquiryStatus }) {
                   fontWeight: isCurrent ? 700 : undefined,
                 }}
               >
-                {step.label}
+                {label}
               </span>
             </div>
             {i < TIMELINE_STEPS.length - 1 && (
@@ -151,7 +154,7 @@ export default async function InquiryDetailPage({ params }: Props) {
       .select('id, inquiry:inquiries!inner(customer_phone)', { count: 'exact', head: true })
       .eq('inquiry.customer_phone', inquiry.customer_phone)
       .neq('inquiry.id', inquiry.id)
-      .in('status', ['confirmed', 'ready', 'delivered']),
+      .in('status', ['confirmed', 'delivered']),
     supabase
       .from('orders')
       .select('id')
@@ -182,6 +185,12 @@ export default async function InquiryDetailPage({ params }: Props) {
         }}
       >
         <div className="min-w-0">
+          <p
+            className="text-[11px] font-bold uppercase tracking-wider mb-0.5"
+            style={{ color: 'var(--color-ink-muted)' }}
+          >
+            {inquiry.status === 'pending' ? pendingRecordLabel(inquiry.source as 'admin' | 'public_form') : 'Order'}
+          </p>
           <div className="flex items-center gap-2 flex-wrap">
             <h1
               className="text-xl font-bold"
@@ -204,7 +213,7 @@ export default async function InquiryDetailPage({ params }: Props) {
           </p>
         </div>
         <div className="shrink-0 flex flex-col items-end gap-1.5">
-          <StatusBadge status={inquiry.status as InquiryStatus} />
+          <StatusBadge status={inquiry.status as InquiryStatus} source={inquiry.source as 'admin' | 'public_form'} />
           {(pastOrderCount ?? 0) > 0 && (
             <span
               className="inline-flex items-center text-[9px] font-bold px-1.5 py-0.5 rounded-full"
@@ -228,7 +237,7 @@ export default async function InquiryDetailPage({ params }: Props) {
 
       {/* Timeline */}
       {!isCancelled && (
-        <OrderTimeline currentStatus={inquiry.status as InquiryStatus} />
+        <OrderTimeline currentStatus={inquiry.status as InquiryStatus} source={inquiry.source as 'admin' | 'public_form'} />
       )}
 
       {/* What the customer changed / said before confirming or requesting changes */}

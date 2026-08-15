@@ -9,11 +9,10 @@ export type Priority = 0 | 1 | 2
 export type InquiryStatus =
   | 'pending'
   | 'confirmed'
-  | 'ready'
   | 'delivered'
   | 'cancelled'
 export type PaymentStatus = 'unpaid' | 'partial' | 'paid'
-export type OrderStatus = 'confirmed' | 'ready' | 'delivered' | 'cancelled'
+export type OrderStatus = 'confirmed' | 'delivered' | 'cancelled'
 export type NotificationType = 'inquiry_created' | 'customer_confirmed' | 'order_update' | 'general'
 export type Governorate =
   | 'capital'
@@ -231,7 +230,7 @@ export interface BusinessSetting {
 
 export interface WhatsAppTemplates {
   confirmationLink: string
-  orderReady: string
+  orderDelivered: string
   balanceDue: string
   trackingLink: string
   myOrdersLink: string
@@ -239,7 +238,7 @@ export interface WhatsAppTemplates {
 
 export const DEFAULT_WHATSAPP_TEMPLATES: WhatsAppTemplates = {
   confirmationLink: `Hi {name}! Here is your ${BRAND_NAME} confirmation link: {link}`,
-  orderReady: "Hi {name}! Great news — your cake is ready! Please contact us to arrange collection.\n\n{link}",
+  orderDelivered: "Hi {name}! Great news — your order has been delivered. We hope you enjoy every bite!\n\n{link}",
   balanceDue: 'Hi {name}! A reminder that your balance of KWD {amount} is due on delivery.\n\n{link}',
   trackingLink: `Hi {name}! Track your ${BRAND_NAME} order here: {link}`,
   myOrdersLink: `Hi {name}! You can view all your ${BRAND_NAME} orders anytime here: {link}`,

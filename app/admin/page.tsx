@@ -37,7 +37,7 @@ async function getDashboardData() {
     supabase
       .from('orders')
       .select('id, status, final_price, inquiry:inquiries(customer_name, event_date, deposit_amount, amount_paid, admin_price, fully_paid, items:inquiry_items(*))')
-      .in('status', ['confirmed', 'ready'])
+      .in('status', ['confirmed'])
       .order('created_at', { ascending: false })
       .limit(5),
 
@@ -50,13 +50,13 @@ async function getDashboardData() {
     supabase
       .from('inquiries')
       .select('admin_price')
-      .in('status', ['confirmed', 'ready', 'delivered'])
+      .in('status', ['confirmed', 'delivered'])
       .gte('created_at', thisMonthStart),
 
     supabase
       .from('inquiries')
       .select('admin_price')
-      .in('status', ['confirmed', 'ready', 'delivered'])
+      .in('status', ['confirmed', 'delivered'])
       .gte('created_at', lastMonthStart)
       .lt('created_at', lastMonthEnd),
 
@@ -156,7 +156,7 @@ export default async function DashboardPage() {
           style={{ backgroundColor: 'var(--color-teal)', color: 'var(--color-cream)' }}
         >
           <Plus size={15} weight="bold" />
-          New Inquiry
+          New Order
         </Link>
         <Link
           href="/admin/calendar"

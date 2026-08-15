@@ -132,7 +132,7 @@ export async function POST(req: NextRequest) {
     await supabase.from('notifications').insert({
       type: 'inquiry_created',
       title: 'New Inquiry (Public Form)',
-      body: `${data.customer_name} submitted a new cake order request`,
+      body: `${data.customer_name} submitted a new cake inquiry`,
       inquiry_id: inquiry.id,
       order_id: null,
       is_read: false,

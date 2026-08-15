@@ -326,7 +326,7 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
           const upsertResult = await upsertCustomer(inquiryData.customer_phone, inquiryData.customer_name)
           if (upsertResult.error || !upsertResult.data) {
             toast.warning('Could not link customer record', {
-              description: upsertResult.error ?? 'Inquiry will be saved without a customer link.',
+              description: upsertResult.error ?? 'Order will be saved without a customer link.',
             })
             customerId = null
           } else {
@@ -839,7 +839,7 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
       )}
 
       <Button type="submit" size="lg" loading={pending} className="w-full">
-        {inquiry ? 'Save Changes' : 'Create Inquiry'}
+        {inquiry ? 'Save Changes' : 'Create Order'}
       </Button>
 
       <PinnedOrderTotal anchorRef={ledgerRef} total={orderTotalAmt} />

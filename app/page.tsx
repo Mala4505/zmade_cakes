@@ -1,5 +1,8 @@
-import { redirect } from 'next/navigation'
+import { getBusinessContactSettings } from '@/lib/supabase/business-settings'
+import { LandingPage } from './_components/LandingPage'
 
-export default function RootPage() {
-  redirect('/admin/calendar')
+export default async function RootPage() {
+  const { businessInstagram } = await getBusinessContactSettings()
+
+  return <LandingPage businessInstagram={businessInstagram} />
 }

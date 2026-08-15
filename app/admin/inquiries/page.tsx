@@ -22,8 +22,7 @@ const STATUS_OPTIONS: { value: InquiryStatus | 'all'; label: string }[] = [
   { value: 'all', label: 'All statuses' },
   { value: 'pending', label: 'Inquired' },
   { value: 'confirmed', label: 'Confirmed' },
-  { value: 'ready', label: 'Ready' },
-  { value: 'delivered', label: 'Dispatched' },
+  { value: 'delivered', label: 'Delivered' },
   { value: 'cancelled', label: 'Cancelled' },
 ]
 
@@ -49,9 +48,8 @@ const COLUMNS: { label: string; field?: SortField }[] = [
 const STATUS_ORDER: Record<InquiryStatus, number> = {
   pending: 0,
   confirmed: 1,
-  ready: 2,
-  delivered: 3,
-  cancelled: 4,
+  delivered: 2,
+  cancelled: 3,
 }
 
 const PAGE_SIZE = 25
@@ -66,7 +64,7 @@ async function getInquiries(status: string, payment: string, sort: SortField, di
   let query = supabase
     .from('inquiries')
     .select(
-      'id, customer_name, customer_phone, event_date, status, admin_price, discount, delivery_charge, deposit_amount, amount_paid, fully_paid, payment_status, created_at, customer_id, customer_confirmed, confirmation_token, items:inquiry_items(*)',
+      'id, customer_name, customer_phone, event_date, status, source, admin_price, discount, delivery_charge, deposit_amount, amount_paid, fully_paid, payment_status, created_at, customer_id, customer_confirmed, confirmation_token, items:inquiry_items(*)',
       { count: 'exact' }
     )
 
@@ -164,7 +162,7 @@ export default async function InquiriesPage({
   searchParams: Promise<{ status?: string; payment?: string; sort?: string; dir?: string; q?: string; page?: string }>
 }) {
   const { status = 'all', payment = 'all', sort: sortParam, dir: dirParam, q, page: pageParam } = await searchParams
-  // Default sort mirrors the pipeline: Inquired → Confirmed → Ready → Dispatched (Cancelled last).
+  // Default sort mirrors the pipeline: Inquired → Confirmed → Delivered (Cancelled last).
   const sort: SortField = sortParam === 'customer_name' || sortParam === 'event_date' || sortParam === 'price' ? sortParam : 'status'
   const dir: SortDir = dirParam === 'desc' ? 'desc' : 'asc'
   const page = Math.max(1, parseInt(pageParam ?? '1', 10) || 1)
@@ -355,7 +353,7 @@ export default async function InquiriesPage({
 
                     {/* Status inline select */}
                     <td className="px-3 py-3 align-middle">
-                      <InquiryStatusSelect inquiryId={inq.id} value={inq.status as InquiryStatus} />
+                      <InquiryStatusSelect inquiryId={inq.id} value={inq.status as InquiryStatus} source={inq.source} />
                     </td>
 
                     {/* Payment status — bare icon + amount, binary paid/not-paid */}

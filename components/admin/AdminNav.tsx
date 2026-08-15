@@ -57,9 +57,9 @@ function isActive(pathname: string, href: string, exact: boolean) {
   return exact ? pathname === href : pathname.startsWith(href)
 }
 
-function getBadge(href: string, pendingCount: number, readyCount: number): number {
+function getBadge(href: string, pendingCount: number, activeOrdersCount: number): number {
   if (href === '/admin/inquiries') return pendingCount
-  if (href === '/admin/orders') return readyCount
+  if (href === '/admin/orders') return activeOrdersCount
   return 0
 }
 
@@ -132,11 +132,11 @@ export function AdminTopBar() {
 
 export function AdminSidebar({
   pendingCount,
-  readyCount,
+  activeOrdersCount,
   user,
 }: {
   pendingCount: number
-  readyCount: number
+  activeOrdersCount: number
   user: User | null
 }) {
   const pathname = usePathname()
@@ -152,7 +152,7 @@ export function AdminSidebar({
       <nav className="flex-1 overflow-y-auto px-3 py-4 flex flex-col gap-1">
         {NAV_ITEMS.map(({ href, label, Icon, exact }) => {
           const active = isActive(pathname, href, exact)
-          const badge = getBadge(href, pendingCount, readyCount)
+          const badge = getBadge(href, pendingCount, activeOrdersCount)
           return (
             <Link
               key={href}
@@ -258,10 +258,10 @@ function BottomNavTab({
 
 export function AdminBottomNav({
   pendingCount,
-  readyCount,
+  activeOrdersCount,
 }: {
   pendingCount: number
-  readyCount: number
+  activeOrdersCount: number
 }) {
   const pathname = usePathname()
   const [moreOpen, setMoreOpen] = useState(false)
@@ -269,7 +269,7 @@ export function AdminBottomNav({
   const primaryItems = NAV_ITEMS.filter(({ href }) => MOBILE_PRIMARY_HREFS.includes(href))
   const moreItems = NAV_ITEMS.filter(({ href }) => !MOBILE_PRIMARY_HREFS.includes(href))
   const moreActive = moreItems.some(({ href, exact }) => isActive(pathname, href, exact))
-  const moreBadge = moreItems.reduce((sum, { href }) => sum + getBadge(href, pendingCount, readyCount), 0)
+  const moreBadge = moreItems.reduce((sum, { href }) => sum + getBadge(href, pendingCount, activeOrdersCount), 0)
 
   return (
     <>
@@ -292,7 +292,7 @@ export function AdminBottomNav({
             label={label}
             Icon={Icon}
             active={isActive(pathname, href, exact)}
-            badge={getBadge(href, pendingCount, readyCount)}
+            badge={getBadge(href, pendingCount, activeOrdersCount)}
           />
         ))}
         <BottomNavTab
@@ -308,7 +308,7 @@ export function AdminBottomNav({
         <div className="flex flex-col gap-1 -mx-1">
           {moreItems.map(({ href, label, Icon, exact }) => {
             const active = isActive(pathname, href, exact)
-            const badge = getBadge(href, pendingCount, readyCount)
+            const badge = getBadge(href, pendingCount, activeOrdersCount)
             return (
               <Link
                 key={href}

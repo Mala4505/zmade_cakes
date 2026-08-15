@@ -7,14 +7,13 @@ import ConfirmForm from './_components/ConfirmForm'
 import CustomerPhotoUpload from './_components/CustomerPhotoUpload'
 import { Navbar } from '@/components/public/Navbar'
 import { DetailRow } from '@/components/ui'
-import { BRAND_NAME } from '@/lib/brand'
 import { Info } from '@phosphor-icons/react/dist/ssr'
 import type { Metadata } from 'next'
 import type { Inquiry, InquiryItem } from '@/lib/supabase/types'
 
 interface Props { params: Promise<{ token: string }> }
 
-export const metadata: Metadata = { title: `Confirm Your Order — ${BRAND_NAME}` }
+export const metadata: Metadata = { title: 'Confirm Your Order' }
 
 export default async function ConfirmPage({ params }: Props) {
   const { token } = await params

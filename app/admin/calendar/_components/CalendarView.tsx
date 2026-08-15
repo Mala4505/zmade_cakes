@@ -309,7 +309,7 @@ function EventContent({ event }: { event: CalendarEvent }) {
 
 const LEGEND: { label: string; style: React.CSSProperties }[] = [
   { label: 'Order', style: { backgroundColor: 'var(--color-teal)' } },
-  { label: 'Dispatched', style: { backgroundColor: 'var(--color-success)' } },
+  { label: 'Delivered', style: { backgroundColor: 'var(--color-success)' } },
   {
     label: 'Inquiry delivery (tentative)',
     style: { backgroundColor: 'var(--color-warning-light)', border: '1px dashed var(--color-warning)' },

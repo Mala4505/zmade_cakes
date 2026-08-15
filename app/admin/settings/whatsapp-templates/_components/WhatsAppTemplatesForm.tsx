@@ -11,7 +11,7 @@ const TEMPLATE_FIELDS: {
   variables: string
 }[] = [
   { key: 'confirmationLink', label: 'Confirmation Link', variables: '{name}, {link}' },
-  { key: 'orderReady', label: 'Order Ready', variables: '{name}' },
+  { key: 'orderDelivered', label: 'Order Delivered', variables: '{name}' },
   { key: 'balanceDue', label: 'Balance Due', variables: '{name}, {amount}' },
   { key: 'trackingLink', label: 'Tracking Link', variables: '{name}, {link}' },
   { key: 'myOrdersLink', label: 'My Orders Link', variables: '{name}, {link}' },
