@@ -35,7 +35,7 @@ export default function OptionsManager({ optionTypes, activeType, options }: Pro
       if (result.error) return { error: result.error }
       setNewName('')
     },
-    { successToast: 'Option added', onSuccess: refreshOnSuccess }
+    { successToast: 'Option added', errorToast: 'Failed to add option', onSuccess: refreshOnSuccess }
   )
 
   const { run: updateRun, pending: updating } = useAsyncAction(
@@ -44,7 +44,7 @@ export default function OptionsManager({ optionTypes, activeType, options }: Pro
       if (result.error) return { error: result.error }
       setEditingId(null)
     },
-    { successToast: 'Renamed', onSuccess: refreshOnSuccess }
+    { successToast: 'Renamed', errorToast: 'Failed to rename option', onSuccess: refreshOnSuccess }
   )
 
   const { run: toggleRun, pending: toggling } = useAsyncAction(
@@ -52,7 +52,7 @@ export default function OptionsManager({ optionTypes, activeType, options }: Pro
       const result = await updateOption(option.id, activeType, { is_active: !option.is_active })
       if (result.error) return { error: result.error }
     },
-    { successToast: 'Option updated', onSuccess: refreshOnSuccess }
+    { successToast: 'Option updated', errorToast: 'Failed to update option', onSuccess: refreshOnSuccess }
   )
 
   const { run: deleteRun, pending: deleting } = useAsyncAction(
@@ -60,7 +60,7 @@ export default function OptionsManager({ optionTypes, activeType, options }: Pro
       const result = await deleteOption(id, activeType)
       if (result.error) return { error: result.error }
     },
-    { successToast: 'Deleted', onSuccess: refreshOnSuccess }
+    { successToast: 'Deleted', errorToast: 'Failed to delete option', onSuccess: refreshOnSuccess }
   )
 
   const busy = creating || updating || toggling || deleting

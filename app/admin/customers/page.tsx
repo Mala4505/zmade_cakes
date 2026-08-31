@@ -17,6 +17,41 @@ type EnrichedCustomer = Customer & {
   last_order_date: string | null
 }
 
+// Shared between the desktop row and mobile card in ResponsiveList below, so
+// a future field only needs editing in one place instead of two markup copies.
+function CustomerNameLine({ customer }: { customer: EnrichedCustomer }) {
+  return (
+    <div className="flex items-center gap-1.5 flex-wrap">
+      <span className="text-sm font-semibold" style={{ color: 'var(--color-ink)' }}>
+        {customer.name}
+      </span>
+      {customer.vip && (
+        <span
+          className="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full"
+          style={{ backgroundColor: '#fef3c7', color: '#92400e' }}
+        >
+          ★ VIP
+        </span>
+      )}
+    </div>
+  )
+}
+
+function CustomerStats({ customer }: { customer: EnrichedCustomer }) {
+  return (
+    <div className="shrink-0 text-right">
+      <p className="text-xs font-medium" style={{ color: 'var(--color-ink-secondary)' }}>
+        {customer.inquiry_count} {customer.inquiry_count === 1 ? 'order' : 'orders'}
+      </p>
+      {customer.last_order_date && (
+        <p className="text-[11px] mt-0.5" style={{ color: 'var(--color-ink-muted)' }}>
+          Last: {formatDate(customer.last_order_date)}
+        </p>
+      )}
+    </div>
+  )
+}
+
 export default async function CustomersPage({
   searchParams,
 }: {
@@ -114,22 +149,7 @@ export default async function CustomersPage({
                       )}
 
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span
-                            className="text-sm font-semibold"
-                            style={{ color: 'var(--color-ink)' }}
-                          >
-                            {c.name}
-                          </span>
-                          {c.vip && (
-                            <span
-                              className="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full"
-                              style={{ backgroundColor: '#fef3c7', color: '#92400e' }}
-                            >
-                              ★ VIP
-                            </span>
-                          )}
-                        </div>
+                        <CustomerNameLine customer={c} />
                         <p
                           className="text-xs mt-0.5"
                           style={{
@@ -141,16 +161,7 @@ export default async function CustomersPage({
                         </p>
                       </div>
 
-                      <div className="shrink-0 text-right">
-                        <p className="text-xs font-medium" style={{ color: 'var(--color-ink-secondary)' }}>
-                          {c.inquiry_count} {c.inquiry_count === 1 ? 'order' : 'orders'}
-                        </p>
-                        {c.last_order_date && (
-                          <p className="text-[11px] mt-0.5" style={{ color: 'var(--color-ink-muted)' }}>
-                            Last: {formatDate(c.last_order_date)}
-                          </p>
-                        )}
-                      </div>
+                      <CustomerStats customer={c} />
                     </Link>
                   </li>
                 ))}
@@ -167,19 +178,7 @@ export default async function CustomersPage({
                   style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
                 >
                   <div className="min-w-0">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="text-sm font-semibold" style={{ color: 'var(--color-ink)' }}>
-                        {c.name}
-                      </span>
-                      {c.vip && (
-                        <span
-                          className="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full"
-                          style={{ backgroundColor: '#fef3c7', color: '#92400e' }}
-                        >
-                          ★ VIP
-                        </span>
-                      )}
-                    </div>
+                    <CustomerNameLine customer={c} />
                     <p
                       className="text-xs mt-0.5"
                       style={{ color: 'var(--color-ink-muted)', fontFamily: 'var(--font-mono)' }}
@@ -188,16 +187,7 @@ export default async function CustomersPage({
                     </p>
                   </div>
 
-                  <div className="shrink-0 text-right">
-                    <p className="text-xs font-medium" style={{ color: 'var(--color-ink-secondary)' }}>
-                      {c.inquiry_count} {c.inquiry_count === 1 ? 'order' : 'orders'}
-                    </p>
-                    {c.last_order_date && (
-                      <p className="text-[11px] mt-0.5" style={{ color: 'var(--color-ink-muted)' }}>
-                        Last: {formatDate(c.last_order_date)}
-                      </p>
-                    )}
-                  </div>
+                  <CustomerStats customer={c} />
                 </Link>
               ))}
             </div>

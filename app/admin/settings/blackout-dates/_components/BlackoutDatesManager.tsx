@@ -26,7 +26,7 @@ export default function BlackoutDatesManager({
       if (result.error) return { error: result.error }
       setBlackouts((prev) => prev.filter((b) => b.id !== id))
     },
-    { successToast: 'Removed' }
+    { successToast: 'Removed', errorToast: 'Failed to remove blackout date' }
   )
 
   const { run: runAdd, pending: adding } = useAsyncAction(
@@ -38,7 +38,7 @@ export default function BlackoutDatesManager({
       setDateTo('')
       setReason('')
     },
-    { successToast: 'Date blocked' }
+    { successToast: 'Date blocked', errorToast: 'Failed to block date' }
   )
 
   const busy = adding || deleting

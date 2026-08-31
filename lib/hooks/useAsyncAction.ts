@@ -40,9 +40,10 @@ interface AsyncActionOptions {
   successToast?: string
   /**
    * Title for the error toast. Defaults to `'Something went wrong'` for thrown
-   * errors (the thrown message becomes the description) and to the returned
-   * `error` string for `{ error }` results. Pass `false` to suppress the toast
-   * entirely and drive the UI off the returned `error` value instead.
+   * errors and to the returned `error` string itself for `{ error }` results
+   * (both cases put the underlying message in the toast description when a
+   * string title is given). Pass `false` to suppress the toast entirely and
+   * drive the UI off the returned `error` value instead.
    */
   errorToast?: string | false
   /**
@@ -106,7 +107,13 @@ export function useAsyncAction<Args extends unknown[]>(
 
         if (outcome && typeof outcome === 'object' && 'error' in outcome && outcome.error) {
           setError(outcome.error)
-          if (opts.errorToast !== false) toast.error(outcome.error)
+          if (opts.errorToast !== false) {
+            if (typeof opts.errorToast === 'string') {
+              toast.error(opts.errorToast, { description: outcome.error })
+            } else {
+              toast.error(outcome.error)
+            }
+          }
           return
         }
 

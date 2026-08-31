@@ -34,6 +34,28 @@ const PAYMENT_OPTIONS: { value: PaymentStatus | 'all'; label: string }[] = [
   { value: 'paid', label: 'Paid' },
 ]
 
+// Shared between the desktop table cell and mobile card in ResponsiveList below.
+function PaymentStatusBadge({ isPaid, amount }: { isPaid: boolean; amount: number }) {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      {isPaid ? (
+        <CheckCircle size={14} weight="fill" style={{ color: 'var(--color-success)' }} />
+      ) : (
+        <Circle size={14} weight="bold" style={{ color: 'var(--color-warning)' }} />
+      )}
+      <span
+        className="text-xs font-mono font-medium"
+        style={{
+          color: isPaid ? 'var(--color-success)' : 'var(--color-warning)',
+          fontFamily: 'var(--font-mono)',
+        }}
+      >
+        {formatKWD(amount.toFixed(3))}
+      </span>
+    </span>
+  )
+}
+
 // Column headers double as sort controls — each entry maps a header label to the
 // field it sorts by. Actions has no `field` since it isn't sortable.
 const COLUMNS: { label: string; field?: SortField }[] = [
@@ -369,22 +391,7 @@ export default async function InquiriesPage({
                       {/* Payment status — bare icon + amount, binary paid/not-paid */}
                       <td className="px-3 py-3 align-middle">
                         {paymentAmount !== null ? (
-                          <span className="inline-flex items-center gap-1.5">
-                            {isPaid ? (
-                              <CheckCircle size={14} weight="fill" style={{ color: 'var(--color-success)' }} />
-                            ) : (
-                              <Circle size={14} weight="bold" style={{ color: 'var(--color-warning)' }} />
-                            )}
-                            <span
-                              className="text-xs font-mono font-medium"
-                              style={{
-                                color: isPaid ? 'var(--color-success)' : 'var(--color-warning)',
-                                fontFamily: 'var(--font-mono)',
-                              }}
-                            >
-                              {formatKWD(paymentAmount.toFixed(3))}
-                            </span>
-                          </span>
+                          <PaymentStatusBadge isPaid={isPaid} amount={paymentAmount} />
                         ) : (
                           <span className="text-xs" style={{ color: 'var(--color-ink-muted)' }}>—</span>
                         )}
@@ -449,21 +456,8 @@ export default async function InquiriesPage({
                       </p>
                     </div>
                     {paymentAmount !== null && (
-                      <span className="inline-flex items-center gap-1.5 shrink-0 pt-0.5">
-                        {isPaid ? (
-                          <CheckCircle size={14} weight="fill" style={{ color: 'var(--color-success)' }} />
-                        ) : (
-                          <Circle size={14} weight="bold" style={{ color: 'var(--color-warning)' }} />
-                        )}
-                        <span
-                          className="text-xs font-mono font-medium"
-                          style={{
-                            color: isPaid ? 'var(--color-success)' : 'var(--color-warning)',
-                            fontFamily: 'var(--font-mono)',
-                          }}
-                        >
-                          {formatKWD(paymentAmount.toFixed(3))}
-                        </span>
+                      <span className="shrink-0 pt-0.5">
+                        <PaymentStatusBadge isPaid={isPaid} amount={paymentAmount} />
                       </span>
                     )}
                   </Link>

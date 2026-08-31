@@ -23,7 +23,7 @@ export default function BusinessInfoForm({
       ])
       if (r1.error || r2.error) return { error: r1.error ?? r2.error ?? 'Failed to save' }
     },
-    { successToast: 'Changes saved' }
+    { successToast: 'Changes saved', errorToast: 'Failed to save business info' }
   )
 
   function handleSubmit(e: React.FormEvent) {

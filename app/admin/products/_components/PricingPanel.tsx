@@ -52,7 +52,7 @@ export function PricingPanel({ sizes, initialMatrix, initialMinGuard, initialRus
       if (err) return { error: err }
       setSaved({ matrix: currentMatrixKey, minGuard, rush })
     },
-    { successToast: 'Base prices saved' }
+    { successToast: 'Base prices saved', errorToast: 'Failed to save base prices' }
   )
 
   return (

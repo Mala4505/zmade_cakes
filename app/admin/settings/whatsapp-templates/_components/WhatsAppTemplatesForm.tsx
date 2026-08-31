@@ -29,7 +29,7 @@ export default function WhatsAppTemplatesForm({
       const result = await updateSetting('whatsapp_templates', templates)
       if (result.error) return { error: result.error }
     },
-    { successToast: 'Templates saved' }
+    { successToast: 'Templates saved', errorToast: 'Failed to save templates' }
   )
 
   function handleChange(key: keyof WhatsAppTemplates, value: string) {

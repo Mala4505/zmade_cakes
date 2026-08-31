@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { toast } from 'sonner'
 import { ArrowLeft, Trash } from '@phosphor-icons/react'
 import { Field, Input, Button, Checkbox } from '@/components/ui'
 import { updateOption, deleteOption } from '@/lib/actions/options'
@@ -104,8 +105,13 @@ export function FlavorDetail({ flavor, sizes, onSaved, onDeleted, onBack, onDirt
       setLastSaved(new Date())
       setSnapshot({ name: trimmed, isActive, themeAvailable, prices: canonPrices(priceMap) })
       onSaved({ ...flavor, name: trimmed, is_active: isActive, theme_available: themeAvailable, image_url: imageUrl, prices: newPrices })
+      // In-band (not `successToast`) so the count reflects how many prices actually
+      // saved — lets the admin notice immediately if an entry got filtered out above.
+      toast.success('Flavor saved', {
+        description: `${trimmed} · ${priceEntries.length} price${priceEntries.length === 1 ? '' : 's'}`,
+      })
     },
-    { successToast: 'Flavor saved' }
+    { errorToast: 'Failed to save flavor' }
   )
 
   const handleSave = () => {
@@ -126,7 +132,7 @@ export function FlavorDetail({ flavor, sizes, onSaved, onDeleted, onBack, onDirt
       }
       onDeleted(flavor.id)
     },
-    { successToast: 'Flavor deactivated' }
+    { successToast: 'Flavor deactivated', errorToast: 'Failed to deactivate flavor' }
   )
 
   const handleDelete = () => {

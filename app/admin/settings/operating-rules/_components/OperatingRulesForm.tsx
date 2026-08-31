@@ -12,7 +12,7 @@ export default function OperatingRulesForm({ initialLeadDays }: { initialLeadDay
       const result = await updateSetting('min_lead_days', String(value))
       if (result.error) return { error: result.error }
     },
-    { successToast: 'Saved' }
+    { successToast: 'Saved', errorToast: 'Failed to save operating rules' }
   )
 
   function handleSubmit(e: React.FormEvent) {

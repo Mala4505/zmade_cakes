@@ -93,7 +93,8 @@ export default function NotificationSettingsForm({
       } finally {
         setPendingKey(null)
       }
-    }
+    },
+    { errorToast: 'Failed to update notification preference' }
   )
 
   const { run: runEnableDevice, pending: enabling } = useAsyncAction(
@@ -110,7 +111,7 @@ export default function NotificationSettingsForm({
       if (result.error) return { error: result.error }
       setSubscribed(true)
     },
-    { successToast: 'Notifications enabled on this device', onSuccess: () => router.refresh() }
+    { successToast: 'Notifications enabled on this device', errorToast: 'Failed to enable notifications', onSuccess: () => router.refresh() }
   )
 
   const { run: runDisableDevice, pending: disabling } = useAsyncAction(
@@ -132,7 +133,7 @@ export default function NotificationSettingsForm({
       }
       setSubscribed(false)
     },
-    { successToast: 'Notifications disabled on this device', onSuccess: () => router.refresh() }
+    { successToast: 'Notifications disabled on this device', errorToast: 'Failed to disable notifications', onSuccess: () => router.refresh() }
   )
 
   const deviceBusy = enabling || disabling
@@ -142,7 +143,7 @@ export default function NotificationSettingsForm({
       const { error } = await sendTestPush()
       if (error) return { error }
     },
-    { successToast: 'Test notification sent' }
+    { successToast: 'Test notification sent', errorToast: 'Failed to send test notification' }
   )
 
   const { run: runRemoveDevice } = useAsyncAction(
@@ -154,7 +155,7 @@ export default function NotificationSettingsForm({
         setRemovingEndpoint(null)
       }
     },
-    { successToast: 'Device removed', onSuccess: () => router.refresh() }
+    { successToast: 'Device removed', errorToast: 'Failed to remove this device', onSuccess: () => router.refresh() }
   )
 
   function savePrefs(nextPrefs: NotificationPrefs, key: string, successMessage: string) {
