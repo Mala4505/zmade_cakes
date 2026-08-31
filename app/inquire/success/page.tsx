@@ -4,14 +4,16 @@ import Link from 'next/link'
 import type { Metadata } from 'next'
 import { BRAND_NAME } from '@/lib/brand'
 import { Button } from '@/components/ui/Button'
+import { whatsappUrl } from '@/lib/whatsapp'
 
 export const metadata: Metadata = { title: 'Inquiry Received' }
 
 export default async function OrderSuccessPage() {
   const { businessPhone: phone, businessInstagram: instagram } = await getBusinessContactSettings()
 
-  const cleaned = phone.replace(/\D/g, '')
-  const waNumber = cleaned ? (cleaned.startsWith('965') ? cleaned : `965${cleaned}`) : ''
+  const waUrl = phone
+    ? whatsappUrl(phone, `Hi, I just submitted a cake inquiry on ${BRAND_NAME}!`)
+    : ''
 
   return (
     <div className="flex flex-col items-center text-center gap-6 py-8">
@@ -25,9 +27,9 @@ export default async function OrderSuccessPage() {
         </p>
       </div>
       <div className="w-full flex flex-col gap-3">
-        {waNumber && (
+        {waUrl && (
           <Button
-            href={`https://wa.me/${waNumber}?text=${encodeURIComponent(`Hi, I just submitted a cake inquiry on ${BRAND_NAME}!`)}`}
+            href={waUrl}
             variant="primary"
             size="lg"
             className="rounded-xl w-full"

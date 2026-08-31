@@ -16,12 +16,30 @@ export function isValidToken(value: string): boolean {
   return isValidUUID(value) || SHORT_TOKEN_REGEX.test(value)
 }
 
-// Digits-only, consistently prefixed with the Kuwait country code (965). Matches the
-// normalization already used inline for WhatsApp numbers (e.g. app/track/[token]/page.tsx),
-// so phone values compare consistently regardless of spacing, dashes, or a missing/extra
-// country code.
+// Calling codes normalizePhone recognises as "this number already has a country code,
+// leave it alone." Kept in sync with the dialling codes offered in components/PhoneInput.tsx
+// (that file owns the picker UI; this is just the numbers-only list the server-safe
+// normalizer below needs). Sorted longest-first so a 3-digit code like 965 is checked
+// before a 1-digit code like 1 that would otherwise never get a chance to match.
+const RECOGNIZED_COUNTRY_CODES = [
+  '965', '966', '971', '973', '974', '968', '962', '961', '964', '963', '967', '880', '977',
+  '20', '63', '94', '62', '91', '92', '44', '1',
+].sort((a, b) => b.length - a.length)
+
+// Digits-only, consistently prefixed with the Kuwait country code (965) — but only when the
+// input actually looks like a bare local Kuwait number. Previously this did a blind
+// `.replace(/^(?!965)/, '965')`, which mangled anything that already carried a country code:
+// a leading international "00" survived the digit-strip (00965... -> 9650096...) and a
+// non-Kuwait code got 965 glued on front (Saudi +96650... -> 9659665...). Now: strip a
+// leading "00" or "+" first, and only prepend 965 when what's left has no recognisable
+// country-code prefix and is the right length for a bare local Kuwait number (8 digits).
 export function normalizePhone(phone: string): string {
-  return phone.replace(/\D/g, '').replace(/^(?!965)/, '965')
+  let digits = phone.replace(/\D/g, '')
+  if (digits.startsWith('00')) digits = digits.slice(2)
+
+  if (RECOGNIZED_COUNTRY_CODES.some(code => digits.startsWith(code))) return digits
+  if (digits.length === 8) return `965${digits}`
+  return digits
 }
 
 // Local (not UTC) YYYY-MM-DD for use in downloaded filenames.

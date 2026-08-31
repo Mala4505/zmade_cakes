@@ -28,7 +28,7 @@ interface Props {
   currentMessageOnCake: string
   currentSpecialRequirements: string
   existingAddress: Address | null
-  waNumber: string
+  waUrl: string
   // Message on Cake / Special Requirements below always edit the order's first item only —
   // these describe that item for the reader when the order has more than one, so "Your
   // Preferences" doesn't read as if it covers everything in a multi-item order.
@@ -64,7 +64,7 @@ export default function ConfirmForm({
   currentMessageOnCake,
   currentSpecialRequirements,
   existingAddress,
-  waNumber,
+  waUrl,
   firstItemLabel,
   hasMultipleItems,
 }: Props) {
@@ -370,9 +370,9 @@ export default function ConfirmForm({
         <p className="text-sm" style={{ color: 'var(--color-ink-muted)' }}>
           We've been notified of your request and will get back to you shortly on WhatsApp.
         </p>
-        {waNumber && (
+        {waUrl && (
           <Button
-            href={`https://wa.me/${waNumber}`}
+            href={waUrl}
             variant="primary"
             size="lg"
             className="w-full mt-1"

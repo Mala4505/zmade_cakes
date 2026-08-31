@@ -217,7 +217,7 @@ export function LandingPage({ businessInstagram }: LandingPageProps) {
   const [selectedFlavor, setSelectedFlavor] = useState<Flavor | null>(null)
 
   return (
-    <main className="min-h-svh" style={{ backgroundColor: 'var(--color-cream)' }}>
+    <main className="flex-1" style={{ backgroundColor: 'var(--color-cream)' }}>
       <Navbar businessInstagram={businessInstagram} />
 
       <div className="flex flex-col gap-10 pt-10 pb-16">
