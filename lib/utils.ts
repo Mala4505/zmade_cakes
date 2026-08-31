@@ -37,8 +37,11 @@ export function normalizePhone(phone: string): string {
   let digits = phone.replace(/\D/g, '')
   if (digits.startsWith('00')) digits = digits.slice(2)
 
-  if (RECOGNIZED_COUNTRY_CODES.some(code => digits.startsWith(code))) return digits
+  // Check length first: a bare local Kuwait number is always 8 digits, even if those
+  // digits happen to start with another country's calling code (e.g. 965's mobile
+  // numbers commonly start with 9, colliding with '91'/'94'/'92' etc. below).
   if (digits.length === 8) return `965${digits}`
+  if (RECOGNIZED_COUNTRY_CODES.some(code => digits.startsWith(code))) return digits
   return digits
 }
 

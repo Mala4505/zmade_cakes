@@ -29,7 +29,10 @@ export function SizeList({ sizes, onChanged, embedded = false }: Props) {
   const { run: runAdd, pending: isAddPending } = useAsyncAction(
     async (trimmed: string) => {
       const result = await createOption('size_options', { name: trimmed, sort_order: sizes.length, is_active: true })
-      if (result.error !== null) return { error: result.error }
+      if (result.error !== null) {
+        setError(result.error)
+        return { error: result.error }
+      }
       if (result.fieldErrors !== null) {
         setError(result.fieldErrors.name?.[0] ?? 'Could not add size')
         return false
@@ -130,7 +133,8 @@ function SizeRow({ size, onChanged }: { size: OptionRow; onChanged: (updated: Op
     async () => {
       const result = await updateOption(size.id, 'size_options', { is_active: !size.is_active })
       if (result.error) return { error: result.error }
-      if (result.data) onChanged(result.data)
+      if (!result.data) return false
+      onChanged(result.data)
     },
     { successToast: 'Size updated' }
   )

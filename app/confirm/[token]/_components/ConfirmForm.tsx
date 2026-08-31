@@ -247,11 +247,17 @@ export default function ConfirmForm({
     async (data: CustomerConfirmData, startedAt: number) => {
       const r = await callConfirm(data)
       if (!r) return false
-      if (r.data?.order?.tracking_token) {
-        await holdMinimumVisible(startedAt, 1400)
-        sessionStorage.removeItem(draftKey)
-        trackingTokenRef.current = r.data.order.tracking_token
+      if (!r.data?.order?.tracking_token) {
+        // Server said success but gave us nothing to navigate to — surface it as an
+        // error rather than showing "Order confirmed" and leaving the full-screen
+        // loader (driven by pendingAction) spinning forever with no way out.
+        setPendingAction(null)
+        setError('Something went wrong confirming your order. Please try again or contact us.')
+        return false
       }
+      await holdMinimumVisible(startedAt, 1400)
+      sessionStorage.removeItem(draftKey)
+      trackingTokenRef.current = r.data.order.tracking_token
     },
     {
       successToast: 'Order confirmed',

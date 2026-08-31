@@ -20,6 +20,7 @@ import { Copy, WhatsappLogo, Plus } from '@phosphor-icons/react'
 import type { OptionRow, Inquiry, BlackoutDate } from '@/lib/supabase/types'
 import { z } from 'zod'
 import { GOVERNORATE_LABELS, formatKWD } from '@/lib/utils'
+import { whatsappUrlNoText } from '@/lib/whatsapp'
 import { ItemFields, defaultItem } from '../../_components/ItemFields'
 
 const fullSchema = inquirySchema.and(
@@ -51,12 +52,6 @@ interface Props {
   minPriceGuard?: number
   rushMultiplier?: number
   orderId: string | null
-}
-
-function whatsappUrl(phone: string): string {
-  const cleaned = phone.replace(/\D/g, '')
-  const number = cleaned.startsWith('965') ? cleaned : `965${cleaned}`
-  return `https://wa.me/${number}`
 }
 
 const numberOrNull = (v: unknown) => (v === '' || v == null ? null : Number(v))
@@ -366,7 +361,7 @@ export default function InquiryDetailForm({
                   <Copy size={15} />
                 </IconButton>
                 <a
-                  href={whatsappUrl(watchedPhone ?? '')}
+                  href={whatsappUrlNoText(watchedPhone ?? '')}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center justify-center w-11 h-11 shrink-0 rounded-lg border transition-all active:scale-[0.94]"

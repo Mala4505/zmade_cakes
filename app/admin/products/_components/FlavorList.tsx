@@ -66,7 +66,10 @@ export function FlavorList({ flavors, selectedFlavorId, onSelectFlavor, onFlavor
   const { run: runAdd, pending: isPending } = useAsyncAction(
     async (trimmed: string) => {
       const result = await createOption('flavor_options', { name: trimmed, sort_order: 0, is_active: true })
-      if (result.error !== null) return { error: result.error }
+      if (result.error !== null) {
+        setError(result.error)
+        return { error: result.error }
+      }
       if (result.fieldErrors !== null) {
         setError(result.fieldErrors.name?.[0] ?? 'Could not add flavor')
         return false

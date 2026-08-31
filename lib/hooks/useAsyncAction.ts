@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState, useTransition } from 'react'
+import { useCallback, useEffect, useId, useRef, useState, useTransition } from 'react'
 import { toast } from 'sonner'
 import { useOptionalNavPending } from '@/components/admin/NavPendingContext'
 
@@ -86,12 +86,12 @@ export function useAsyncAction<Args extends unknown[]>(
   // Surface the post-success work (typically a route change) to the shared
   // nav-progress bar when the admin shell is mounted. No-op elsewhere.
   const nav = useOptionalNavPending()
-  const navId = useRef<string>(`async-action-${Math.random().toString(36).slice(2)}`)
+  const navId = useId()
   useEffect(() => {
     if (!nav) return
-    nav.setActionPending(navId.current, navPending)
-    return () => nav.setActionPending(navId.current, false)
-  }, [nav, navPending])
+    nav.setActionPending(navId, navPending)
+    return () => nav.setActionPending(navId, false)
+  }, [nav, navPending, navId])
 
   const run = useCallback((...args: Args) => {
     if (lockRef.current) return

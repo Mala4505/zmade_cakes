@@ -28,7 +28,10 @@ export function ItemList({ items, onChanged }: Props) {
   const { run: runAdd, pending: isAddPending } = useAsyncAction(
     async (trimmed: string) => {
       const result = await createOption('item_options', { name: trimmed, sort_order: items.length, is_active: true })
-      if (result.error !== null) return { error: result.error }
+      if (result.error !== null) {
+        setError(result.error)
+        return { error: result.error }
+      }
       if (result.fieldErrors !== null) {
         setError(result.fieldErrors.name?.[0] ?? 'Could not add item')
         return false
@@ -129,7 +132,8 @@ function ItemRow({ item, onChanged }: { item: OptionRow; onChanged: (updated: Op
     async () => {
       const result = await updateOption(item.id, 'item_options', { is_active: !item.is_active })
       if (result.error) return { error: result.error }
-      if (result.data) onChanged(result.data)
+      if (!result.data) return false
+      onChanged(result.data)
     },
     { successToast: 'Item updated' }
   )

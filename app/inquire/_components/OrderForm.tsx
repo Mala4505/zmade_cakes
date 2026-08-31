@@ -621,11 +621,15 @@ export default function OrderForm({
                             const removedItem = form.items?.[index]
                             const removedIndex = index
                             remove(index)
+                            // Fixed id: a second remove before the first Undo is clicked
+                            // replaces this toast rather than stacking another one, so
+                            // there's never more than one stale removedIndex in flight.
                             toast('Cake removed', {
+                              id: 'remove-cake-undo',
                               action: {
                                 label: 'Undo',
                                 onClick: () => {
-                                  if (removedItem) insert(removedIndex, removedItem)
+                                  if (removedItem) insert(Math.min(removedIndex, form.items?.length ?? 0), removedItem)
                                 },
                               },
                             })

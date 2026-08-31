@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { BRAND_NAME } from '@/lib/brand'
 import { normalizePhone } from '@/lib/utils'
@@ -27,6 +27,11 @@ function formatPhoneDisplay(rawPhone: string): string {
 export function Navbar({ businessPhone, businessInstagram }: Props) {
   const [copied, setCopied] = useState(false)
   const phoneDisplay = businessPhone ? formatPhoneDisplay(businessPhone) : ''
+  const revertTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => () => {
+    if (revertTimer.current) clearTimeout(revertTimer.current)
+  }, [])
 
   function handleCopyPhone() {
     if (!phoneDisplay) return
@@ -34,7 +39,8 @@ export function Navbar({ businessPhone, businessInstagram }: Props) {
       .writeText(phoneDisplay.replace(/\s/g, ''))
       .then(() => {
         setCopied(true)
-        setTimeout(() => setCopied(false), 2000)
+        if (revertTimer.current) clearTimeout(revertTimer.current)
+        revertTimer.current = setTimeout(() => setCopied(false), 2000)
       })
       .catch(() => {})
   }

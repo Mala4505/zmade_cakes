@@ -1,4 +1,5 @@
 import { balanceOwed, orderTotal } from './payments'
+import { normalizePhone } from './utils'
 import { DEFAULT_WHATSAPP_TEMPLATES, type WhatsAppTemplates } from './supabase/types'
 
 export function interpolate(template: string, vars: Record<string, string>): string {
@@ -6,15 +7,11 @@ export function interpolate(template: string, vars: Record<string, string>): str
 }
 
 export function whatsappUrl(phone: string, text: string): string {
-  const cleaned = phone.replace(/\D/g, '')
-  const number = cleaned.startsWith('965') ? cleaned : `965${cleaned}`
-  return `https://wa.me/${number}?text=${encodeURIComponent(text)}`
+  return `https://wa.me/${normalizePhone(phone)}?text=${encodeURIComponent(text)}`
 }
 
 export function whatsappUrlNoText(phone: string): string {
-  const cleaned = phone.replace(/\D/g, '')
-  const number = cleaned.startsWith('965') ? cleaned : `965${cleaned}`
-  return `https://wa.me/${number}`
+  return `https://wa.me/${normalizePhone(phone)}`
 }
 
 export interface WhatsAppActionInput {

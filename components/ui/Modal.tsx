@@ -44,8 +44,12 @@ export function Modal({
   children,
 }: ModalProps) {
   const [mounted, setMounted] = useState(false)
-  // sm: and up renders a centered dialog; below sm: a bottom sheet.
-  const [isDesktop, setIsDesktop] = useState(false)
+  // sm: and up renders a centered dialog; below sm: a bottom sheet. Lazy-initialized
+  // from matchMedia so a desktop viewport doesn't flash the mobile sheet animation
+  // on the first render before the effect below can correct it.
+  const [isDesktop, setIsDesktop] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(min-width: 640px)').matches
+  )
   const panelRef = useRef<HTMLDivElement>(null)
   const reduceMotion = useReducedMotion()
   // Drag-to-dismiss on the mobile sheet's handle. dragListener is off on the

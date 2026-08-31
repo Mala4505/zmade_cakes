@@ -77,7 +77,7 @@ export default async function OrderDetailPage({ params }: Props) {
 
         {/* Summary */}
         <div
-          className="rounded-xl border p-4 mb-6 grid grid-cols-2 gap-x-6 gap-y-3"
+          className="rounded-xl border p-4 mb-6 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3"
           style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
         >
           <Detail label="Customer" value={inq?.customer_name} />
@@ -94,7 +94,7 @@ export default async function OrderDetailPage({ params }: Props) {
           <Detail label="Payment" value={inq?.payment_method || '—'} />
           <Detail label="Delivery" value={order.delivery_type === 'delivery' ? 'Delivery' : 'Pickup'} />
           {order.delivery_type === 'delivery' && inq?.delivery_address && (
-            <div className="col-span-2">
+            <div className="sm:col-span-2">
               <p className="text-xs font-medium mb-0.5" style={{ color: 'var(--color-ink-muted)' }}>Address</p>
               <p className="text-sm" style={{ color: 'var(--color-ink-secondary)' }}>
                 {GOVERNORATE_LABELS[inq.delivery_address.governorate as keyof typeof GOVERNORATE_LABELS]},
@@ -130,10 +130,10 @@ export default async function OrderDetailPage({ params }: Props) {
             {(inq.items as InquiryItem[]).map((item, i) => (
               <div
                 key={item.id}
-                className="grid grid-cols-2 gap-x-6 gap-y-3"
+                className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3"
                 style={i > 0 ? { paddingTop: '1rem', borderTop: '1px solid var(--color-border)' } : undefined}
               >
-                <div className="col-span-2">
+                <div className="sm:col-span-2">
                   <Detail label={inq.items!.length > 1 ? `Item ${i + 1}` : 'Cake'} value={orderSummary([item])} />
                 </div>
                 {item.occasion && <Detail label="Occasion" value={item.occasion} />}
@@ -141,7 +141,7 @@ export default async function OrderDetailPage({ params }: Props) {
                 {item.message_on_cake && <Detail label="Message" value={item.message_on_cake} />}
                 <Detail label="Quantity" value={String(item.quantity ?? 1)} mono />
                 {item.special_requirements && (
-                  <div className="col-span-2">
+                  <div className="sm:col-span-2">
                     <Detail label="Special Requirements" value={item.special_requirements} />
                   </div>
                 )}
