@@ -2,6 +2,7 @@
 
 import { useActionState } from 'react'
 import { signIn } from '@/lib/actions/auth'
+import { Input } from '@/components/ui'
 
 export default function LoginForm() {
   const [error, action, pending] = useActionState(signIn, null)
@@ -16,28 +17,15 @@ export default function LoginForm() {
         >
           Email
         </label>
-        <input
+        <Input
           id="email"
           name="email"
           type="email"
           autoComplete="email"
           required
           placeholder="zainab@example.com"
-          className="w-full rounded-lg border px-3.5 py-2.5 text-sm outline-none transition-all"
-          style={{
-            backgroundColor: 'var(--color-cream)',
-            borderColor: 'var(--color-border)',
-            color: 'var(--color-ink)',
-            fontFamily: 'var(--font-sans)',
-          }}
-          onFocus={(e) => {
-            e.currentTarget.style.borderColor = 'var(--color-border-strong)'
-            e.currentTarget.style.boxShadow = '0 0 0 3px var(--color-teal-light)'
-          }}
-          onBlur={(e) => {
-            e.currentTarget.style.borderColor = 'var(--color-border)'
-            e.currentTarget.style.boxShadow = 'none'
-          }}
+          size="base"
+          style={{ fontFamily: 'var(--font-sans)' }}
         />
       </div>
 
@@ -49,28 +37,15 @@ export default function LoginForm() {
         >
           Password
         </label>
-        <input
+        <Input
           id="password"
           name="password"
           type="password"
           autoComplete="current-password"
           required
           placeholder="••••••••"
-          className="w-full rounded-lg border px-3.5 py-2.5 text-sm outline-none transition-all"
-          style={{
-            backgroundColor: 'var(--color-cream)',
-            borderColor: 'var(--color-border)',
-            color: 'var(--color-ink)',
-            fontFamily: 'var(--font-sans)',
-          }}
-          onFocus={(e) => {
-            e.currentTarget.style.borderColor = 'var(--color-border-strong)'
-            e.currentTarget.style.boxShadow = '0 0 0 3px var(--color-teal-light)'
-          }}
-          onBlur={(e) => {
-            e.currentTarget.style.borderColor = 'var(--color-border)'
-            e.currentTarget.style.boxShadow = 'none'
-          }}
+          size="base"
+          style={{ fontFamily: 'var(--font-sans)' }}
         />
       </div>
 

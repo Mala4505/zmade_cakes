@@ -5,6 +5,7 @@ import { format, parseISO } from 'date-fns'
 import { X } from '@phosphor-icons/react'
 import { createBlackout, deleteBlackout } from '@/lib/actions/settings'
 import { useAsyncAction } from '@/lib/hooks/useAsyncAction'
+import { Input, IconButton } from '@/components/ui'
 import type { BlackoutDate } from '@/lib/supabase/types'
 
 export default function BlackoutDatesManager({
@@ -91,16 +92,14 @@ export default function BlackoutDatesManager({
                     </p>
                   )}
                 </div>
-                <button
-                  type="button"
+                <IconButton
                   onClick={() => handleDelete(b.id)}
                   disabled={busy}
-                  className="shrink-0 p-1 rounded transition-opacity disabled:opacity-40"
-                  style={{ color: 'var(--color-danger)' }}
+                  tone="danger"
                   aria-label="Delete blackout"
                 >
                   <X size={15} weight="bold" />
-                </button>
+                </IconButton>
               </li>
             ))}
           </ul>
@@ -117,7 +116,7 @@ export default function BlackoutDatesManager({
         </p>
 
         <form onSubmit={handleAdd} className="space-y-3">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label
                 htmlFor="date_from"
@@ -126,18 +125,13 @@ export default function BlackoutDatesManager({
               >
                 From
               </label>
-              <input
+              <Input
                 id="date_from"
                 type="date"
                 required
                 value={dateFrom}
                 onChange={(e) => setDateFrom(e.target.value)}
-                className="w-full rounded-lg border px-3.5 py-2.5 text-sm outline-none transition-all"
-                style={{
-                  backgroundColor: 'var(--color-cream)',
-                  borderColor: 'var(--color-border)',
-                  color: 'var(--color-ink)',
-                }}
+                size="base"
               />
             </div>
             <div>
@@ -148,18 +142,13 @@ export default function BlackoutDatesManager({
               >
                 To
               </label>
-              <input
+              <Input
                 id="date_to"
                 type="date"
                 required
                 value={dateTo}
                 onChange={(e) => setDateTo(e.target.value)}
-                className="w-full rounded-lg border px-3.5 py-2.5 text-sm outline-none transition-all"
-                style={{
-                  backgroundColor: 'var(--color-cream)',
-                  borderColor: 'var(--color-border)',
-                  color: 'var(--color-ink)',
-                }}
+                size="base"
               />
             </div>
           </div>
@@ -172,18 +161,13 @@ export default function BlackoutDatesManager({
             >
               Reason (optional)
             </label>
-            <input
+            <Input
               id="reason"
               type="text"
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               placeholder="e.g. Eid holiday"
-              className="w-full rounded-lg border px-3.5 py-2.5 text-sm outline-none transition-all"
-              style={{
-                backgroundColor: 'var(--color-cream)',
-                borderColor: 'var(--color-border)',
-                color: 'var(--color-ink)',
-              }}
+              size="base"
             />
           </div>
 

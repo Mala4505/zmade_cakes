@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { formatDate } from '@/lib/utils'
 import { PageHeader } from '@/components/admin/PageHeader'
+import { Input } from '@/components/ui'
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import type { Customer } from '@/lib/supabase/types'
@@ -65,17 +66,13 @@ export default async function CustomersPage({
 
       {/* Search */}
       <form className="mb-4">
-        <input
+        <Input
           type="search"
           name="q"
           defaultValue={q}
           placeholder="Search by name or phone…"
-          className="w-full md:w-72 px-3 py-2 text-sm rounded-lg border outline-none focus:ring-2"
-          style={{
-            backgroundColor: 'var(--color-surface)',
-            borderColor: 'var(--color-border)',
-            color: 'var(--color-ink)',
-          }}
+          size="base"
+          className="w-full md:w-72"
         />
       </form>
 

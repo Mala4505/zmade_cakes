@@ -7,6 +7,7 @@ import { createOption, updateOption, deleteOption } from '@/lib/actions/options'
 import { Plus, PencilSimple, Check, X, Trash, DotsSixVertical } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 import { useAsyncAction } from '@/lib/hooks/useAsyncAction'
+import { Input, IconButton } from '@/components/ui'
 import type { OptionRow } from '@/lib/supabase/types'
 import type { OptionTable } from '@/lib/validations/options'
 
@@ -123,17 +124,13 @@ export default function OptionsManager({ optionTypes, activeType, options }: Pro
           Add New
         </p>
         <div className="flex gap-2">
-          <input
+          <Input
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
             placeholder="Option name…"
-            className="flex-1 rounded-lg border px-3.5 py-2.5 text-sm outline-none"
-            style={{
-              backgroundColor: 'var(--color-cream)',
-              borderColor: 'var(--color-border)',
-              color: 'var(--color-ink)',
-            }}
+            size="base"
+            className="flex-1"
           />
           <button
             type="button"
@@ -172,7 +169,7 @@ export default function OptionsManager({ optionTypes, activeType, options }: Pro
 
                 {editingId === option.id ? (
                   <>
-                    <input
+                    <Input
                       value={editValue}
                       onChange={(e) => setEditValue(e.target.value)}
                       onKeyDown={(e) => {
@@ -180,19 +177,25 @@ export default function OptionsManager({ optionTypes, activeType, options }: Pro
                         if (e.key === 'Escape') setEditingId(null)
                       }}
                       autoFocus
-                      className="flex-1 rounded-lg border px-3 py-1.5 text-sm outline-none"
-                      style={{
-                        backgroundColor: 'var(--color-cream)',
-                        borderColor: 'var(--color-border)',
-                        color: 'var(--color-ink)',
-                      }}
+                      size="base"
+                      className="flex-1 py-1.5"
                     />
-                    <button onClick={() => handleUpdate(option.id)} disabled={busy} className="p-1.5 rounded" style={{ color: 'var(--color-teal)' }}>
+                    <IconButton
+                      onClick={() => handleUpdate(option.id)}
+                      disabled={busy}
+                      tone="accent"
+                      aria-label="Save"
+                    >
                       <Check size={15} weight="bold" />
-                    </button>
-                    <button onClick={() => setEditingId(null)} className="p-1.5 rounded" style={{ color: 'var(--color-ink-muted)' }}>
+                    </IconButton>
+                    <IconButton
+                      onClick={() => setEditingId(null)}
+                      disabled={busy}
+                      tone="muted"
+                      aria-label="Cancel edit"
+                    >
                       <X size={15} />
-                    </button>
+                    </IconButton>
                   </>
                 ) : (
                   <>
@@ -216,22 +219,23 @@ export default function OptionsManager({ optionTypes, activeType, options }: Pro
                       {option.is_active ? 'Active' : 'Hidden'}
                     </button>
 
-                    <button
+                    <IconButton
                       onClick={() => { setEditingId(option.id); setEditValue(option.name) }}
-                      className="p-1.5 rounded"
-                      style={{ color: 'var(--color-ink-muted)' }}
+                      disabled={busy}
+                      tone="muted"
+                      aria-label={`Edit ${option.name}`}
                     >
                       <PencilSimple size={14} />
-                    </button>
+                    </IconButton>
 
-                    <button
+                    <IconButton
                       onClick={() => handleDelete(option.id)}
                       disabled={busy}
-                      className="p-1.5 rounded"
-                      style={{ color: 'var(--color-danger)' }}
+                      tone="danger"
+                      aria-label={`Delete ${option.name}`}
                     >
                       <Trash size={14} />
-                    </button>
+                    </IconButton>
                   </>
                 )}
               </li>

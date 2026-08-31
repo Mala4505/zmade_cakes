@@ -1,5 +1,6 @@
 'use client'
 
+import { Input } from '@/components/ui'
 import type { OptionRow } from '@/lib/supabase/types'
 
 interface Props {
@@ -30,28 +31,21 @@ export function PricingTable({ sizes, priceMap, onChange }: Props) {
               </p>
             </div>
 
-            <div
-              className="flex items-center gap-1 rounded-lg border px-3 py-2 focus-within:shadow-[0_0_0_3px_var(--color-teal-light)] transition-shadow"
-              style={{ borderColor: invalid ? 'var(--color-danger)' : 'var(--color-border)' }}
-            >
-              <span className="text-xs font-medium select-none" style={{ color: 'var(--color-ink-muted)' }}>
-                KD
-              </span>
-              <input
-                type="number"
-                min="0"
-                max="9999.999"
-                step="0.001"
-                inputMode="decimal"
-                value={raw}
-                onChange={(e) => onChange(size.id, e.target.value)}
-                placeholder="0.000"
-                aria-label={`Price for ${size.name}`}
-                aria-invalid={invalid || undefined}
-                className="w-24 bg-transparent text-sm text-right outline-none"
-                style={{ color: 'var(--color-ink)', fontFamily: 'var(--font-mono)' }}
-              />
-            </div>
+            <Input
+              type="number"
+              min="0"
+              max="9999.999"
+              step="0.001"
+              inputMode="decimal"
+              value={raw}
+              onChange={(e) => onChange(size.id, e.target.value)}
+              placeholder="0.000"
+              aria-label={`Price for ${size.name}`}
+              aria-invalid={invalid || undefined}
+              prefix="KD"
+              size="base"
+              className="w-24 text-right"
+            />
           </div>
         )
       })}

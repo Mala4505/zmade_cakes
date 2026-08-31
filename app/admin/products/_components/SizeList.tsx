@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Plus, Trash } from '@phosphor-icons/react'
-import { Input, Button, Spinner } from '@/components/ui'
+import { Input, Button, Spinner, IconButton } from '@/components/ui'
 import { createOption, updateOption, deleteOption } from '@/lib/actions/options'
 import { useAsyncAction } from '@/lib/hooks/useAsyncAction'
 import type { OptionRow } from '@/lib/supabase/types'
@@ -188,16 +188,13 @@ function SizeRow({ size, onChanged }: { size: OptionRow; onChanged: (updated: Op
             {size.is_active ? 'Active' : 'Inactive'}
           </button>
           {size.is_active && (
-            <button
-              type="button"
+            <IconButton
               onClick={() => setConfirmDelete(true)}
-              className="flex h-8 w-8 items-center justify-center rounded-lg transition-colors hover:bg-[color:var(--color-surface-raised)]"
-              style={{ color: 'var(--color-ink-muted)' }}
-              title="Deactivate size"
+              tone="danger"
               aria-label={`Deactivate ${size.name}`}
             >
               <Trash size={14} />
-            </button>
+            </IconButton>
           )}
         </div>
       )}

@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Plus, Trash } from '@phosphor-icons/react'
-import { Input, Button, Spinner } from '@/components/ui'
+import { Input, Button, Spinner, IconButton } from '@/components/ui'
 import { createOption, updateOption, deleteOption } from '@/lib/actions/options'
 import { useAsyncAction } from '@/lib/hooks/useAsyncAction'
 import type { OptionRow } from '@/lib/supabase/types'
@@ -187,16 +187,13 @@ function ItemRow({ item, onChanged }: { item: OptionRow; onChanged: (updated: Op
             {item.is_active ? 'Active' : 'Inactive'}
           </button>
           {item.is_active && (
-            <button
-              type="button"
+            <IconButton
               onClick={() => setConfirmDelete(true)}
-              className="flex h-8 w-8 items-center justify-center rounded-lg transition-colors hover:bg-[color:var(--color-surface-raised)]"
-              style={{ color: 'var(--color-ink-muted)' }}
-              title="Deactivate item"
+              tone="danger"
               aria-label={`Deactivate ${item.name}`}
             >
               <Trash size={14} />
-            </button>
+            </IconButton>
           )}
         </div>
       )}
