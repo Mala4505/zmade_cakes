@@ -4,7 +4,42 @@ import { useState, useTransition } from 'react'
 import { format, parseISO } from 'date-fns'
 import { X } from '@phosphor-icons/react'
 import { createBlackout, deleteBlackout } from '@/lib/actions/settings'
+import { Input } from '@/components/ui'
 import type { BlackoutDate } from '@/lib/supabase/types'
+
+/**
+ * Local stand-in for `components/ui/IconButton` (not present in this worktree
+ * yet — a sibling agent owns that file). Same contract: 44x44 hit area via
+ * `min-h-11 min-w-11 -m-2`, required aria-label, neutral/danger tone. Replace
+ * with the shared import once it lands.
+ */
+function IconButton({
+  icon,
+  label,
+  onClick,
+  disabled,
+  tone = 'neutral',
+}: {
+  icon: React.ReactNode
+  label: string
+  onClick?: () => void
+  disabled?: boolean
+  tone?: 'neutral' | 'danger'
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={label}
+      title={label}
+      className="flex items-center justify-center min-h-11 min-w-11 -m-2 rounded-lg transition-colors hover:bg-[color:var(--color-surface-raised)] disabled:opacity-40 disabled:cursor-not-allowed"
+      style={{ color: tone === 'danger' ? 'var(--color-danger)' : 'var(--color-ink-muted)' }}
+    >
+      {icon}
+    </button>
+  )
+}
 
 export default function BlackoutDatesManager({
   initialBlackouts,
@@ -102,16 +137,13 @@ export default function BlackoutDatesManager({
                     </p>
                   )}
                 </div>
-                <button
-                  type="button"
+                <IconButton
+                  icon={<X size={15} weight="bold" />}
+                  label="Delete blackout"
                   onClick={() => handleDelete(b.id)}
                   disabled={isPending}
-                  className="shrink-0 p-1 rounded transition-opacity disabled:opacity-40"
-                  style={{ color: 'var(--color-danger)' }}
-                  aria-label="Delete blackout"
-                >
-                  <X size={15} weight="bold" />
-                </button>
+                  tone="danger"
+                />
               </li>
             ))}
           </ul>
@@ -134,7 +166,7 @@ export default function BlackoutDatesManager({
         </p>
 
         <form onSubmit={handleAdd} className="space-y-3">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label
                 htmlFor="date_from"
@@ -143,18 +175,13 @@ export default function BlackoutDatesManager({
               >
                 From
               </label>
-              <input
+              <Input
                 id="date_from"
                 type="date"
                 required
                 value={dateFrom}
                 onChange={(e) => setDateFrom(e.target.value)}
-                className="w-full rounded-lg border px-3.5 py-2.5 text-sm outline-none transition-all"
-                style={{
-                  backgroundColor: 'var(--color-cream)',
-                  borderColor: 'var(--color-border)',
-                  color: 'var(--color-ink)',
-                }}
+                size="base"
               />
             </div>
             <div>
@@ -165,18 +192,13 @@ export default function BlackoutDatesManager({
               >
                 To
               </label>
-              <input
+              <Input
                 id="date_to"
                 type="date"
                 required
                 value={dateTo}
                 onChange={(e) => setDateTo(e.target.value)}
-                className="w-full rounded-lg border px-3.5 py-2.5 text-sm outline-none transition-all"
-                style={{
-                  backgroundColor: 'var(--color-cream)',
-                  borderColor: 'var(--color-border)',
-                  color: 'var(--color-ink)',
-                }}
+                size="base"
               />
             </div>
           </div>
@@ -189,18 +211,13 @@ export default function BlackoutDatesManager({
             >
               Reason (optional)
             </label>
-            <input
+            <Input
               id="reason"
               type="text"
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               placeholder="e.g. Eid holiday"
-              className="w-full rounded-lg border px-3.5 py-2.5 text-sm outline-none transition-all"
-              style={{
-                backgroundColor: 'var(--color-cream)',
-                borderColor: 'var(--color-border)',
-                color: 'var(--color-ink)',
-              }}
+              size="base"
             />
           </div>
 

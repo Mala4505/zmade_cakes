@@ -15,6 +15,40 @@ interface Props {
   embedded?: boolean
 }
 
+/**
+ * Local stand-in for `components/ui/IconButton` (not present in this worktree
+ * yet — a sibling agent owns that file). Same contract: 44x44 hit area via
+ * `min-h-11 min-w-11 -m-2`, required aria-label, neutral/danger tone. Replace
+ * with the shared import once it lands.
+ */
+function IconButton({
+  icon,
+  label,
+  onClick,
+  disabled,
+  tone = 'neutral',
+}: {
+  icon: React.ReactNode
+  label: string
+  onClick?: () => void
+  disabled?: boolean
+  tone?: 'neutral' | 'danger'
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={label}
+      title={label}
+      className="flex items-center justify-center min-h-11 min-w-11 -m-2 rounded-lg transition-colors hover:bg-[color:var(--color-surface-raised)] disabled:opacity-40 disabled:cursor-not-allowed"
+      style={{ color: tone === 'danger' ? 'var(--color-danger)' : 'var(--color-ink-muted)' }}
+    >
+      {icon}
+    </button>
+  )
+}
+
 export function SizeList({ sizes, onChanged, embedded = false }: Props) {
   const [adding, setAdding] = useState(false)
   const [newName, setNewName] = useState('')
@@ -212,16 +246,12 @@ function SizeRow({ size, onChanged }: { size: OptionRow; onChanged: (updated: Op
             {size.is_active ? 'Active' : 'Inactive'}
           </button>
           {size.is_active && (
-            <button
-              type="button"
+            <IconButton
+              icon={<Trash size={14} />}
+              label={`Deactivate ${size.name}`}
               onClick={() => setConfirmDelete(true)}
-              className="flex h-8 w-8 items-center justify-center rounded-lg transition-colors hover:bg-[color:var(--color-surface-raised)]"
-              style={{ color: 'var(--color-ink-muted)' }}
-              title="Deactivate size"
-              aria-label={`Deactivate ${size.name}`}
-            >
-              <Trash size={14} />
-            </button>
+              tone="danger"
+            />
           )}
         </div>
       )}

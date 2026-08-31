@@ -12,6 +12,40 @@ interface Props {
   onChanged: (items: OptionRow[]) => void
 }
 
+/**
+ * Local stand-in for `components/ui/IconButton` (not present in this worktree
+ * yet — a sibling agent owns that file). Same contract: 44x44 hit area via
+ * `min-h-11 min-w-11 -m-2`, required aria-label, neutral/danger tone. Replace
+ * with the shared import once it lands.
+ */
+function IconButton({
+  icon,
+  label,
+  onClick,
+  disabled,
+  tone = 'neutral',
+}: {
+  icon: React.ReactNode
+  label: string
+  onClick?: () => void
+  disabled?: boolean
+  tone?: 'neutral' | 'danger'
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={label}
+      title={label}
+      className="flex items-center justify-center min-h-11 min-w-11 -m-2 rounded-lg transition-colors hover:bg-[color:var(--color-surface-raised)] disabled:opacity-40 disabled:cursor-not-allowed"
+      style={{ color: tone === 'danger' ? 'var(--color-danger)' : 'var(--color-ink-muted)' }}
+    >
+      {icon}
+    </button>
+  )
+}
+
 /** Catalog of non-cake "other items" (jars, brownies…). Name + active only;
  *  each item's price is set per order on the inquiry, not here. */
 export function ItemList({ items, onChanged }: Props) {
@@ -211,16 +245,12 @@ function ItemRow({ item, onChanged }: { item: OptionRow; onChanged: (updated: Op
             {item.is_active ? 'Active' : 'Inactive'}
           </button>
           {item.is_active && (
-            <button
-              type="button"
+            <IconButton
+              icon={<Trash size={14} />}
+              label={`Deactivate ${item.name}`}
               onClick={() => setConfirmDelete(true)}
-              className="flex h-8 w-8 items-center justify-center rounded-lg transition-colors hover:bg-[color:var(--color-surface-raised)]"
-              style={{ color: 'var(--color-ink-muted)' }}
-              title="Deactivate item"
-              aria-label={`Deactivate ${item.name}`}
-            >
-              <Trash size={14} />
-            </button>
+              tone="danger"
+            />
           )}
         </div>
       )}

@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react'
 import { toast } from 'sonner'
 import { updateSetting } from '@/lib/actions/settings'
+import { Input } from '@/components/ui'
 
 export default function BusinessInfoForm({
   initialPhone,
@@ -53,17 +54,12 @@ export default function BusinessInfoForm({
           >
             WhatsApp Phone Number
           </label>
-          <input
+          <Input
             id="business_phone"
             type="text"
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
-            className="w-full rounded-lg border px-3.5 py-2.5 text-sm outline-none transition-all"
-            style={{
-              backgroundColor: 'var(--color-cream)',
-              borderColor: 'var(--color-border)',
-              color: 'var(--color-ink)',
-            }}
+            size="base"
           />
         </div>
 
@@ -75,17 +71,12 @@ export default function BusinessInfoForm({
           >
             Instagram Handle
           </label>
-          <input
+          <Input
             id="business_instagram"
             type="text"
             value={instagram}
             onChange={(e) => setInstagram(e.target.value)}
-            className="w-full rounded-lg border px-3.5 py-2.5 text-sm outline-none transition-all"
-            style={{
-              backgroundColor: 'var(--color-cream)',
-              borderColor: 'var(--color-border)',
-              color: 'var(--color-ink)',
-            }}
+            size="base"
           />
         </div>
 

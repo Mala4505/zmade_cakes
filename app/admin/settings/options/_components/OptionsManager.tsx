@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import { createOption, updateOption, deleteOption } from '@/lib/actions/options'
 import { Plus, PencilSimple, Check, X, Trash, DotsSixVertical } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
+import { Input } from '@/components/ui'
 import type { OptionRow } from '@/lib/supabase/types'
 import type { OptionTable } from '@/lib/validations/options'
 
@@ -14,6 +15,40 @@ interface Props {
   optionTypes: { type: OptionTable; label: string }[]
   activeType: OptionTable
   options: OptionRow[]
+}
+
+/**
+ * Local stand-in for `components/ui/IconButton` (not present in this worktree
+ * yet — a sibling agent owns that file). Same contract: 44x44 hit area via
+ * `min-h-11 min-w-11 -m-2`, required aria-label, neutral/danger tone. Replace
+ * with the shared import once it lands.
+ */
+function IconButton({
+  icon,
+  label,
+  onClick,
+  disabled,
+  tone = 'neutral',
+}: {
+  icon: React.ReactNode
+  label: string
+  onClick?: () => void
+  disabled?: boolean
+  tone?: 'neutral' | 'danger'
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={label}
+      title={label}
+      className="flex items-center justify-center min-h-11 min-w-11 -m-2 rounded-lg transition-colors hover:bg-[color:var(--color-surface-raised)] disabled:opacity-40 disabled:cursor-not-allowed"
+      style={{ color: tone === 'danger' ? 'var(--color-danger)' : 'var(--color-ink-muted)' }}
+    >
+      {icon}
+    </button>
+  )
 }
 
 export default function OptionsManager({ optionTypes, activeType, options }: Props) {
@@ -144,17 +179,13 @@ export default function OptionsManager({ optionTypes, activeType, options }: Pro
           Add New
         </p>
         <div className="flex gap-2">
-          <input
+          <Input
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
             placeholder="Option name…"
-            className="flex-1 rounded-lg border px-3.5 py-2.5 text-sm outline-none"
-            style={{
-              backgroundColor: 'var(--color-cream)',
-              borderColor: 'var(--color-border)',
-              color: 'var(--color-ink)',
-            }}
+            size="base"
+            className="flex-1"
           />
           <button
             type="button"
@@ -193,7 +224,7 @@ export default function OptionsManager({ optionTypes, activeType, options }: Pro
 
                 {editingId === option.id ? (
                   <>
-                    <input
+                    <Input
                       value={editValue}
                       onChange={(e) => setEditValue(e.target.value)}
                       onKeyDown={(e) => {
@@ -201,19 +232,20 @@ export default function OptionsManager({ optionTypes, activeType, options }: Pro
                         if (e.key === 'Escape') setEditingId(null)
                       }}
                       autoFocus
-                      className="flex-1 rounded-lg border px-3 py-1.5 text-sm outline-none"
-                      style={{
-                        backgroundColor: 'var(--color-cream)',
-                        borderColor: 'var(--color-border)',
-                        color: 'var(--color-ink)',
-                      }}
+                      size="base"
+                      className="flex-1 py-1.5"
                     />
-                    <button onClick={() => handleUpdate(option.id)} disabled={pending} className="p-1.5 rounded" style={{ color: 'var(--color-teal)' }}>
-                      <Check size={15} weight="bold" />
-                    </button>
-                    <button onClick={() => setEditingId(null)} className="p-1.5 rounded" style={{ color: 'var(--color-ink-muted)' }}>
-                      <X size={15} />
-                    </button>
+                    <IconButton
+                      icon={<Check size={15} weight="bold" />}
+                      label="Save"
+                      onClick={() => handleUpdate(option.id)}
+                      disabled={pending}
+                    />
+                    <IconButton
+                      icon={<X size={15} />}
+                      label="Cancel edit"
+                      onClick={() => setEditingId(null)}
+                    />
                   </>
                 ) : (
                   <>
@@ -237,22 +269,19 @@ export default function OptionsManager({ optionTypes, activeType, options }: Pro
                       {option.is_active ? 'Active' : 'Hidden'}
                     </button>
 
-                    <button
+                    <IconButton
+                      icon={<PencilSimple size={14} />}
+                      label={`Edit ${option.name}`}
                       onClick={() => { setEditingId(option.id); setEditValue(option.name) }}
-                      className="p-1.5 rounded"
-                      style={{ color: 'var(--color-ink-muted)' }}
-                    >
-                      <PencilSimple size={14} />
-                    </button>
+                    />
 
-                    <button
+                    <IconButton
+                      icon={<Trash size={14} />}
+                      label={`Delete ${option.name}`}
                       onClick={() => handleDelete(option.id)}
                       disabled={pending}
-                      className="p-1.5 rounded"
-                      style={{ color: 'var(--color-danger)' }}
-                    >
-                      <Trash size={14} />
-                    </button>
+                      tone="danger"
+                    />
                   </>
                 )}
               </li>
