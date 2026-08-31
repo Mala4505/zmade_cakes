@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { formatDate } from '@/lib/utils'
 import { PageHeader } from '@/components/admin/PageHeader'
-import { Input } from '@/components/ui'
+import { Input, ResponsiveList } from '@/components/ui'
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import type { Customer } from '@/lib/supabase/types'
@@ -77,43 +77,98 @@ export default async function CustomersPage({
       </form>
 
       {/* List */}
-      <div
-        className="rounded-xl border overflow-hidden"
-        style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
-      >
-        {enriched.length === 0 ? (
-          <div className="py-16 text-center">
-            <p className="text-sm" style={{ color: 'var(--color-ink-muted)' }}>
-              {q.trim() ? `No customers match "${q}"` : 'No customers yet'}
-            </p>
-          </div>
-        ) : (
-          <ul>
-            {enriched.map((c, i) => (
-              <li key={c.id}>
-                <Link
-                  href={`/admin/customers/${c.id}`}
-                  className="flex items-center gap-4 px-4 py-4 transition-colors hover:bg-[var(--color-surface-raised)]"
-                  style={
-                    i !== enriched.length - 1
-                      ? { borderBottom: '1px solid var(--color-border)' }
-                      : undefined
-                  }
-                >
-                  {/* VIP stripe */}
-                  {c.vip && (
-                    <span
-                      className="w-0.5 self-stretch rounded-full shrink-0"
-                      style={{ backgroundColor: 'var(--color-teal)' }}
-                    />
-                  )}
+      {enriched.length === 0 ? (
+        <div
+          className="rounded-xl border overflow-hidden py-16 text-center"
+          style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
+        >
+          <p className="text-sm" style={{ color: 'var(--color-ink-muted)' }}>
+            {q.trim() ? `No customers match "${q}"` : 'No customers yet'}
+          </p>
+        </div>
+      ) : (
+        <ResponsiveList
+          desktop={
+            <div
+              className="rounded-xl border overflow-hidden"
+              style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
+            >
+              <ul>
+                {enriched.map((c, i) => (
+                  <li key={c.id}>
+                    <Link
+                      href={`/admin/customers/${c.id}`}
+                      className="flex items-center gap-4 px-4 py-4 transition-colors hover:bg-[var(--color-surface-raised)]"
+                      style={
+                        i !== enriched.length - 1
+                          ? { borderBottom: '1px solid var(--color-border)' }
+                          : undefined
+                      }
+                    >
+                      {/* VIP stripe */}
+                      {c.vip && (
+                        <span
+                          className="w-0.5 self-stretch rounded-full shrink-0"
+                          style={{ backgroundColor: 'var(--color-teal)' }}
+                        />
+                      )}
 
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span
-                        className="text-sm font-semibold"
-                        style={{ color: 'var(--color-ink)' }}
-                      >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span
+                            className="text-sm font-semibold"
+                            style={{ color: 'var(--color-ink)' }}
+                          >
+                            {c.name}
+                          </span>
+                          {c.vip && (
+                            <span
+                              className="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full"
+                              style={{ backgroundColor: '#fef3c7', color: '#92400e' }}
+                            >
+                              ★ VIP
+                            </span>
+                          )}
+                        </div>
+                        <p
+                          className="text-xs mt-0.5"
+                          style={{
+                            color: 'var(--color-ink-muted)',
+                            fontFamily: 'var(--font-mono)',
+                          }}
+                        >
+                          {c.phone}
+                        </p>
+                      </div>
+
+                      <div className="shrink-0 text-right">
+                        <p className="text-xs font-medium" style={{ color: 'var(--color-ink-secondary)' }}>
+                          {c.inquiry_count} {c.inquiry_count === 1 ? 'order' : 'orders'}
+                        </p>
+                        {c.last_order_date && (
+                          <p className="text-[11px] mt-0.5" style={{ color: 'var(--color-ink-muted)' }}>
+                            Last: {formatDate(c.last_order_date)}
+                          </p>
+                        )}
+                      </div>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          }
+          mobile={
+            <div className="flex flex-col gap-3">
+              {enriched.map((c) => (
+                <Link
+                  key={c.id}
+                  href={`/admin/customers/${c.id}`}
+                  className="rounded-xl border p-4 flex items-start justify-between gap-3"
+                  style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
+                >
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-sm font-semibold" style={{ color: 'var(--color-ink)' }}>
                         {c.name}
                       </span>
                       {c.vip && (
@@ -127,10 +182,7 @@ export default async function CustomersPage({
                     </div>
                     <p
                       className="text-xs mt-0.5"
-                      style={{
-                        color: 'var(--color-ink-muted)',
-                        fontFamily: 'var(--font-mono)',
-                      }}
+                      style={{ color: 'var(--color-ink-muted)', fontFamily: 'var(--font-mono)' }}
                     >
                       {c.phone}
                     </p>
@@ -147,11 +199,11 @@ export default async function CustomersPage({
                     )}
                   </div>
                 </Link>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+              ))}
+            </div>
+          }
+        />
+      )}
     </div>
   )
 }

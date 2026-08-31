@@ -4,6 +4,7 @@ import { formatDate, formatKWD, orderSummary, myOrdersLink } from '@/lib/utils'
 import { generatePortalToken } from '@/lib/portal'
 import { PageHeader } from '@/components/admin/PageHeader'
 import { InquiryStatusSelect } from '@/components/admin/InquiryStatusSelect'
+import { ResponsiveList } from '@/components/ui'
 import InquiryRowActions from './_components/InquiryRowActions'
 import InquiryFilterBar from './_components/InquiryFilterBar'
 import { balanceOwed, orderTotal } from '@/lib/payments'
@@ -180,6 +181,23 @@ export default async function InquiriesPage({
   )]
   const customerInquiryCounts = await getCustomerInquiryCounts(customerIds)
 
+  // Shared per-row derivation — computed once, consumed by both the desktop table
+  // and the mobile card list below so the two views can never drift out of sync.
+  const inquiryRows = inquiries.map((inq: any) => {
+    const hasNoPrice = inq.admin_price === null || inq.admin_price === undefined
+    const urgent = isUrgent(inq.event_date)
+    const isReturning = inq.customer_id && (customerInquiryCounts[inq.customer_id] ?? 0) > 1
+    const isPaid = inq.fully_paid
+    const orderTotalAmt = inq.admin_price ? orderTotal(inq.admin_price, inq.discount, inq.delivery_charge) : null
+    const balance = orderTotalAmt !== null
+      ? balanceOwed(orderTotalAmt, inq.amount_paid, inq.fully_paid)
+      : null
+    // Binary paid/not-paid — the amount shown is contextual: the settled total once
+    // paid, or what's still outstanding (net of any deposit already credited) if not.
+    const paymentAmount = isPaid ? orderTotalAmt : balance
+    return { inq, hasNoPrice, urgent, isReturning, isPaid, paymentAmount }
+  })
+
   return (
     <div className="px-4 py-6 md:px-8 md:py-8 max-w-5xl mx-auto">
       <PageHeader
@@ -207,208 +225,274 @@ export default async function InquiriesPage({
         paymentOptions={PAYMENT_OPTIONS}
       />
 
-      {/* Table */}
-      <div
-        className="rounded-xl border overflow-x-auto"
-        style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
-      >
-        {inquiries.length === 0 ? (
-          <div className="py-16 text-center">
-            <p className="text-sm" style={{ color: 'var(--color-ink-muted)' }}>No inquiries found</p>
-            {hasActiveFilters ? (
-              <Link
-                href="/admin/inquiries"
-                className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium"
-                style={{ color: 'var(--color-teal)' }}
-              >
-                Clear filters
-              </Link>
-            ) : (
-              <Link
-                href="/admin/inquiries/new"
-                className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium"
-                style={{ color: 'var(--color-teal)' }}
-              >
-                <Plus size={14} weight="bold" /> Create the first one
-              </Link>
-            )}
-          </div>
-        ) : (
-          <table className="w-full text-sm border-collapse">
-            <colgroup>
-              <col />
-              <col style={{ width: 110 }} />
-              <col style={{ width: 140 }} />
-              <col style={{ width: 130 }} />
-              <col style={{ width: 90 }} />
-            </colgroup>
-            <thead>
-              <tr
-                className="border-b text-left"
-                style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface-raised)' }}
-              >
-                {COLUMNS.map((col) => {
-                  if (!col.field) {
-                    return (
-                      <th
-                        key={col.label}
-                        className="px-3 py-2.5 text-[11px] font-bold uppercase tracking-wider whitespace-nowrap"
-                        style={{ color: 'var(--color-ink-muted)' }}
-                      >
-                        {col.label}
-                      </th>
-                    )
-                  }
-                  const isActive = sort === col.field
-                  const nextDir: SortDir = isActive && dir === 'asc' ? 'desc' : 'asc'
-                  const href = buildInquiriesHref({ q, status, payment, sort: col.field, dir: nextDir, page: 1 })
-                  return (
-                    <th
-                      key={col.label}
-                      className="px-3 py-2.5 text-[11px] font-bold uppercase tracking-wider whitespace-nowrap"
-                    >
-                      <Link
-                        href={href}
-                        className="inline-flex items-center gap-1 transition-colors hover:text-[var(--color-teal-deep)]"
-                        style={{ color: isActive ? 'var(--color-teal-deep)' : 'var(--color-ink-muted)' }}
-                      >
-                        {col.label}
-                        {isActive ? (
-                          dir === 'asc' ? <CaretUp size={10} weight="bold" /> : <CaretDown size={10} weight="bold" />
-                        ) : (
-                          <CaretUpDown size={10} weight="bold" style={{ opacity: 0.4 }} />
-                        )}
-                      </Link>
-                    </th>
-                  )
-                })}
-              </tr>
-            </thead>
-            <tbody>
-              {inquiries.map((inq: any) => {
-                const hasNoPrice = inq.admin_price === null || inq.admin_price === undefined
-                const urgent = isUrgent(inq.event_date)
-                const isReturning = inq.customer_id && (customerInquiryCounts[inq.customer_id] ?? 0) > 1
-                const isPaid = inq.fully_paid
-                const orderTotalAmt = inq.admin_price ? orderTotal(inq.admin_price, inq.discount, inq.delivery_charge) : null
-                const balance = orderTotalAmt !== null
-                  ? balanceOwed(orderTotalAmt, inq.amount_paid, inq.fully_paid)
-                  : null
-                // Binary paid/not-paid — the amount shown is contextual: the settled total once
-                // paid, or what's still outstanding (net of any deposit already credited) if not.
-                const paymentAmount = isPaid ? orderTotalAmt : balance
-
-                return (
+      {/* Table (desktop) / cards (mobile) */}
+      {inquiries.length === 0 ? (
+        <div
+          className="rounded-xl border py-16 text-center"
+          style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
+        >
+          <p className="text-sm" style={{ color: 'var(--color-ink-muted)' }}>No inquiries found</p>
+          {hasActiveFilters ? (
+            <Link
+              href="/admin/inquiries"
+              className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium"
+              style={{ color: 'var(--color-teal)' }}
+            >
+              Clear filters
+            </Link>
+          ) : (
+            <Link
+              href="/admin/inquiries/new"
+              className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium"
+              style={{ color: 'var(--color-teal)' }}
+            >
+              <Plus size={14} weight="bold" /> Create the first one
+            </Link>
+          )}
+        </div>
+      ) : (
+        <ResponsiveList
+          desktop={
+            <div
+              className="rounded-xl border overflow-x-auto"
+              style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
+            >
+              <table className="w-full text-sm border-collapse">
+                <colgroup>
+                  <col />
+                  <col style={{ width: 110 }} />
+                  <col style={{ width: 140 }} />
+                  <col style={{ width: 130 }} />
+                  <col style={{ width: 90 }} />
+                </colgroup>
+                <thead>
                   <tr
-                    key={inq.id}
-                    style={
-                      hasNoPrice
-                        ? { outline: '1.5px solid var(--color-danger)', outlineOffset: '-1px' }
-                        : undefined
-                    }
-                    className="border-b last:border-0 hover:bg-[var(--color-surface-raised)] transition-colors"
-                    data-has-no-price={hasNoPrice ? 'true' : undefined}
+                    className="border-b text-left"
+                    style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface-raised)' }}
                   >
-                    {/* Customer */}
-                    <td className="px-3 py-3 align-middle">
-                      <Link href={`/admin/inquiries/${inq.id}`} className="block group">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="font-semibold transition-colors text-[var(--color-ink)] group-hover:text-[var(--color-teal-deep)]">
-                            {inq.customer_name}
+                    {COLUMNS.map((col) => {
+                      if (!col.field) {
+                        return (
+                          <th
+                            key={col.label}
+                            className="px-3 py-2.5 text-[11px] font-bold uppercase tracking-wider whitespace-nowrap"
+                            style={{ color: 'var(--color-ink-muted)' }}
+                          >
+                            {col.label}
+                          </th>
+                        )
+                      }
+                      const isActive = sort === col.field
+                      const nextDir: SortDir = isActive && dir === 'asc' ? 'desc' : 'asc'
+                      const href = buildInquiriesHref({ q, status, payment, sort: col.field, dir: nextDir, page: 1 })
+                      return (
+                        <th
+                          key={col.label}
+                          className="px-3 py-2.5 text-[11px] font-bold uppercase tracking-wider whitespace-nowrap"
+                        >
+                          <Link
+                            href={href}
+                            className="inline-flex items-center gap-1 transition-colors hover:text-[var(--color-teal-deep)]"
+                            style={{ color: isActive ? 'var(--color-teal-deep)' : 'var(--color-ink-muted)' }}
+                          >
+                            {col.label}
+                            {isActive ? (
+                              dir === 'asc' ? <CaretUp size={10} weight="bold" /> : <CaretDown size={10} weight="bold" />
+                            ) : (
+                              <CaretUpDown size={10} weight="bold" style={{ opacity: 0.4 }} />
+                            )}
+                          </Link>
+                        </th>
+                      )
+                    })}
+                  </tr>
+                </thead>
+                <tbody>
+                  {inquiryRows.map(({ inq, hasNoPrice, urgent, isReturning, isPaid, paymentAmount }) => (
+                    <tr
+                      key={inq.id}
+                      style={
+                        hasNoPrice
+                          ? { outline: '1.5px solid var(--color-danger)', outlineOffset: '-1px' }
+                          : undefined
+                      }
+                      className="border-b last:border-0 hover:bg-[var(--color-surface-raised)] transition-colors"
+                      data-has-no-price={hasNoPrice ? 'true' : undefined}
+                    >
+                      {/* Customer */}
+                      <td className="px-3 py-3 align-middle">
+                        <Link href={`/admin/inquiries/${inq.id}`} className="block group">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-semibold transition-colors text-[var(--color-ink)] group-hover:text-[var(--color-teal-deep)]">
+                              {inq.customer_name}
+                            </span>
+                            {isReturning && (
+                              <span
+                                className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
+                                style={{ backgroundColor: 'var(--color-teal-light)', color: 'var(--color-teal-deep)' }}
+                              >
+                                ↩ Returning
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs mt-0.5" style={{ color: 'var(--color-ink-muted)' }}>
+                            {orderSummary(inq.items ?? [])}
+                          </p>
+                        </Link>
+                      </td>
+
+                      {/* Event Date */}
+                      <td className="px-3 py-3 align-middle">
+                        <Link href={`/admin/inquiries/${inq.id}`} className="block">
+                          <span
+                            className="text-xs font-mono block"
+                            style={{ color: 'var(--color-ink-secondary)', fontFamily: 'var(--font-mono)' }}
+                          >
+                            {formatDate(inq.event_date)}
                           </span>
-                          {isReturning && (
+                          {urgent && (
                             <span
-                              className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
-                              style={{ backgroundColor: 'var(--color-teal-light)', color: 'var(--color-teal-deep)' }}
+                              className="text-[9px] font-bold px-1.5 py-0.5 rounded-full mt-0.5 inline-block"
+                              style={{ backgroundColor: 'var(--color-danger-light)', color: 'var(--color-danger)' }}
                             >
-                              ↩ Returning
+                              {urgent.label}
                             </span>
                           )}
-                        </div>
-                        <p className="text-xs mt-0.5" style={{ color: 'var(--color-ink-muted)' }}>
-                          {orderSummary(inq.items ?? [])}
-                        </p>
-                      </Link>
-                    </td>
+                        </Link>
+                      </td>
 
-                    {/* Event Date */}
-                    <td className="px-3 py-3 align-middle">
-                      <Link href={`/admin/inquiries/${inq.id}`} className="block">
-                        <span
-                          className="text-xs font-mono block"
-                          style={{ color: 'var(--color-ink-secondary)', fontFamily: 'var(--font-mono)' }}
-                        >
-                          {formatDate(inq.event_date)}
+                      {/* Status inline select */}
+                      <td className="px-3 py-3 align-middle">
+                        <InquiryStatusSelect inquiryId={inq.id} value={inq.status as InquiryStatus} source={inq.source} />
+                      </td>
+
+                      {/* Payment status — bare icon + amount, binary paid/not-paid */}
+                      <td className="px-3 py-3 align-middle">
+                        {paymentAmount !== null ? (
+                          <span className="inline-flex items-center gap-1.5">
+                            {isPaid ? (
+                              <CheckCircle size={14} weight="fill" style={{ color: 'var(--color-success)' }} />
+                            ) : (
+                              <Circle size={14} weight="bold" style={{ color: 'var(--color-warning)' }} />
+                            )}
+                            <span
+                              className="text-xs font-mono font-medium"
+                              style={{
+                                color: isPaid ? 'var(--color-success)' : 'var(--color-warning)',
+                                fontFamily: 'var(--font-mono)',
+                              }}
+                            >
+                              {formatKWD(paymentAmount.toFixed(3))}
+                            </span>
+                          </span>
+                        ) : (
+                          <span className="text-xs" style={{ color: 'var(--color-ink-muted)' }}>—</span>
+                        )}
+                      </td>
+
+                      {/* Quick actions */}
+                      <td className="px-3 py-3 align-middle pr-4">
+                        <InquiryRowActions
+                          inquiry={{
+                            id: inq.id,
+                            customer_name: inq.customer_name,
+                            customer_phone: inq.customer_phone,
+                            status: inq.status,
+                            customer_confirmed: inq.customer_confirmed,
+                            admin_price: inq.admin_price,
+                            discount: inq.discount,
+                            delivery_charge: inq.delivery_charge,
+                            amount_paid: inq.amount_paid,
+                            fully_paid: inq.fully_paid,
+                            confirmation_token: inq.confirmation_token,
+                          }}
+                          templates={templates}
+                          fallbackLinkUrl={
+                            inq.customer_id ? myOrdersLink(generatePortalToken(inq.customer_id)) : undefined
+                          }
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          }
+          mobile={
+            <div className="flex flex-col gap-3">
+              {inquiryRows.map(({ inq, hasNoPrice, urgent, isReturning, isPaid, paymentAmount }) => (
+                <div
+                  key={inq.id}
+                  className="rounded-xl border p-4 flex flex-col gap-2.5"
+                  style={{
+                    borderColor: hasNoPrice ? 'var(--color-danger)' : 'var(--color-border)',
+                    backgroundColor: 'var(--color-surface)',
+                  }}
+                >
+                  <Link href={`/admin/inquiries/${inq.id}`} className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-sm font-semibold" style={{ color: 'var(--color-ink)' }}>
+                          {inq.customer_name}
                         </span>
-                        {urgent && (
+                        {isReturning && (
                           <span
-                            className="text-[9px] font-bold px-1.5 py-0.5 rounded-full mt-0.5 inline-block"
-                            style={{ backgroundColor: 'var(--color-danger-light)', color: 'var(--color-danger)' }}
+                            className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
+                            style={{ backgroundColor: 'var(--color-teal-light)', color: 'var(--color-teal-deep)' }}
                           >
-                            {urgent.label}
+                            ↩ Returning
                           </span>
                         )}
-                      </Link>
-                    </td>
-
-                    {/* Status inline select */}
-                    <td className="px-3 py-3 align-middle">
-                      <InquiryStatusSelect inquiryId={inq.id} value={inq.status as InquiryStatus} source={inq.source} />
-                    </td>
-
-                    {/* Payment status — bare icon + amount, binary paid/not-paid */}
-                    <td className="px-3 py-3 align-middle">
-                      {paymentAmount !== null ? (
-                        <span className="inline-flex items-center gap-1.5">
-                          {isPaid ? (
-                            <CheckCircle size={14} weight="fill" style={{ color: 'var(--color-success)' }} />
-                          ) : (
-                            <Circle size={14} weight="bold" style={{ color: 'var(--color-warning)' }} />
-                          )}
-                          <span
-                            className="text-xs font-mono font-medium"
-                            style={{
-                              color: isPaid ? 'var(--color-success)' : 'var(--color-warning)',
-                              fontFamily: 'var(--font-mono)',
-                            }}
-                          >
-                            {formatKWD(paymentAmount.toFixed(3))}
-                          </span>
+                      </div>
+                      <p className="text-xs mt-0.5 truncate" style={{ color: 'var(--color-ink-muted)' }}>
+                        {orderSummary(inq.items ?? [])}
+                      </p>
+                    </div>
+                    {paymentAmount !== null && (
+                      <span className="inline-flex items-center gap-1.5 shrink-0 pt-0.5">
+                        {isPaid ? (
+                          <CheckCircle size={14} weight="fill" style={{ color: 'var(--color-success)' }} />
+                        ) : (
+                          <Circle size={14} weight="bold" style={{ color: 'var(--color-warning)' }} />
+                        )}
+                        <span
+                          className="text-xs font-mono font-medium"
+                          style={{
+                            color: isPaid ? 'var(--color-success)' : 'var(--color-warning)',
+                            fontFamily: 'var(--font-mono)',
+                          }}
+                        >
+                          {formatKWD(paymentAmount.toFixed(3))}
                         </span>
-                      ) : (
-                        <span className="text-xs" style={{ color: 'var(--color-ink-muted)' }}>—</span>
-                      )}
-                    </td>
+                      </span>
+                    )}
+                  </Link>
 
-                    {/* Quick actions */}
-                    <td className="px-3 py-3 align-middle pr-4">
-                      <InquiryRowActions
-                        inquiry={{
-                          id: inq.id,
-                          customer_name: inq.customer_name,
-                          customer_phone: inq.customer_phone,
-                          status: inq.status,
-                          customer_confirmed: inq.customer_confirmed,
-                          admin_price: inq.admin_price,
-                          discount: inq.discount,
-                          delivery_charge: inq.delivery_charge,
-                          amount_paid: inq.amount_paid,
-                          fully_paid: inq.fully_paid,
-                          confirmation_token: inq.confirmation_token,
-                        }}
-                        templates={templates}
-                        fallbackLinkUrl={
-                          inq.customer_id ? myOrdersLink(generatePortalToken(inq.customer_id)) : undefined
-                        }
-                      />
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        )}
-      </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5">
+                      <span
+                        className="text-xs font-mono"
+                        style={{ color: 'var(--color-ink-secondary)', fontFamily: 'var(--font-mono)' }}
+                      >
+                        {formatDate(inq.event_date)}
+                      </span>
+                      {urgent && (
+                        <span
+                          className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
+                          style={{ backgroundColor: 'var(--color-danger-light)', color: 'var(--color-danger)' }}
+                        >
+                          {urgent.label}
+                        </span>
+                      )}
+                    </div>
+                    <InquiryStatusSelect inquiryId={inq.id} value={inq.status as InquiryStatus} source={inq.source} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          }
+        />
+      )}
 
       {totalCount > 0 && (
         <div className="mt-4 flex items-center justify-between flex-wrap gap-3">
