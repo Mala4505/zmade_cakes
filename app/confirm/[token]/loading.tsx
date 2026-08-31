@@ -1,14 +1,17 @@
 import { Skeleton } from '@/components/ui'
 import { Navbar } from '@/components/public/Navbar'
+import { getBusinessContactSettings } from '@/lib/supabase/business-settings'
 
 /** Mirrors the confirmation page: left-aligned Navbar, progress row, intro
  *  greeting, the teal-wash order summary hero, and the confirm action.
  *  Shape must match `page.tsx` exactly so there's no layout jump when the
  *  real content mounts. */
-export default function ConfirmLoading() {
+export default async function ConfirmLoading() {
+  const { businessPhone, businessInstagram } = await getBusinessContactSettings()
+
   return (
-    <main className="min-h-svh" style={{ backgroundColor: 'var(--color-cream)' }}>
-      <Navbar />
+    <main className="flex-1" style={{ backgroundColor: 'var(--color-cream)' }}>
+      <Navbar businessPhone={businessPhone} businessInstagram={businessInstagram} />
 
       <div className="max-w-lg mx-auto px-4 py-8 flex flex-col gap-5">
         {/* Progress row */}

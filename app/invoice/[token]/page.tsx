@@ -35,7 +35,7 @@ export default async function PublicInvoicePage({ params }: Props) {
 
   return (
     <main
-      className="invoice-page-bg min-h-svh"
+      className="invoice-page-bg flex-1"
       style={{ background: 'linear-gradient(180deg, var(--color-cream) 0%, var(--color-surface-raised) 100%)' }}
     >
       <style>{`
@@ -46,7 +46,7 @@ export default async function PublicInvoicePage({ params }: Props) {
         }
       `}</style>
 
-      <Navbar businessInstagram={businessInstagram} />
+      <Navbar businessPhone={businessPhone} businessInstagram={businessInstagram} />
 
       <div className="max-w-lg mx-auto px-4 py-8 flex flex-col gap-6">
         {/* Print / download buttons */}

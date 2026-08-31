@@ -3,6 +3,7 @@ import { createServiceClient } from '@/lib/supabase/server'
 import { getBusinessContactSettings } from '@/lib/supabase/business-settings'
 import { isValidToken, formatDate, formatTime, formatKWD, formatAddress, orderSummary } from '@/lib/utils'
 import { orderTotal } from '@/lib/payments'
+import { whatsappUrlNoText } from '@/lib/whatsapp'
 import ConfirmForm from './_components/ConfirmForm'
 import CustomerPhotoUpload from './_components/CustomerPhotoUpload'
 import { Navbar } from '@/components/public/Navbar'
@@ -43,9 +44,7 @@ export default async function ConfirmPage({ params }: Props) {
     .eq('image_type', 'reference')
     .order('created_at', { ascending: true })
 
-  const waNumber = businessPhone
-    ? businessPhone.replace(/\D/g, '').replace(/^(?!965)/, '965')
-    : ''
+  const waUrl = businessPhone ? whatsappUrlNoText(businessPhone) : ''
 
   const inquiry = rawInquiry as unknown as Inquiry
 
@@ -62,8 +61,9 @@ export default async function ConfirmPage({ params }: Props) {
       <StatusPage
         title="Order Cancelled"
         message="This order has been cancelled. Please contact us for details."
+        businessPhone={businessPhone}
         businessInstagram={businessInstagram}
-        waNumber={waNumber}
+        waUrl={waUrl}
       />
     )
   }
@@ -86,8 +86,9 @@ export default async function ConfirmPage({ params }: Props) {
       <StatusPage
         title="Already Confirmed"
         message="Your order has been confirmed. You'll receive a tracking link from us."
+        businessPhone={businessPhone}
         businessInstagram={businessInstagram}
-        waNumber={waNumber}
+        waUrl={waUrl}
       />
     )
   }
@@ -96,10 +97,10 @@ export default async function ConfirmPage({ params }: Props) {
 
   return (
     <main
-      className="min-h-svh"
+      className="flex-1"
       style={{ backgroundColor: 'var(--color-cream)' }}
     >
-      <Navbar businessInstagram={businessInstagram} />
+      <Navbar businessPhone={businessPhone} businessInstagram={businessInstagram} />
 
       {/* Body */}
       <div className="max-w-lg mx-auto px-4 py-8 flex flex-col gap-5">
@@ -318,7 +319,7 @@ export default async function ConfirmPage({ params }: Props) {
             currentMessageOnCake={firstItem?.message_on_cake ?? ''}
             currentSpecialRequirements={firstItem?.special_requirements ?? ''}
             existingAddress={addr}
-            waNumber={waNumber}
+            waUrl={waUrl}
             firstItemLabel={firstItem ? orderSummary([firstItem]) : 'cake'}
             hasMultipleItems={items.length > 1}
           />
@@ -367,20 +368,22 @@ function AllergenPill({ label }: { label: string }) {
 function StatusPage({
   title,
   message,
+  businessPhone,
   businessInstagram,
-  waNumber,
+  waUrl,
 }: {
   title: string
   message: string
+  businessPhone: string
   businessInstagram: string
-  waNumber: string
+  waUrl: string
 }) {
   return (
     <main
-      className="min-h-svh"
+      className="flex-1"
       style={{ backgroundColor: 'var(--color-cream)' }}
     >
-      <Navbar businessInstagram={businessInstagram} />
+      <Navbar businessPhone={businessPhone} businessInstagram={businessInstagram} />
 
       <div className="flex flex-col items-center justify-center px-5 py-16 text-center gap-3">
         <p
@@ -392,9 +395,9 @@ function StatusPage({
         <p className="text-sm max-w-xs" style={{ color: 'var(--color-ink-muted)' }}>
           {message}
         </p>
-        {waNumber && (
+        {waUrl && (
           <a
-            href={`https://wa.me/${waNumber}`}
+            href={waUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1.5 text-xs font-medium mt-2"

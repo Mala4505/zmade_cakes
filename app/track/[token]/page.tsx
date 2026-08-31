@@ -5,6 +5,7 @@ import { createServiceClient } from '@/lib/supabase/server'
 import { getBusinessContactSettings } from '@/lib/supabase/business-settings'
 import { isValidToken, formatDate, formatTime, formatKWD, formatDateLong, orderSummary } from '@/lib/utils'
 import { balanceOwed } from '@/lib/payments'
+import { whatsappUrlNoText } from '@/lib/whatsapp'
 import type { Metadata } from 'next'
 import type { Order, OrderStatus, Payment, InquiryItem } from '@/lib/supabase/types'
 import { CheckCircle, Circle, Receipt, ShieldCheck, WhatsappLogo } from '@phosphor-icons/react/dist/ssr'
@@ -47,9 +48,7 @@ export default async function TrackPage({ params }: Props) {
 
   if (error || !order) notFound()
 
-  const waNumber = businessPhone
-    ? businessPhone.replace(/\D/g, '').replace(/^(?!965)/, '965')
-    : ''
+  const waUrl = businessPhone ? whatsappUrlNoText(businessPhone) : ''
 
   const o = order as unknown as Order
   const inq = o.inquiry
@@ -109,10 +108,10 @@ export default async function TrackPage({ params }: Props) {
 
   return (
     <main
-      className="min-h-svh"
+      className="flex-1"
       style={{ backgroundColor: 'var(--color-cream)' }}
     >
-      <Navbar businessInstagram={businessInstagram} />
+      <Navbar businessPhone={businessPhone} businessInstagram={businessInstagram} />
 
       <div className="max-w-lg mx-auto px-4 py-8 flex flex-col gap-6">
         {/* Greeting */}
@@ -135,9 +134,9 @@ export default async function TrackPage({ params }: Props) {
               <p className="text-sm" style={{ color: 'var(--color-ink-muted)' }}>
                 This order has been cancelled. If you have questions or would like to rebook, we're just a message away.
               </p>
-              {waNumber && (
+              {waUrl && (
                 <Button
-                  href={`https://wa.me/${waNumber}`}
+                  href={waUrl}
                   variant="primary"
                   size="md"
                   className="mt-4 px-5"
@@ -375,7 +374,7 @@ export default async function TrackPage({ params }: Props) {
             >
               Order Details
             </h2>
-            {waNumber && inq && (
+            {waUrl && inq && (
               <EditOrderModal
                 businessPhone={businessPhone}
                 cakeSummary={orderSummary(items)}
