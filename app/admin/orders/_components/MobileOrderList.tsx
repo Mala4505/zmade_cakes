@@ -3,7 +3,8 @@ import { formatDate, formatKWD, orderSummary } from '@/lib/utils'
 import AnimatedCardList from './AnimatedCardList'
 import { PaymentBadge } from '@/components/admin/StatusBadge'
 import { derivePaymentStatus } from '@/lib/payments'
-import { hasAllergens, ALLERGEN_LABELS, type AllergenFlags, type InquiryItem } from '@/lib/supabase/types'
+import { hasAllergens, ALLERGEN_LABELS, type AllergenFlags, type InquiryItem, type OrderStatus } from '@/lib/supabase/types'
+import OrderStatusActions from './OrderStatusActions'
 
 interface OrderInquiry {
   customer_name?: string | null
@@ -51,11 +52,22 @@ function MobileOrderCard({ order }: { order: MobileOrder }) {
     : null
 
   return (
-    <Link
-      href={`/admin/orders/${order.id}`}
-      className="block rounded-xl border p-4 flex flex-col gap-2"
-      style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)', textDecoration: 'none' }}
+    <div
+      className="relative rounded-xl border p-4 flex flex-col gap-2"
+      style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)' }}
     >
+      {/* Stretched link: makes the whole card tappable for navigation without
+          nesting the status-action button inside an <a> (invalid HTML — a
+          button can't be a descendant of a link — and it would also make the
+          Link swallow the button's taps). OrderStatusActions is rendered as a
+          sibling below with a higher z-index so it stays independently tappable. */}
+      <Link
+        href={`/admin/orders/${order.id}`}
+        aria-label={`View order for ${inq?.customer_name ?? 'this order'}`}
+        className="absolute inset-0 rounded-xl focus-visible:outline-none focus-visible:ring-2"
+        style={{ textDecoration: 'none', ['--tw-ring-color' as string]: 'var(--color-teal-light)' }}
+      />
+
       {/* Name + payment status */}
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
@@ -123,7 +135,15 @@ function MobileOrderCard({ order }: { order: MobileOrder }) {
           )}
         </div>
       )}
-    </Link>
+
+      {/* Status action — sibling of the stretched Link, raised above it via
+          z-index so it stays independently tappable (see comment above). */}
+      {order.status !== 'cancelled' && (
+        <div className="relative z-10">
+          <OrderStatusActions orderId={order.id} currentStatus={order.status as OrderStatus} />
+        </div>
+      )}
+    </div>
   )
 }
 

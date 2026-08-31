@@ -39,7 +39,7 @@ export default function OrderStatusActions({
       type="button"
       onClick={() => handleAdvance()}
       disabled={pending}
-      className="flex items-center justify-center gap-1.5 w-full py-2 rounded-lg text-xs font-medium transition-colors disabled:opacity-50"
+      className="flex items-center justify-center gap-1.5 w-full min-h-11 py-2 rounded-lg text-xs font-medium transition-colors disabled:opacity-50"
       style={{ backgroundColor: 'var(--color-teal-light)', color: 'var(--color-teal-deep)' }}
     >
       {next.label}
