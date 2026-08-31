@@ -59,21 +59,35 @@ export default function ImageGallery({ images, onUpload, onDelete, uploadEndpoin
         {images.map((img) => (
           <div
             key={img.id}
-            className="relative rounded-lg overflow-hidden border cursor-pointer group"
-            style={{ width: 100, height: 100, borderColor: 'var(--color-border)', flexShrink: 0 }}
+            className="relative cursor-pointer group"
+            style={{ width: 100, height: 100, flexShrink: 0 }}
             onClick={() => setLightbox(img)}
           >
-            <img src={img.url_thumb} alt="" className="w-full h-full object-cover" />
+            <div
+              className="rounded-lg overflow-hidden border w-full h-full"
+              style={{ borderColor: 'var(--color-border)' }}
+            >
+              <img src={img.url_thumb} alt="" className="w-full h-full object-cover" />
+            </div>
             {!readOnly && onDelete && (
+              // Hit area is 44x44 (min touch target) even though the visible badge stays small;
+              // it lives outside the overflow-hidden wrapper above so it isn't clipped. Visible
+              // on touch by default (opacity-70); hover-gated on pointer-capable (md+) screens
+              // so it doesn't clutter every thumbnail on desktop until the row is hovered.
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); handleDelete(img.id) }}
                 disabled={deletingId === img.id}
-                className="absolute top-1 right-1 rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
-                style={{ backgroundColor: 'var(--color-danger)', color: '#fff' }}
+                className="absolute flex items-center justify-center opacity-70 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
+                style={{ top: -12, right: -12, width: 44, height: 44, zIndex: 1, cursor: deletingId === img.id ? 'not-allowed' : 'pointer' }}
                 aria-label="Delete image"
               >
-                <X size={10} weight="bold" />
+                <span
+                  className="rounded-full flex items-center justify-center p-0.5"
+                  style={{ backgroundColor: 'var(--color-danger)', color: '#fff' }}
+                >
+                  <X size={10} weight="bold" />
+                </span>
               </button>
             )}
           </div>

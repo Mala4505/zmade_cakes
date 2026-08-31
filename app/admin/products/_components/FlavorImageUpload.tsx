@@ -87,13 +87,15 @@ export function FlavorImageUpload({ flavorId, currentUrl, onChanged }: Props) {
           </div>
         ) : (
           <div
-            className="absolute inset-0 flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity"
+            // Visible by default (touch-safe) and hover-gated only on pointer-capable (md+)
+            // screens; focus-within still covers keyboard nav on desktop.
+            className="absolute inset-0 flex items-center justify-center gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 focus-within:opacity-100 transition-opacity"
             style={{ backgroundColor: 'rgba(25,22,20,0.45)' }}
           >
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="text-xs font-semibold rounded-lg px-3 py-1.5"
+              className="min-h-11 text-xs font-semibold rounded-lg px-3"
               style={{ backgroundColor: 'rgba(252,249,245,0.92)', color: 'var(--color-ink)' }}
             >
               Change
@@ -101,7 +103,7 @@ export function FlavorImageUpload({ flavorId, currentUrl, onChanged }: Props) {
             <button
               type="button"
               onClick={handleRemove}
-              className="rounded-lg p-1.5"
+              className="min-h-11 min-w-11 flex items-center justify-center rounded-lg"
               style={{ backgroundColor: 'rgba(252,249,245,0.92)', color: 'var(--color-danger)' }}
               aria-label="Remove photo"
             >

@@ -19,13 +19,16 @@ export function PinnedOrderTotal({ anchorRef, total }: Props) {
   useEffect(() => {
     const el = anchorRef.current
     if (!el) return
+    // The admin shell scrolls inside `.admin-main` (see AdminScrollRegion), not the
+    // browser viewport — use it as the observer root so pinning triggers correctly.
+    const root = document.querySelector('.admin-main')
     const observer = new IntersectionObserver(
       ([entry]) => {
         // Only pin once the ledger has scrolled above the viewport — not before it's
         // been seen, and not once the page has scrolled past the whole form below it.
         setPinned(!entry.isIntersecting && entry.boundingClientRect.top < 0)
       },
-      { threshold: 0 }
+      { root, threshold: 0 }
     )
     observer.observe(el)
     return () => observer.disconnect()

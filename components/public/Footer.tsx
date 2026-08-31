@@ -15,7 +15,7 @@ export function Footer({ businessPhone, businessInstagram }: Props) {
 
   return (
     <footer
-      className={`site-chrome flex items-center justify-center gap-2 py-4 px-4 border-t flex-wrap ${isAdmin ? 'hidden md:flex' : ''}`}
+      className={`site-chrome flex items-center justify-center gap-2 py-4 px-4 border-t flex-wrap ${isAdmin ? 'hidden lg:flex' : ''}`}
       style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
     >
       <p className="text-xs" style={{ color: 'var(--color-ink-muted)' }}>

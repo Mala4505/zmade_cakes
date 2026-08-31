@@ -168,7 +168,7 @@ export default function OrderDetailActions({
       <button
         type="button"
         onClick={() => window.print()}
-        className="hidden md:flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium border transition-colors"
+        className="hidden lg:flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium border transition-colors"
         style={{
           borderColor: 'var(--color-border)',
           backgroundColor: 'var(--color-surface-raised)',
@@ -184,7 +184,7 @@ export default function OrderDetailActions({
         type="button"
         onClick={handleDownloadImage}
         disabled={downloading}
-        className="hidden md:flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium border transition-colors disabled:opacity-60"
+        className="hidden lg:flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium border transition-colors disabled:opacity-60"
         style={{
           borderColor: 'var(--color-border)',
           backgroundColor: 'var(--color-surface-raised)',
@@ -201,7 +201,7 @@ export default function OrderDetailActions({
           type="button"
           onClick={handleCancel}
           disabled={pending}
-          className="hidden md:flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium border transition-colors disabled:opacity-60"
+          className="hidden lg:flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium border transition-colors disabled:opacity-60"
           style={{
             borderColor: 'var(--color-danger-light)',
             color: 'var(--color-danger)',

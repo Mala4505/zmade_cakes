@@ -7,10 +7,12 @@ import { X } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 import { EASE_OUT_QUART } from '@/lib/motion'
 
+// Unprefixed: mobile bottom sheet is always full-width. The max-width only
+// kicks in at sm: and up, once the panel becomes a centered dialog.
 const SIZE_CLASSES = {
-  sm: 'max-w-sm',
-  md: 'max-w-lg',
-  lg: 'max-w-2xl',
+  sm: 'sm:max-w-sm',
+  md: 'sm:max-w-lg',
+  lg: 'sm:max-w-2xl',
 } as const
 
 export interface ModalProps {
@@ -42,10 +44,20 @@ export function Modal({
   children,
 }: ModalProps) {
   const [mounted, setMounted] = useState(false)
+  // sm: and up renders a centered dialog; below sm: a bottom sheet.
+  const [isDesktop, setIsDesktop] = useState(false)
   const panelRef = useRef<HTMLDivElement>(null)
   const reduceMotion = useReducedMotion()
 
   useEffect(() => setMounted(true), [])
+
+  useEffect(() => {
+    const mql = window.matchMedia('(min-width: 640px)')
+    setIsDesktop(mql.matches)
+    const handleChange = (e: MediaQueryListEvent) => setIsDesktop(e.matches)
+    mql.addEventListener('change', handleChange)
+    return () => mql.removeEventListener('change', handleChange)
+  }, [])
 
   // ESC to close + focus management + body scroll lock.
   useEffect(() => {
@@ -96,6 +108,24 @@ export function Modal({
 
   if (!mounted) return null
 
+  // Below sm:, the panel is a bottom sheet that slides up from off-screen.
+  // At sm: and up it's the original centered-dialog fade + scale.
+  const panelInitial = reduceMotion
+    ? { opacity: 0 }
+    : isDesktop
+      ? { opacity: 0, scale: 0.96, y: 8 }
+      : { opacity: 1, y: '100%' }
+  const panelAnimate = reduceMotion
+    ? { opacity: 1 }
+    : isDesktop
+      ? { opacity: 1, scale: 1, y: 0 }
+      : { opacity: 1, y: 0 }
+  const panelExit = reduceMotion
+    ? { opacity: 0 }
+    : isDesktop
+      ? { opacity: 0, scale: 0.96, y: 8 }
+      : { opacity: 1, y: '100%' }
+
   return createPortal(
     <AnimatePresence>
       {open && (
@@ -107,7 +137,7 @@ export function Modal({
           onMouseDown={(e) => {
             if (e.target === e.currentTarget) onClose()
           }}
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[rgba(25,22,20,0.45)]"
+          className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4 bg-[rgba(25,22,20,0.45)]"
         >
           <motion.div
             ref={panelRef}
@@ -115,23 +145,23 @@ export function Modal({
             aria-modal="true"
             aria-label={typeof title === 'string' ? title : undefined}
             tabIndex={-1}
-            initial={
-              reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.96, y: 8 }
-            }
-            animate={
-              reduceMotion ? { opacity: 1 } : { opacity: 1, scale: 1, y: 0 }
-            }
-            exit={
-              reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.96, y: 8 }
-            }
-            transition={{ duration: reduceMotion ? 0 : 0.18, ease: EASE_OUT_QUART }}
+            initial={panelInitial}
+            animate={panelAnimate}
+            exit={panelExit}
+            transition={{ duration: reduceMotion ? 0 : 0.2, ease: EASE_OUT_QUART }}
             className={cn(
-              'flex w-full flex-col max-h-[85svh] rounded-xl border outline-none',
+              'flex w-full max-w-none flex-col max-h-[85svh] rounded-t-xl border outline-none',
+              'sm:rounded-xl',
               'bg-[var(--color-cream)] border-[var(--color-border)] shadow-[var(--shadow-floating)]',
               SIZE_CLASSES[size],
               className
             )}
           >
+            {/* Drag handle: mobile-only affordance for the bottom sheet. */}
+            <div className="flex justify-center pt-2.5 pb-1 shrink-0 sm:hidden" aria-hidden="true">
+              <div className="h-1 w-9 rounded-full bg-[var(--color-border-strong)]" />
+            </div>
+
             {(title || !hideClose) && (
               <div
                 className="flex items-start justify-between gap-4 px-5 py-4 border-b shrink-0 border-[var(--color-border)]"
@@ -155,7 +185,13 @@ export function Modal({
             <div className="flex-1 overflow-y-auto px-5 py-4">{children}</div>
 
             {footer && (
-              <div className="flex items-center justify-end gap-2 px-5 py-4 border-t shrink-0 border-[var(--color-border)]">
+              <div
+                className={cn(
+                  'flex flex-col-reverse items-stretch gap-2 px-5 py-4 border-t shrink-0 border-[var(--color-border)]',
+                  'sm:flex-row sm:items-center sm:justify-end',
+                  '[&>*]:w-full sm:[&>*]:w-auto'
+                )}
+              >
                 {footer}
               </div>
             )}
