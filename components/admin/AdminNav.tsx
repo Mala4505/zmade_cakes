@@ -88,7 +88,8 @@ function LogoutButton() {
       <button
         type="submit"
         title="Sign out"
-        className="w-7 h-7 flex items-center justify-center rounded-md transition-colors"
+        aria-label="Sign out"
+        className="min-h-11 min-w-11 -m-2 flex items-center justify-center rounded-md transition-colors"
         style={{
           backgroundColor: hovered ? 'var(--color-danger-light)' : 'transparent',
           color: hovered ? 'var(--color-danger)' : 'var(--color-ink-muted)',

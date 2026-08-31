@@ -144,7 +144,7 @@ export function Modal({
                     type="button"
                     onClick={onClose}
                     aria-label="Close"
-                    className="p-1.5 -m-1.5 rounded-lg transition-colors text-[var(--color-ink-muted)] hover:bg-[var(--color-surface-raised)] hover:text-[var(--color-ink-secondary)]"
+                    className="min-h-11 min-w-11 -m-2 flex items-center justify-center rounded-lg transition-colors text-[var(--color-ink-muted)] hover:bg-[var(--color-surface-raised)] hover:text-[var(--color-ink-secondary)]"
                   >
                     <X size={18} />
                   </button>
