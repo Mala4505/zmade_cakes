@@ -1,11 +1,11 @@
 'use client'
 
-import { useState, useEffect, useTransition } from 'react'
+import { useState, useEffect } from 'react'
 import { ArrowLeft, Trash } from '@phosphor-icons/react'
-import { toast } from 'sonner'
 import { Field, Input, Button, Checkbox } from '@/components/ui'
 import { updateOption, deleteOption } from '@/lib/actions/options'
 import { upsertFlavorPrices, updateFlavorThemeAvailable } from '@/lib/actions/products'
+import { useAsyncAction } from '@/lib/hooks/useAsyncAction'
 import { PricingTable } from './PricingTable'
 import { FlavorImageUpload } from './FlavorImageUpload'
 import type { FlavorWithPrices, OptionRow, FlavorSizePrice } from '@/lib/supabase/types'
@@ -44,9 +44,7 @@ export function FlavorDetail({ flavor, sizes, onSaved, onDeleted, onBack, onDirt
   const [priceMap, setPriceMap] = useState<Record<string, string>>(() => buildPriceMap(flavor.prices))
   const [nameError, setNameError] = useState<string | null>(null)
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
-  const [isPending, startTransition] = useTransition()
   const [confirmDelete, setConfirmDelete] = useState(false)
-  const [isDeleting, startDeleteTransition] = useTransition()
 
   // Baseline for dirty-tracking. Updated on successful save (component is keyed
   // by flavor.id, so a different flavor remounts with a fresh baseline).
@@ -82,83 +80,61 @@ export function FlavorDetail({ flavor, sizes, onSaved, onDeleted, onBack, onDirt
     onSaved({ ...flavor, image_url: newUrl })
   }
 
+  const { run: runSave, pending: isPending } = useAsyncAction(
+    async (trimmed: string) => {
+      const nameResult = await updateOption(flavor.id, 'flavor_options', { name: trimmed, is_active: isActive })
+      if (nameResult.error) return { error: nameResult.error }
+      if (nameResult.fieldErrors) {
+        setNameError(nameResult.fieldErrors.name?.[0] ?? 'Invalid name')
+        return false
+      }
+
+      const themeResult = await updateFlavorThemeAvailable(flavor.id, themeAvailable)
+      if (themeResult.error) return { error: themeResult.error }
+
+      const priceEntries = Object.entries(priceMap)
+        .filter(([, v]) => v !== '' && v !== undefined && v !== null)
+        .map(([sizeId, v]) => ({ sizeId, price: parseFloat(v) }))
+        .filter((e) => !isNaN(e.price))
+
+      const priceResult = await upsertFlavorPrices(flavor.id, priceEntries)
+      if (priceResult.error) return { error: priceResult.error }
+
+      const newPrices = priceResult.data ?? flavor.prices
+      setLastSaved(new Date())
+      setSnapshot({ name: trimmed, isActive, themeAvailable, prices: canonPrices(priceMap) })
+      onSaved({ ...flavor, name: trimmed, is_active: isActive, theme_available: themeAvailable, image_url: imageUrl, prices: newPrices })
+    },
+    { successToast: 'Flavor saved' }
+  )
+
   const handleSave = () => {
     const trimmed = name.trim()
     if (!trimmed) {
       setNameError('Flavor name is required')
       return
     }
-    startTransition(async () => {
-      // Without this try/catch, a thrown error here would leave `isPending` stuck
-      // true forever with no feedback shown.
-      try {
-        const nameResult = await updateOption(flavor.id, 'flavor_options', { name: trimmed, is_active: isActive })
-        if (nameResult.error) {
-          toast.error('Failed to save', { description: nameResult.error })
-          return
-        }
-        if (nameResult.fieldErrors) {
-          setNameError(nameResult.fieldErrors.name?.[0] ?? 'Invalid name')
-          return
-        }
-
-        const themeResult = await updateFlavorThemeAvailable(flavor.id, themeAvailable)
-        if (themeResult.error) {
-          toast.error('Failed to save', { description: themeResult.error })
-          return
-        }
-
-        const priceEntries = Object.entries(priceMap)
-          .filter(([, v]) => v !== '' && v !== undefined && v !== null)
-          .map(([sizeId, v]) => ({ sizeId, price: parseFloat(v) }))
-          .filter((e) => !isNaN(e.price))
-
-        const priceResult = await upsertFlavorPrices(flavor.id, priceEntries)
-        if (priceResult.error) {
-          toast.error('Failed to save prices', { description: priceResult.error })
-          return
-        }
-
-        const newPrices = priceResult.data ?? flavor.prices
-        setLastSaved(new Date())
-        setSnapshot({ name: trimmed, isActive, themeAvailable, prices: canonPrices(priceMap) })
-        toast.success('Flavor saved', {
-          description: `${trimmed} · ${priceEntries.length} price${priceEntries.length !== 1 ? 's' : ''}`,
-        })
-        onSaved({ ...flavor, name: trimmed, is_active: isActive, theme_available: themeAvailable, image_url: imageUrl, prices: newPrices })
-      } catch (err) {
-        console.error('[FlavorDetail] save failed:', err)
-        toast.error('Something went wrong', {
-          description: err instanceof Error ? err.message : 'Please try again.',
-        })
-      }
-    })
+    runSave(trimmed)
   }
+
+  const { run: runDelete, pending: isDeleting } = useAsyncAction(
+    async () => {
+      const result = await deleteOption(flavor.id, 'flavor_options')
+      if (result.error) {
+        setConfirmDelete(false)
+        return { error: result.error }
+      }
+      onDeleted(flavor.id)
+    },
+    { successToast: 'Flavor deactivated' }
+  )
 
   const handleDelete = () => {
     if (!confirmDelete) {
       setConfirmDelete(true)
       return
     }
-    startDeleteTransition(async () => {
-      // Without this try/catch, a thrown error here would leave `isDeleting`
-      // stuck true forever with no feedback shown.
-      try {
-        const result = await deleteOption(flavor.id, 'flavor_options')
-        if (result.error) {
-          toast.error('Failed to deactivate', { description: result.error })
-          setConfirmDelete(false)
-          return
-        }
-        toast.success('Flavor deactivated')
-        onDeleted(flavor.id)
-      } catch (err) {
-        console.error('[FlavorDetail] delete failed:', err)
-        toast.error('Something went wrong', {
-          description: err instanceof Error ? err.message : 'Please try again.',
-        })
-      }
-    })
+    runDelete()
   }
 
   return (

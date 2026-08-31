@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useTransition } from 'react'
-import { toast } from 'sonner'
+import { useState } from 'react'
 import { updateSetting } from '@/lib/actions/settings'
+import { useAsyncAction } from '@/lib/hooks/useAsyncAction'
 
 export default function BusinessInfoForm({
   initialPhone,
@@ -13,30 +13,21 @@ export default function BusinessInfoForm({
 }) {
   const [phone, setPhone] = useState(initialPhone)
   const [instagram, setInstagram] = useState(initialInstagram)
-  const [isPending, startTransition] = useTransition()
+
+  const { run, pending } = useAsyncAction(
+    async () => {
+      const [r1, r2] = await Promise.all([
+        updateSetting('business_phone', phone),
+        updateSetting('business_instagram', instagram),
+      ])
+      if (r1.error || r2.error) return { error: r1.error ?? r2.error ?? 'Failed to save' }
+    },
+    { successToast: 'Changes saved' }
+  )
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    startTransition(async () => {
-      // Without this try/catch, a thrown error here would leave `isPending` stuck
-      // true forever with no feedback shown.
-      try {
-        const [r1, r2] = await Promise.all([
-          updateSetting('business_phone', phone),
-          updateSetting('business_instagram', instagram),
-        ])
-        if (r1.error || r2.error) {
-          toast.error('Failed to save', { description: r1.error ?? r2.error ?? 'Failed to save' })
-          return
-        }
-        toast.success('Changes saved')
-      } catch (err) {
-        console.error('[BusinessInfoForm] save failed:', err)
-        toast.error('Something went wrong', {
-          description: err instanceof Error ? err.message : 'Please try again.',
-        })
-      }
-    })
+    run()
   }
 
   return (
@@ -91,11 +82,11 @@ export default function BusinessInfoForm({
 
         <button
           type="submit"
-          disabled={isPending}
+          disabled={pending}
           className="w-full py-3 rounded-lg text-sm font-medium transition-opacity disabled:opacity-60"
           style={{ backgroundColor: 'var(--color-teal)', color: 'var(--color-cream)' }}
         >
-          {isPending ? 'Saving…' : 'Save Changes'}
+          {pending ? 'Saving…' : 'Save Changes'}
         </button>
       </div>
     </form>

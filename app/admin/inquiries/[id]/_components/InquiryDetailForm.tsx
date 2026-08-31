@@ -1,6 +1,6 @@
 'use client'
 
-import { useTransition, useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useForm, useFieldArray, FormProvider } from 'react-hook-form'
 import { toast } from 'sonner'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -10,11 +10,12 @@ import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { EASE_OUT_QUART } from '@/lib/motion'
 import { inquirySchema } from '@/lib/validations/inquiry'
 import { updateInquiry } from '@/lib/actions/inquiries'
+import { useAsyncAction } from '@/lib/hooks/useAsyncAction'
 import { upsertCustomer } from '@/lib/actions/customers'
 import { derivePaymentStatus, balanceOwed } from '@/lib/payments'
 import { PaymentBadge } from '@/components/admin/StatusBadge'
 import { PinnedOrderTotal } from '@/components/admin/PinnedOrderTotal'
-import { Button, Checkbox, Field, Input, RadioGroup, Select, Textarea } from '@/components/ui'
+import { Button, Checkbox, Field, IconButton, Input, RadioGroup, Select, Textarea } from '@/components/ui'
 import { Copy, WhatsappLogo, Plus } from '@phosphor-icons/react'
 import type { OptionRow, Inquiry, BlackoutDate } from '@/lib/supabase/types'
 import { z } from 'zod'
@@ -74,7 +75,6 @@ export default function InquiryDetailForm({
   orderId,
 }: Props) {
   const router = useRouter()
-  const [pending, startTransition] = useTransition()
   const [copiedPhone, setCopiedPhone] = useState(false)
   const ledgerRef = useRef<HTMLDivElement>(null)
   const [showDietary, setShowDietary] = useState(() =>
@@ -252,67 +252,73 @@ export default function InquiryDetailForm({
     prevDeliveryType.current = deliveryType
   }, [deliveryType])
 
-  const onSubmit = (data: FormOutput) => {
-    startTransition(async () => {
-      // Without this try/catch, any thrown error here would leave `pending` stuck
-      // true forever — the Save button spins indefinitely with no error ever shown.
-      try {
-        const {
-          address_governorate, address_area, address_block, address_street,
-          address_house_no, address_extra_notes, address_location_link, ...inquiryData
-        } = data
+  const { run: submit, pending } = useAsyncAction(
+    async (data: FormOutput) => {
+      const {
+        address_governorate, address_area, address_block, address_street,
+        address_house_no, address_extra_notes, address_location_link, ...inquiryData
+      } = data
 
-        const addressData =
-          deliveryType === 'delivery' && address_area
-            ? {
-                governorate: address_governorate,
-                area: address_area,
-                block: address_block,
-                street: address_street,
-                house_no: address_house_no,
-                extra_notes: address_extra_notes,
-                location_link: address_location_link,
-              }
-            : undefined
+      const addressData =
+        deliveryType === 'delivery' && address_area
+          ? {
+              governorate: address_governorate,
+              area: address_area,
+              block: address_block,
+              street: address_street,
+              house_no: address_house_no,
+              extra_notes: address_extra_notes,
+              location_link: address_location_link,
+            }
+          : undefined
 
-        // Once an order exists, `payments` (not this form) is the source of truth for
-        // amount_paid: the DB trigger derives it from the payments ledger. Never let this
-        // form's local state (stale as soon as a payment is recorded on the order page)
-        // stomp that derived total, regardless of which payment_choice is selected.
-        const { amount_paid: _amountPaid, ...restInquiryData } = inquiryData
-        const payload = orderId ? restInquiryData : inquiryData
+      // Once an order exists, `payments` (not this form) is the source of truth for
+      // amount_paid: the DB trigger derives it from the payments ledger. Never let this
+      // form's local state (stale as soon as a payment is recorded on the order page)
+      // stomp that derived total, regardless of which payment_choice is selected.
+      const { amount_paid: _amountPaid, ...restInquiryData } = inquiryData
+      const payload = orderId ? restInquiryData : inquiryData
 
-        const result = await updateInquiry(inquiry.id, payload, addressData)
+      const result = await updateInquiry(inquiry.id, payload, addressData)
 
-        if (result.error) {
-          toast.error('Failed to save', { description: result.error })
-          return
-        }
-        if (result.fieldErrors) {
-          Object.entries(result.fieldErrors).forEach(([field, msgs]) => {
-            setError(field as keyof FormInput, { message: (msgs as string[])[0] })
-          })
-          return
-        }
-
-        if (inquiryData.customer_phone && inquiryData.customer_name) {
-          void upsertCustomer(inquiryData.customer_phone, inquiryData.customer_name)
-        }
-
-        toast.success('Saved')
-        router.refresh()
-      } catch (err) {
-        console.error('[InquiryDetailForm] submit failed:', err)
-        toast.error('Something went wrong', {
-          description: err instanceof Error ? err.message : 'Please try again.',
+      if (result.fieldErrors) {
+        Object.entries(result.fieldErrors).forEach(([field, msgs]) => {
+          setError(field as keyof FormInput, { message: (msgs as string[])[0] })
         })
+        return false // form now shows the field errors — no toast
       }
-    })
+      if (result.error) {
+        toast.error('Failed to save', { description: result.error })
+        return false
+      }
+
+      if (inquiryData.customer_phone && inquiryData.customer_name) {
+        void upsertCustomer(inquiryData.customer_phone, inquiryData.customer_name)
+      }
+    },
+    {
+      successToast: 'Changes saved',
+      onSuccess: () => router.refresh(),
+    }
+  )
+
+  const onInvalid = () => {
+    toast.error('Check the highlighted fields')
+    // Two frames: let RHF's error state commit (so aria-invalid lands in the DOM), then read.
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        const el = document.querySelector<HTMLElement>('[aria-invalid="true"]')
+        el?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'center' })
+        el?.focus({ preventScroll: true })
+      })
+    )
   }
 
   return (
     <FormProvider {...form}>
-    <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
+    {/* pb-20: clearance for PinnedOrderTotal, which can cover the last ~2-3 fields
+        (and the submit button) once the ledger above has scrolled out of view. */}
+    <form onSubmit={handleSubmit(submit, onInvalid)} className="flex flex-col gap-4 pb-20">
       {/* Card 1: Customer & Contact */}
       <div
         className="rounded-xl border"
@@ -342,34 +348,35 @@ export default function InquiryDetailForm({
                   required
                   aria-invalid={errors.customer_phone ? true : undefined}
                 />
-                <button
-                  type="button"
+                <IconButton
                   onClick={() => {
                     navigator.clipboard.writeText(watchedPhone ?? '')
                     setCopiedPhone(true)
                     setTimeout(() => setCopiedPhone(false), 2000)
                   }}
-                  className="shrink-0 p-2.5 rounded-lg border transition-all active:scale-[0.97]"
+                  className="border"
                   style={{
                     borderColor: 'var(--color-border)',
                     backgroundColor: copiedPhone ? 'var(--color-teal-light)' : 'var(--color-surface-raised)',
                     color: copiedPhone ? 'var(--color-teal-deep)' : 'var(--color-ink-secondary)',
                   }}
                   title={copiedPhone ? 'Copied' : 'Copy phone'}
+                  aria-label={copiedPhone ? 'Phone number copied' : 'Copy phone number'}
                 >
                   <Copy size={15} />
-                </button>
+                </IconButton>
                 <a
                   href={whatsappUrl(watchedPhone ?? '')}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="shrink-0 p-2.5 rounded-lg border transition-all active:scale-[0.97]"
+                  className="inline-flex items-center justify-center w-11 h-11 shrink-0 rounded-lg border transition-all active:scale-[0.94]"
                   style={{
                     borderColor: '#d1fae5',
                     backgroundColor: '#f0fdf4',
                     color: '#25D366',
                   }}
                   title="Open WhatsApp"
+                  aria-label="Open WhatsApp"
                 >
                   <WhatsappLogo size={15} weight="fill" />
                 </a>
@@ -472,8 +479,8 @@ export default function InquiryDetailForm({
         </div>
 
         <div className="p-4" style={{ borderColor: 'var(--color-border)' }}>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Delivery Type" error={errors.delivery_type?.message} required className="col-span-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Field label="Delivery Type" error={errors.delivery_type?.message} required className="sm:col-span-2">
               <RadioGroup
                 value={deliveryType}
                 onChange={(v) => setValue('delivery_type', v, { shouldDirty: true })}
@@ -513,8 +520,8 @@ export default function InquiryDetailForm({
               <Input {...register('pickup_time')} type="time" />
             </Field>
             {deliveryType === 'delivery' && (
-              <div className="col-span-2 pt-3 border-t grid grid-cols-2 gap-3" style={{ borderColor: 'var(--color-border)' }}>
-                <Field label="Governorate" className="col-span-2">
+              <div className="sm:col-span-2 pt-3 border-t grid grid-cols-1 sm:grid-cols-2 gap-3" style={{ borderColor: 'var(--color-border)' }}>
+                <Field label="Governorate" className="sm:col-span-2">
                   <Select {...register('address_governorate')}>
                     <option value="">Select</option>
                     {Object.entries(GOVERNORATE_LABELS).map(([val, label]) => (
@@ -534,10 +541,10 @@ export default function InquiryDetailForm({
                 <Field label="House No.">
                   <Input {...register('address_house_no')} placeholder="Villa 15" />
                 </Field>
-                <Field label="Extra Notes" className="col-span-2">
+                <Field label="Extra Notes" className="sm:col-span-2">
                   <Input {...register('address_extra_notes')} placeholder="Ring bell twice" />
                 </Field>
-                <Field label="Google Maps Pin" className="col-span-2">
+                <Field label="Google Maps Pin" className="sm:col-span-2">
                   <div className="flex items-center gap-2">
                     <Input {...register('address_location_link')} placeholder="https://maps.app.goo.gl/…" className="flex-1" />
                     {locationLink && (
@@ -553,7 +560,7 @@ export default function InquiryDetailForm({
                     )}
                   </div>
                 </Field>
-                <div className="col-span-2 pt-3 border-t" style={{ borderColor: 'var(--color-border)' }}>
+                <div className="sm:col-span-2 pt-3 border-t" style={{ borderColor: 'var(--color-border)' }}>
                   <Field
                     label="Delivery Charge (KD)"
                     error={errors.delivery_charge?.message}

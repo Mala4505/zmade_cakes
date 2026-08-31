@@ -1,9 +1,10 @@
 'use client'
 
-import { useEffect, useRef, useState, useTransition } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { confirmInquiry } from '@/lib/actions/inquiries'
-import { customerConfirmSchema } from '@/lib/validations/confirm'
+import { useAsyncAction } from '@/lib/hooks/useAsyncAction'
+import { customerConfirmSchema, type CustomerConfirmData } from '@/lib/validations/confirm'
 import { CheckCircle, ArrowClockwise, WarningCircle, PencilSimple, X, WhatsappLogo } from '@phosphor-icons/react'
 import { GOVERNORATE_LABELS, formatTime, formatAddress } from '@/lib/utils'
 import { holdMinimumVisible } from '@/lib/motion'
@@ -68,8 +69,10 @@ export default function ConfirmForm({
   hasMultipleItems,
 }: Props) {
   const router = useRouter()
-  const [pending, startTransition] = useTransition()
   const [pendingAction, setPendingAction] = useState<ConfirmAction | null>(null)
+  // Confirm success stashes the tracking token here so `onSuccess` (which takes no
+  // args) can route to /track once the write transition has settled.
+  const trackingTokenRef = useRef<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [requestSent, setRequestSent] = useState(false)
@@ -221,6 +224,64 @@ export default function ConfirmForm({
     return base
   }
 
+  // The one place the confirm / request-changes server call and its result
+  // mapping lives, shared by both useAsyncAction sites below. Field errors and
+  // business-rule errors are shown in the inline banner (`error` state), so the
+  // caller returns `false` — a silent stop, no toast.
+  async function callConfirm(data: CustomerConfirmData) {
+    const result = await confirmInquiry(token, data)
+    if (result.fieldErrors) {
+      setPendingAction(null)
+      setError('Please check your details and try again.')
+      return false
+    }
+    if (result.error) {
+      setPendingAction(null)
+      setError(result.error)
+      return false
+    }
+    return { data: result.data }
+  }
+
+  const confirmSubmit = useAsyncAction(
+    async (data: CustomerConfirmData, startedAt: number) => {
+      const r = await callConfirm(data)
+      if (!r) return false
+      if (r.data?.order?.tracking_token) {
+        await holdMinimumVisible(startedAt, 1400)
+        sessionStorage.removeItem(draftKey)
+        trackingTokenRef.current = r.data.order.tracking_token
+      }
+    },
+    {
+      successToast: 'Order confirmed',
+      onSuccess: () => {
+        if (trackingTokenRef.current) router.push(`/track/${trackingTokenRef.current}`)
+      },
+    }
+  )
+
+  const requestChangesSubmit = useAsyncAction(
+    async (data: CustomerConfirmData, startedAt: number) => {
+      const r = await callConfirm(data)
+      if (!r) return false
+      await holdMinimumVisible(startedAt, 1400)
+      sessionStorage.removeItem(draftKey)
+      setPendingAction(null)
+      setRequestSent(true)
+    },
+    { successToast: 'Change request sent' }
+  )
+
+  const pending = confirmSubmit.pending || requestChangesSubmit.pending
+
+  // useAsyncAction owns the toast on a thrown submit, but it can't clear this
+  // component's full-screen <CakeLoader> (driven by `pendingAction`). Clear it
+  // here whenever either action surfaces an error.
+  useEffect(() => {
+    if (confirmSubmit.error || requestChangesSubmit.error) setPendingAction(null)
+  }, [confirmSubmit.error, requestChangesSubmit.error])
+
   function submit(action: ConfirmAction) {
     setError(null)
 
@@ -266,41 +327,8 @@ export default function ConfirmForm({
     setFieldErrors({})
     setPendingAction(action)
     const startedAt = Date.now()
-    startTransition(async () => {
-      // Without this try/catch, a thrown error here (network failure, a rejected
-      // server action, etc.) would leave the loader spinning forever with no
-      // error ever shown.
-      try {
-        const result = await confirmInquiry(token, parsed.data)
-        if (result.error) {
-          // Errors surface immediately — never held back to let the loader finish.
-          setPendingAction(null)
-          setError(result.error)
-          return
-        }
-        if (result.fieldErrors) {
-          setPendingAction(null)
-          setError('Please check your details and try again.')
-          return
-        }
-        if (action === 'request_changes') {
-          await holdMinimumVisible(startedAt, 1400)
-          sessionStorage.removeItem(draftKey)
-          setPendingAction(null)
-          setRequestSent(true)
-          return
-        }
-        if (result.data?.order?.tracking_token) {
-          await holdMinimumVisible(startedAt, 1400)
-          sessionStorage.removeItem(draftKey)
-          router.push(`/track/${result.data.order.tracking_token}`)
-        }
-      } catch (err) {
-        console.error('[ConfirmForm] submit failed:', err)
-        setPendingAction(null)
-        setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.')
-      }
-    })
+    if (action === 'confirm') confirmSubmit.run(parsed.data, startedAt)
+    else requestChangesSubmit.run(parsed.data, startedAt)
   }
 
   if (pendingAction) {

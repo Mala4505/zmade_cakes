@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useTransition } from 'react'
-import { toast } from 'sonner'
+import { useState } from 'react'
 import { Field, Input, Button } from '@/components/ui'
 import { updateSetting } from '@/lib/actions/settings'
+import { useAsyncAction } from '@/lib/hooks/useAsyncAction'
 import type { OptionRow } from '@/lib/supabase/types'
 
 interface Props {
@@ -33,41 +33,27 @@ export function PricingPanel({ sizes, initialMatrix, initialMinGuard, initialRus
     minGuard: toStr(initialMinGuard),
     rush: toStr(initialRushMultiplier),
   })
-  const [isPending, startTransition] = useTransition()
-
   const currentMatrixKey = JSON.stringify(sizes.map((s) => matrix[s.id] ?? ''))
   const dirty = currentMatrixKey !== saved.matrix || minGuard !== saved.minGuard || rush !== saved.rush
 
-  const handleSave = () => {
-    startTransition(async () => {
-      // Without this try/catch, a thrown error here would leave `isPending` stuck
-      // true forever with no feedback shown.
-      try {
-        const nextMatrix: Record<string, number> = {}
-        for (const s of sizes) {
-          const v = parseFloat(matrix[s.id] ?? '')
-          if (!Number.isNaN(v)) nextMatrix[s.id] = v
-        }
-        const [r1, r2, r3] = await Promise.all([
-          updateSetting('pricing_matrix', nextMatrix),
-          updateSetting('min_price_guard', String(parseFloat(minGuard) || 0)),
-          updateSetting('rush_multiplier', String(parseFloat(rush) || 1)),
-        ])
-        const err = r1.error ?? r2.error ?? r3.error
-        if (err) {
-          toast.error('Failed to save prices', { description: err })
-          return
-        }
-        setSaved({ matrix: currentMatrixKey, minGuard, rush })
-        toast.success('Base prices saved')
-      } catch (err) {
-        console.error('[PricingPanel] save failed:', err)
-        toast.error('Something went wrong', {
-          description: err instanceof Error ? err.message : 'Please try again.',
-        })
+  const { run: handleSave, pending: isPending } = useAsyncAction(
+    async () => {
+      const nextMatrix: Record<string, number> = {}
+      for (const s of sizes) {
+        const v = parseFloat(matrix[s.id] ?? '')
+        if (!Number.isNaN(v)) nextMatrix[s.id] = v
       }
-    })
-  }
+      const [r1, r2, r3] = await Promise.all([
+        updateSetting('pricing_matrix', nextMatrix),
+        updateSetting('min_price_guard', String(parseFloat(minGuard) || 0)),
+        updateSetting('rush_multiplier', String(parseFloat(rush) || 1)),
+      ])
+      const err = r1.error ?? r2.error ?? r3.error
+      if (err) return { error: err }
+      setSaved({ matrix: currentMatrixKey, minGuard, rush })
+    },
+    { successToast: 'Base prices saved' }
+  )
 
   return (
     <div

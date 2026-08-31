@@ -17,8 +17,11 @@ const VARIANT_CLASSES: Record<ButtonVariant, string> = {
 }
 
 const SIZE_CLASSES: Record<ButtonSize, string> = {
-  sm: 'px-3 py-1.5 text-xs gap-1.5',
-  md: 'px-4 py-2.5 text-sm gap-2',
+  // min-h-11 (44px) on sm/md: both render shorter than that from padding alone
+  // (sm ~28px, md ~40px) — below the minimum comfortable touch target. lg
+  // already clears 44px from its own padding.
+  sm: 'min-h-11 px-3 py-1.5 text-xs gap-1.5',
+  md: 'min-h-11 px-4 py-2.5 text-sm gap-2',
   lg: 'px-6 py-3 text-sm gap-2',
 }
 

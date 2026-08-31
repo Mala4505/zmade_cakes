@@ -1,12 +1,12 @@
 'use client'
 
-import { useTransition, useState } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { toast } from 'sonner'
 import { createOption, updateOption, deleteOption } from '@/lib/actions/options'
 import { Plus, PencilSimple, Check, X, Trash, DotsSixVertical } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
+import { useAsyncAction } from '@/lib/hooks/useAsyncAction'
 import type { OptionRow } from '@/lib/supabase/types'
 import type { OptionTable } from '@/lib/validations/options'
 
@@ -18,90 +18,69 @@ interface Props {
 
 export default function OptionsManager({ optionTypes, activeType, options }: Props) {
   const router = useRouter()
-  const [pending, startTransition] = useTransition()
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editValue, setEditValue] = useState('')
   const [newName, setNewName] = useState('')
 
-  const refresh = () => {
-    router.refresh()
-  }
+  const refreshOnSuccess = () => router.refresh()
+
+  const { run: createRun, pending: creating } = useAsyncAction(
+    async () => {
+      const result = await createOption(activeType, {
+        name: newName.trim(),
+        sort_order: options.length,
+        is_active: true,
+      })
+      if (result.error) return { error: result.error }
+      setNewName('')
+    },
+    { successToast: 'Option added', onSuccess: refreshOnSuccess }
+  )
+
+  const { run: updateRun, pending: updating } = useAsyncAction(
+    async (id: string) => {
+      const result = await updateOption(id, activeType, { name: editValue.trim() })
+      if (result.error) return { error: result.error }
+      setEditingId(null)
+    },
+    { successToast: 'Renamed', onSuccess: refreshOnSuccess }
+  )
+
+  const { run: toggleRun, pending: toggling } = useAsyncAction(
+    async (option: OptionRow) => {
+      const result = await updateOption(option.id, activeType, { is_active: !option.is_active })
+      if (result.error) return { error: result.error }
+    },
+    { successToast: 'Option updated', onSuccess: refreshOnSuccess }
+  )
+
+  const { run: deleteRun, pending: deleting } = useAsyncAction(
+    async (id: string) => {
+      const result = await deleteOption(id, activeType)
+      if (result.error) return { error: result.error }
+    },
+    { successToast: 'Deleted', onSuccess: refreshOnSuccess }
+  )
+
+  const busy = creating || updating || toggling || deleting
 
   const handleCreate = () => {
     if (!newName.trim()) return
-    startTransition(async () => {
-      // Without this try/catch, a thrown error here would leave `pending` stuck
-      // true forever with no feedback shown.
-      try {
-        const result = await createOption(activeType, {
-          name: newName.trim(),
-          sort_order: options.length,
-          is_active: true,
-        })
-        if (result.error) { toast.error('Failed to create', { description: result.error }); return }
-        setNewName('')
-        refresh()
-      } catch (err) {
-        console.error('[OptionsManager] create failed:', err)
-        toast.error('Something went wrong', {
-          description: err instanceof Error ? err.message : 'Please try again.',
-        })
-      }
-    })
+    createRun()
   }
 
   const handleUpdate = (id: string) => {
     if (!editValue.trim()) return
-    startTransition(async () => {
-      // Without this try/catch, a thrown error here would leave `pending` stuck
-      // true forever with no feedback shown.
-      try {
-        const result = await updateOption(id, activeType, { name: editValue.trim() })
-        if (result.error) { toast.error('Failed to update', { description: result.error }); return }
-        setEditingId(null)
-        refresh()
-      } catch (err) {
-        console.error('[OptionsManager] update failed:', err)
-        toast.error('Something went wrong', {
-          description: err instanceof Error ? err.message : 'Please try again.',
-        })
-      }
-    })
+    updateRun(id)
   }
 
   const handleToggleActive = (option: OptionRow) => {
-    startTransition(async () => {
-      // Without this try/catch, a thrown error here would leave `pending` stuck
-      // true forever with no feedback shown.
-      try {
-        const result = await updateOption(option.id, activeType, { is_active: !option.is_active })
-        if (result.error) { toast.error('Failed to update', { description: result.error }); return }
-        refresh()
-      } catch (err) {
-        console.error('[OptionsManager] toggle active failed:', err)
-        toast.error('Something went wrong', {
-          description: err instanceof Error ? err.message : 'Please try again.',
-        })
-      }
-    })
+    toggleRun(option)
   }
 
   const handleDelete = (id: string) => {
     if (!confirm('Remove this option? It will be hidden from the inquiry form.')) return
-    startTransition(async () => {
-      // Without this try/catch, a thrown error here would leave `pending` stuck
-      // true forever with no feedback shown.
-      try {
-        const result = await deleteOption(id, activeType)
-        if (result.error) { toast.error('Failed to delete', { description: result.error }); return }
-        refresh()
-      } catch (err) {
-        console.error('[OptionsManager] delete failed:', err)
-        toast.error('Something went wrong', {
-          description: err instanceof Error ? err.message : 'Please try again.',
-        })
-      }
-    })
+    deleteRun(id)
   }
 
   return (
@@ -159,7 +138,7 @@ export default function OptionsManager({ optionTypes, activeType, options }: Pro
           <button
             type="button"
             onClick={handleCreate}
-            disabled={pending || !newName.trim()}
+            disabled={busy || !newName.trim()}
             className="px-4 py-2.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
             style={{ backgroundColor: 'var(--color-teal)', color: 'var(--color-cream)' }}
           >
@@ -208,7 +187,7 @@ export default function OptionsManager({ optionTypes, activeType, options }: Pro
                         color: 'var(--color-ink)',
                       }}
                     />
-                    <button onClick={() => handleUpdate(option.id)} disabled={pending} className="p-1.5 rounded" style={{ color: 'var(--color-teal)' }}>
+                    <button onClick={() => handleUpdate(option.id)} disabled={busy} className="p-1.5 rounded" style={{ color: 'var(--color-teal)' }}>
                       <Check size={15} weight="bold" />
                     </button>
                     <button onClick={() => setEditingId(null)} className="p-1.5 rounded" style={{ color: 'var(--color-ink-muted)' }}>
@@ -226,7 +205,7 @@ export default function OptionsManager({ optionTypes, activeType, options }: Pro
 
                     <button
                       onClick={() => handleToggleActive(option)}
-                      disabled={pending}
+                      disabled={busy}
                       className="px-2 py-1 rounded text-[11px] font-medium transition-colors"
                       style={
                         option.is_active
@@ -247,7 +226,7 @@ export default function OptionsManager({ optionTypes, activeType, options }: Pro
 
                     <button
                       onClick={() => handleDelete(option.id)}
-                      disabled={pending}
+                      disabled={busy}
                       className="p-1.5 rounded"
                       style={{ color: 'var(--color-danger)' }}
                     >

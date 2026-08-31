@@ -3,14 +3,16 @@ import { cn } from '@/lib/utils'
 
 /**
  * Font-size variant for Input, Select, and Textarea.
- * 'sm' (14px) is the long-standing admin default — dense, phone-first daily tool.
- * 'base' (16px) is required on customer-facing routes: any focused input under
- * 16px triggers an ugly auto-zoom on iOS Safari.
+ * 'sm' renders 16px on phones and 14px from `md` up — the admin shell stays
+ * dense on desktop, but a focused sub-16px input triggers an unrecoverable
+ * auto-zoom on iOS Safari, so touch screens always get 16px.
+ * 'base' is a flat 16px everywhere (customer-facing routes, or admin fields
+ * that want the larger size on desktop too).
  */
 export type InputSize = 'sm' | 'base'
 
 const sizeClass: Record<InputSize, string> = {
-  sm: 'text-sm',
+  sm: 'text-base md:text-sm',
   base: 'text-base',
 }
 
@@ -30,7 +32,7 @@ export const inputBaseClass = cn(
 )
 
 export type InputProps = Omit<React.InputHTMLAttributes<HTMLInputElement>, 'size'> & {
-  /** Text size variant. Defaults to 'sm' (14px, admin default). Pass 'base' on customer routes to prevent iOS zoom. */
+  /** Text size variant. Defaults to 'sm' (16px on phones, 14px on desktop). Pass 'base' for a flat 16px everywhere. */
   size?: InputSize
   /**
    * Short glyph ('+', '−', 'KD'…) fused to the input's leading edge. Used on money

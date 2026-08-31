@@ -13,8 +13,16 @@ const COUNTRIES = [
   { code: '+20', label: 'Egypt', flag: '🇪🇬' },
   { code: '+962', label: 'Jordan', flag: '🇯🇴' },
   { code: '+961', label: 'Lebanon', flag: '🇱🇧' },
+  { code: '+964', label: 'Iraq', flag: '🇮🇶' },
+  { code: '+963', label: 'Syria', flag: '🇸🇾' },
+  { code: '+967', label: 'Yemen', flag: '🇾🇪' },
   { code: '+91', label: 'India', flag: '🇮🇳' },
   { code: '+92', label: 'Pakistan', flag: '🇵🇰' },
+  { code: '+880', label: 'Bangladesh', flag: '🇧🇩' },
+  { code: '+94', label: 'Sri Lanka', flag: '🇱🇰' },
+  { code: '+977', label: 'Nepal', flag: '🇳🇵' },
+  { code: '+63', label: 'Philippines', flag: '🇵🇭' },
+  { code: '+62', label: 'Indonesia', flag: '🇮🇩' },
   { code: '+44', label: 'UK', flag: '🇬🇧' },
   { code: '+1', label: 'USA', flag: '🇺🇸' },
 ]
@@ -23,13 +31,37 @@ const DEFAULT_COUNTRY = COUNTRIES[0]
 
 function parseValue(value: string): { country: typeof COUNTRIES[0]; local: string } {
   if (!value) return { country: DEFAULT_COUNTRY, local: '' }
-  const sorted = [...COUNTRIES].sort((a, b) => b.code.length - a.code.length)
-  for (const c of sorted) {
-    if (value.startsWith(c.code)) {
-      return { country: c, local: value.slice(c.code.length) }
+
+  // Normalise before matching: drop spaces/dashes, treat a leading "00" IDD
+  // prefix like a "+", and remember whether the value was explicitly
+  // international (leading "+" or "00") vs. a bare local number.
+  let s = value.replace(/[\s-]/g, '')
+  const international = s.startsWith('+') || s.startsWith('00')
+  if (s.startsWith('00')) s = s.slice(2)
+  const hadPlus = s.startsWith('+')
+  const digits = s.replace(/\D/g, '')
+
+  // Only pull a country code off a bare number when it's clearly longer than a
+  // local subscriber number (Kuwait numbers are 8 digits). Otherwise an
+  // 8-digit local starting "20" would be misread as Egypt.
+  if (international || digits.length > 8) {
+    const sorted = [...COUNTRIES].sort((a, b) => b.code.length - a.code.length)
+    for (const c of sorted) {
+      const codeDigits = c.code.slice(1) // strip the leading "+"
+      if (digits.startsWith(codeDigits)) {
+        return { country: c, local: digits.slice(codeDigits.length) }
+      }
+    }
+    // Explicit "+" but no known code: keep "+<code>" in the country slot as an
+    // unknown code rather than pasting it into the local-number field.
+    if (hadPlus && digits) {
+      const n = Math.min(3, digits.length)
+      const code = `+${digits.slice(0, n)}`
+      return { country: { code, label: code, flag: '🌐' }, local: digits.slice(n) }
     }
   }
-  return { country: DEFAULT_COUNTRY, local: value }
+
+  return { country: DEFAULT_COUNTRY, local: digits || value }
 }
 
 type PhoneInputSize = 'sm' | 'base'
@@ -116,9 +148,11 @@ export default function PhoneInput({
   }
 
   function handleLocalChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const val = e.target.value
-    setLocal(val)
-    onChange(country.code + val)
+    // Sanitise to digits only so a mis-parsed value can never re-emit an
+    // embedded "+" (e.g. "+965+964…"), which would fail KUWAIT_PHONE_REGEX.
+    const clean = e.target.value.replace(/[^\d]/g, '')
+    setLocal(clean)
+    onChange(country.code + clean)
   }
 
   // Typeahead: jump to (or cycle through) countries whose name starts with the
@@ -229,18 +263,17 @@ export default function PhoneInput({
         aria-controls={listboxId}
         aria-activedescendant={open ? `${listboxId}-option-${activeIndex}` : undefined}
         className={cn(
-          'flex min-h-11 shrink-0 items-center gap-1.5 rounded-l-lg border px-3 py-2.5 outline-none transition-all',
+          'flex min-h-11 min-w-0 shrink-0 items-center gap-1.5 rounded-l-lg border px-3 py-2.5 outline-none transition-all',
           textSizeClass,
           'font-medium bg-[var(--color-surface)] text-[var(--color-ink)] border-r-0',
           ariaInvalid ? 'border-[var(--color-danger)]' : 'border-[var(--color-border)]',
           focusRing,
           'disabled:opacity-60 disabled:cursor-not-allowed'
         )}
-        style={{ minWidth: '88px' }}
       >
         <span>{country.flag}</span>
-        <span className="text-[var(--color-ink-muted)]">{country.code}</span>
-        <CaretDown size={12} className="text-[var(--color-ink-muted)]" />
+        <span className="hidden text-[var(--color-ink-muted)] sm:inline">{country.code}</span>
+        <CaretDown size={12} className="shrink-0 text-[var(--color-ink-muted)]" />
       </button>
 
       <input

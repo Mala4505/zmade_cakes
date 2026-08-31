@@ -1,32 +1,23 @@
 'use client'
 
-import { useState, useTransition } from 'react'
-import { toast } from 'sonner'
+import { useState } from 'react'
 import { updateSetting } from '@/lib/actions/settings'
+import { useAsyncAction } from '@/lib/hooks/useAsyncAction'
 
 export default function OperatingRulesForm({ initialLeadDays }: { initialLeadDays: number }) {
   const [value, setValue] = useState(initialLeadDays)
-  const [isPending, startTransition] = useTransition()
+
+  const { run, pending } = useAsyncAction(
+    async () => {
+      const result = await updateSetting('min_lead_days', String(value))
+      if (result.error) return { error: result.error }
+    },
+    { successToast: 'Saved' }
+  )
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    startTransition(async () => {
-      // Without this try/catch, a thrown error here would leave `isPending` stuck
-      // true forever with no feedback shown.
-      try {
-        const result = await updateSetting('min_lead_days', String(value))
-        if (result.error) {
-          toast.error('Failed to save', { description: result.error })
-          return
-        }
-        toast.success('Operating rules saved')
-      } catch (err) {
-        console.error('[OperatingRulesForm] save failed:', err)
-        toast.error('Something went wrong', {
-          description: err instanceof Error ? err.message : 'Please try again.',
-        })
-      }
-    })
+    run()
   }
 
   return (
@@ -66,11 +57,11 @@ export default function OperatingRulesForm({ initialLeadDays }: { initialLeadDay
 
         <button
           type="submit"
-          disabled={isPending}
+          disabled={pending}
           className="w-full py-3 rounded-lg text-sm font-medium transition-opacity disabled:opacity-60 mt-4"
           style={{ backgroundColor: 'var(--color-teal)', color: 'var(--color-cream)' }}
         >
-          {isPending ? 'Saving…' : 'Save'}
+          {pending ? 'Saving…' : 'Save'}
         </button>
       </div>
     </form>

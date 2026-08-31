@@ -1,35 +1,57 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { Spinner } from '@/components/ui/Spinner'
+import { useEffect, useRef, useState } from 'react'
 import { useNavPending } from './NavPendingContext'
 
-/** Full-page cover shown while a sidebar/bottom-nav navigation is in flight.
- *  Delayed by 150ms so fast/prefetched navigations don't flash it. */
+/** Slim top-of-content progress bar shown while a client navigation is in
+ *  flight — sidebar/bottom-nav `<Link>`s *and* post-mutation `router.push` /
+ *  `router.refresh` from forms (see `useAsyncAction`). Delayed 150ms so fast or
+ *  prefetched navigations never flash it; fades out once the route settles. */
 export function NavigationOverlay() {
   const { isPending } = useNavPending()
-  const [show, setShow] = useState(false)
+  const [state, setState] = useState<'hidden' | 'active' | 'leaving'>('hidden')
+  const enterTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const leaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
-    if (!isPending) {
-      setShow(false)
+    if (enterTimer.current) clearTimeout(enterTimer.current)
+    if (leaveTimer.current) clearTimeout(leaveTimer.current)
+
+    if (isPending) {
+      enterTimer.current = setTimeout(() => setState('active'), 150)
       return
     }
-    const timer = setTimeout(() => setShow(true), 150)
-    return () => clearTimeout(timer)
+
+    setState((s) => {
+      if (s !== 'active') return 'hidden'
+      leaveTimer.current = setTimeout(() => setState('hidden'), 240)
+      return 'leaving'
+    })
   }, [isPending])
 
-  if (!show) return null
+  useEffect(
+    () => () => {
+      if (enterTimer.current) clearTimeout(enterTimer.current)
+      if (leaveTimer.current) clearTimeout(leaveTimer.current)
+    },
+    []
+  )
+
+  if (state === 'hidden') return null
 
   return (
     <div
-      className="absolute inset-0 z-20 flex items-center justify-center"
-      style={{ backgroundColor: 'color-mix(in srgb, var(--color-cream) 70%, transparent)' }}
+      className="absolute top-0 left-0 right-0 h-0.5 z-30 overflow-hidden pointer-events-none"
+      style={{
+        opacity: state === 'leaving' ? 0 : 1,
+        transition: 'opacity 200ms var(--ease-out-quart)',
+      }}
       aria-hidden="true"
     >
-      <span style={{ color: 'var(--color-teal)' }}>
-        <Spinner size={28} />
-      </span>
+      <div
+        className="zmade-nav-progress-bar h-full w-1/4"
+        style={{ backgroundColor: 'var(--color-teal)' }}
+      />
     </div>
   )
 }

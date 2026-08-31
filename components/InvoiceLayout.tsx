@@ -88,8 +88,8 @@ export default function InvoiceLayout({ order, inquiry, adminMode, businessPhone
       <div style={{ height: 4, backgroundColor: 'var(--color-teal)', width: '100%' }} />
 
       {/* Header */}
-      <div className="px-6 pt-5 pb-4 flex justify-between items-start">
-        <div className="flex items-center gap-3">
+      <div className="px-6 pt-5 pb-4 flex flex-wrap justify-between items-start gap-3">
+        <div className="flex items-center gap-3 min-w-0">
           <Image
             src="/logo.svg"
             alt=""
@@ -98,7 +98,7 @@ export default function InvoiceLayout({ order, inquiry, adminMode, businessPhone
             style={{ width: 44, height: 44, flexShrink: 0 }}
             priority
           />
-          <div>
+          <div className="min-w-0">
             <p
               className="text-2xl font-extrabold tracking-tight"
               style={{ color: 'var(--color-teal)', fontFamily: 'var(--font-display)' }}
@@ -110,10 +110,10 @@ export default function InvoiceLayout({ order, inquiry, adminMode, businessPhone
             </p>
           </div>
         </div>
-        <div>
+        <div className="min-w-0">
           <p
-            className="text-4xl font-bold tracking-widest uppercase"
-            style={{ color: 'var(--color-border)', letterSpacing: '0.2em' }}
+            className="text-2xl sm:text-4xl font-bold uppercase tracking-[0.12em] sm:tracking-[0.2em]"
+            style={{ color: 'var(--color-border)' }}
           >
             {paymentStatus === 'paid' ? 'RECEIPT' : 'INVOICE'}
           </p>

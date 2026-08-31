@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useTransition } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Switch } from '@/components/ui'
@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils'
 import { updateSetting } from '@/lib/actions/settings'
 import { deletePushSubscription, savePushSubscription, sendTestPush } from '@/lib/actions/push'
 import { getLocalPushStatus, subscribeToPush, unsubscribeFromPush } from '@/lib/push-client'
+import { useAsyncAction } from '@/lib/hooks/useAsyncAction'
 import type { NotificationPrefs, NotificationType, PushSubscriptionRow } from '@/lib/supabase/types'
 
 const TYPE_CONFIG: { key: NotificationType; label: string; description: string }[] = [
@@ -46,13 +47,10 @@ export default function NotificationSettingsForm({
   const router = useRouter()
   const [prefs, setPrefs] = useState(initialPrefs)
   const [pendingKey, setPendingKey] = useState<string | null>(null)
-  const [, startTransition] = useTransition()
 
   const [localSupported, setLocalSupported] = useState(false)
   const [localPermission, setLocalPermission] = useState<NotificationPermission>('default')
   const [subscribed, setSubscribed] = useState<boolean | null>(null)
-  const [deviceBusy, setDeviceBusy] = useState(false)
-  const [testBusy, setTestBusy] = useState(false)
   const [removingEndpoint, setRemovingEndpoint] = useState<string | null>(null)
 
   const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
@@ -78,31 +76,92 @@ export default function NotificationSettingsForm({
     checkSubscription()
   }, [])
 
-  function savePrefs(nextPrefs: NotificationPrefs, key: string, successMessage: string) {
-    const prevPrefs = prefs
-    setPrefs(nextPrefs)
-    setPendingKey(key)
-    startTransition(async () => {
-      // Without this try/catch, a thrown error here would leave the pending state
-      // stuck true forever with no feedback shown.
+  // Optimistic pref toggle. Rolls back `prefs` on both the returned-error and the
+  // thrown-error path; the dynamic success message is toasted in-band.
+  const { run: runSavePrefs } = useAsyncAction(
+    async (nextPrefs: NotificationPrefs, prevPrefs: NotificationPrefs, successMessage: string) => {
       try {
         const { error } = await updateSetting('notification_prefs', nextPrefs)
         if (error) {
           setPrefs(prevPrefs)
-          toast.error('Failed to save', { description: error })
-          return
+          return { error }
         }
         toast.success(successMessage)
       } catch (err) {
         setPrefs(prevPrefs)
-        console.error('[NotificationSettingsForm] save failed:', err)
-        toast.error('Something went wrong', {
-          description: err instanceof Error ? err.message : 'Please try again.',
-        })
+        throw err
       } finally {
         setPendingKey(null)
       }
-    })
+    }
+  )
+
+  const { run: runEnableDevice, pending: enabling } = useAsyncAction(
+    async () => {
+      if (!vapidKey) return false
+      const { subscription, error } = await subscribeToPush(vapidKey)
+      if (error || !subscription) return { error: error ?? 'Please try again.' }
+      const json = subscription.toJSON() as { endpoint?: string; keys?: { p256dh: string; auth: string } }
+      if (!json.endpoint || !json.keys) return { error: 'Subscription is missing required data.' }
+      const result = await savePushSubscription(
+        { endpoint: json.endpoint, keys: json.keys },
+        navigator.userAgent
+      )
+      if (result.error) return { error: result.error }
+      setSubscribed(true)
+    },
+    { successToast: 'Notifications enabled on this device', onSuccess: () => router.refresh() }
+  )
+
+  const { run: runDisableDevice, pending: disabling } = useAsyncAction(
+    async () => {
+      let endpoint: string | null = null
+      if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+        const registration = await navigator.serviceWorker.ready
+        const sub = await registration.pushManager.getSubscription()
+        endpoint = sub?.endpoint ?? null
+      }
+      await unsubscribeFromPush()
+      if (endpoint) {
+        const result = await deletePushSubscription(endpoint)
+        // Soft failure: the browser subscription is already gone, so this device
+        // is disabled locally regardless — surface the server hiccup but proceed.
+        if (result.error) {
+          toast.error('Failed to remove this device', { description: result.error })
+        }
+      }
+      setSubscribed(false)
+    },
+    { successToast: 'Notifications disabled on this device', onSuccess: () => router.refresh() }
+  )
+
+  const deviceBusy = enabling || disabling
+
+  const { run: runTestPush, pending: testBusy } = useAsyncAction(
+    async () => {
+      const { error } = await sendTestPush()
+      if (error) return { error }
+    },
+    { successToast: 'Test notification sent' }
+  )
+
+  const { run: runRemoveDevice } = useAsyncAction(
+    async (endpoint: string) => {
+      try {
+        const result = await deletePushSubscription(endpoint)
+        if (result.error) return { error: result.error }
+      } finally {
+        setRemovingEndpoint(null)
+      }
+    },
+    { successToast: 'Device removed', onSuccess: () => router.refresh() }
+  )
+
+  function savePrefs(nextPrefs: NotificationPrefs, key: string, successMessage: string) {
+    const prevPrefs = prefs
+    setPrefs(nextPrefs)
+    setPendingKey(key)
+    runSavePrefs(nextPrefs, prevPrefs, successMessage)
   }
 
   function handleMasterToggle(next: boolean) {
@@ -121,107 +180,22 @@ export default function NotificationSettingsForm({
     )
   }
 
-  async function handleEnableDevice() {
+  function handleEnableDevice() {
     if (!vapidKey) return
-    setDeviceBusy(true)
-    try {
-      const { subscription, error } = await subscribeToPush(vapidKey)
-      if (error || !subscription) {
-        toast.error('Failed to enable notifications', { description: error ?? 'Please try again.' })
-        return
-      }
-      const json = subscription.toJSON() as { endpoint?: string; keys?: { p256dh: string; auth: string } }
-      if (!json.endpoint || !json.keys) {
-        toast.error('Failed to enable notifications', { description: 'Subscription is missing required data.' })
-        return
-      }
-      const result = await savePushSubscription(
-        { endpoint: json.endpoint, keys: json.keys },
-        navigator.userAgent
-      )
-      if (result.error) {
-        toast.error('Failed to save this device', { description: result.error })
-        return
-      }
-      setSubscribed(true)
-      toast.success('Notifications enabled on this device')
-      router.refresh()
-    } catch (err) {
-      console.error('[NotificationSettingsForm] enable device failed:', err)
-      toast.error('Something went wrong', {
-        description: err instanceof Error ? err.message : 'Please try again.',
-      })
-    } finally {
-      setDeviceBusy(false)
-    }
+    runEnableDevice()
   }
 
-  async function handleDisableDevice() {
-    setDeviceBusy(true)
-    try {
-      let endpoint: string | null = null
-      if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
-        const registration = await navigator.serviceWorker.ready
-        const sub = await registration.pushManager.getSubscription()
-        endpoint = sub?.endpoint ?? null
-      }
-      await unsubscribeFromPush()
-      if (endpoint) {
-        const result = await deletePushSubscription(endpoint)
-        if (result.error) {
-          toast.error('Failed to remove this device', { description: result.error })
-        }
-      }
-      setSubscribed(false)
-      toast.success('Notifications disabled on this device')
-      router.refresh()
-    } catch (err) {
-      console.error('[NotificationSettingsForm] disable device failed:', err)
-      toast.error('Something went wrong', {
-        description: err instanceof Error ? err.message : 'Please try again.',
-      })
-    } finally {
-      setDeviceBusy(false)
-    }
+  function handleDisableDevice() {
+    runDisableDevice()
   }
 
-  async function handleTestPush() {
-    setTestBusy(true)
-    try {
-      const { error } = await sendTestPush()
-      if (error) {
-        toast.error('Failed to send test notification', { description: error })
-        return
-      }
-      toast.success('Test notification sent')
-    } catch (err) {
-      console.error('[NotificationSettingsForm] test push failed:', err)
-      toast.error('Something went wrong', {
-        description: err instanceof Error ? err.message : 'Please try again.',
-      })
-    } finally {
-      setTestBusy(false)
-    }
+  function handleTestPush() {
+    runTestPush()
   }
 
-  async function handleRemoveDevice(endpoint: string) {
+  function handleRemoveDevice(endpoint: string) {
     setRemovingEndpoint(endpoint)
-    try {
-      const result = await deletePushSubscription(endpoint)
-      if (result.error) {
-        toast.error('Failed to remove device', { description: result.error })
-        return
-      }
-      toast.success('Device removed')
-      router.refresh()
-    } catch (err) {
-      console.error('[NotificationSettingsForm] remove device failed:', err)
-      toast.error('Something went wrong', {
-        description: err instanceof Error ? err.message : 'Please try again.',
-      })
-    } finally {
-      setRemovingEndpoint(null)
-    }
+    runRemoveDevice(endpoint)
   }
 
   return (

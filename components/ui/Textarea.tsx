@@ -3,12 +3,12 @@ import { cn } from '@/lib/utils'
 import { inputBaseClass, type InputSize } from './Input'
 
 const sizeClass: Record<InputSize, string> = {
-  sm: 'text-sm',
+  sm: 'text-base md:text-sm',
   base: 'text-base',
 }
 
 export type TextareaProps = React.TextareaHTMLAttributes<HTMLTextAreaElement> & {
-  /** Text size variant. Defaults to 'sm' (14px, admin default). Pass 'base' on customer routes to prevent iOS zoom. */
+  /** Text size variant. Defaults to 'sm' (16px on phones, 14px on desktop). Pass 'base' for a flat 16px everywhere. */
   size?: InputSize
 }
 

@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useTransition } from 'react'
-import { toast } from 'sonner'
+import { useState } from 'react'
 import { updateSetting } from '@/lib/actions/settings'
+import { useAsyncAction } from '@/lib/hooks/useAsyncAction'
 import type { WhatsAppTemplates } from '@/lib/supabase/types'
 
 const TEMPLATE_FIELDS: {
@@ -23,7 +23,14 @@ export default function WhatsAppTemplatesForm({
   initialTemplates: WhatsAppTemplates
 }) {
   const [templates, setTemplates] = useState<WhatsAppTemplates>(initialTemplates)
-  const [isPending, startTransition] = useTransition()
+
+  const { run, pending } = useAsyncAction(
+    async () => {
+      const result = await updateSetting('whatsapp_templates', templates)
+      if (result.error) return { error: result.error }
+    },
+    { successToast: 'Templates saved' }
+  )
 
   function handleChange(key: keyof WhatsAppTemplates, value: string) {
     setTemplates((prev) => ({ ...prev, [key]: value }))
@@ -31,23 +38,7 @@ export default function WhatsAppTemplatesForm({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    startTransition(async () => {
-      // Without this try/catch, a thrown error here would leave `isPending` stuck
-      // true forever with no feedback shown.
-      try {
-        const result = await updateSetting('whatsapp_templates', templates)
-        if (result.error) {
-          toast.error('Failed to save', { description: result.error })
-          return
-        }
-        toast.success('Templates saved')
-      } catch (err) {
-        console.error('[WhatsAppTemplatesForm] save failed:', err)
-        toast.error('Something went wrong', {
-          description: err instanceof Error ? err.message : 'Please try again.',
-        })
-      }
-    })
+    run()
   }
 
   return (
@@ -85,11 +76,11 @@ export default function WhatsAppTemplatesForm({
 
         <button
           type="submit"
-          disabled={isPending}
+          disabled={pending}
           className="w-full py-3 rounded-lg text-sm font-medium transition-opacity disabled:opacity-60"
           style={{ backgroundColor: 'var(--color-teal)', color: 'var(--color-cream)' }}
         >
-          {isPending ? 'Saving…' : 'Save Changes'}
+          {pending ? 'Saving…' : 'Save Changes'}
         </button>
       </div>
     </form>

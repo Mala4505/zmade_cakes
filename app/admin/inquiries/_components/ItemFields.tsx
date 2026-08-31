@@ -4,7 +4,7 @@ import { useRef, useState } from 'react'
 import { useFormContext } from 'react-hook-form'
 import { toast } from 'sonner'
 import { z } from 'zod'
-import { Field, Input, RadioGroup, Select, Spinner, Textarea } from '@/components/ui'
+import { Field, IconButton, Input, RadioGroup, Select, Textarea } from '@/components/ui'
 import { Check, Trash, X } from '@phosphor-icons/react'
 import { createOption } from '@/lib/actions/options'
 import { inquiryItemSchema } from '@/lib/validations/inquiryItem'
@@ -101,27 +101,36 @@ export function ItemFields({
     if (!trimmed || itemPending) return
     setItemPending(true)
     setItemError(null)
-    const result = await createOption('item_options', {
-      name: trimmed,
-      sort_order: itemOptions.length,
-      is_active: true,
-    })
-    setItemPending(false)
-    if (result.error !== null) {
-      setItemError(result.error)
-      return
+    // try/catch/finally: createOption can throw (network drop, rejected action). Without it
+    // `itemPending` stayed true forever — the add button stuck disabled mid-spinner, with no
+    // error shown. Now every exit path clears pending and surfaces a message.
+    try {
+      const result = await createOption('item_options', {
+        name: trimmed,
+        sort_order: itemOptions.length,
+        is_active: true,
+      })
+      if (result.error !== null) {
+        setItemError(result.error)
+        return
+      }
+      if (result.fieldErrors !== null) {
+        setItemError(result.fieldErrors.name?.[0] ?? 'Could not add item')
+        return
+      }
+      const created = result.data
+      onItemOptionCreated(created)
+      setValue(`items.${index}.item_name`, created.name, { shouldDirty: true, shouldValidate: true })
+      setIsAddingItem(false)
+      setNewItemName('')
+      toast.success('Item added')
+      requestAnimationFrame(() => itemSelectRef.current?.focus())
+    } catch (err) {
+      console.error('[ItemFields] create item failed:', err)
+      setItemError(err instanceof Error ? err.message : 'Could not add item. Please try again.')
+    } finally {
+      setItemPending(false)
     }
-    if (result.fieldErrors !== null) {
-      setItemError(result.fieldErrors.name?.[0] ?? 'Could not add item')
-      return
-    }
-    const created = result.data
-    onItemOptionCreated(created)
-    setValue(`items.${index}.item_name`, created.name, { shouldDirty: true, shouldValidate: true })
-    setIsAddingItem(false)
-    setNewItemName('')
-    toast.success('Item added')
-    requestAnimationFrame(() => itemSelectRef.current?.focus())
   }
 
   return (
@@ -131,20 +140,19 @@ export function ItemFields({
           <p className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: 'var(--color-ink-muted)' }}>
             Item {index + 1}
           </p>
-          <button
-            type="button"
+          <IconButton
             onClick={onRemove}
-            className="flex h-7 w-7 items-center justify-center rounded-lg transition-colors hover:bg-[color:var(--color-surface-raised)]"
-            style={{ color: 'var(--color-ink-muted)' }}
+            tone="muted"
+            className="-mr-2"
             title="Remove item"
             aria-label={`Remove item ${index + 1}`}
           >
             <Trash size={14} />
-          </button>
+          </IconButton>
         </div>
       )}
-      <div className={`grid grid-cols-2 ${gapClassName}`}>
-        <Field label="Order Type" error={itemErrors?.order_type?.message} required className="col-span-2">
+      <div className={`grid grid-cols-1 sm:grid-cols-2 ${gapClassName}`}>
+        <Field label="Order Type" error={itemErrors?.order_type?.message} required className="sm:col-span-2">
           <RadioGroup
             value={orderType}
             onChange={(v) => setValue(`items.${index}.order_type`, v, { shouldDirty: true, shouldValidate: true })}
@@ -207,34 +215,35 @@ export function ItemFields({
                     <p className="mt-1 text-xs" style={{ color: 'var(--color-danger)' }}>{itemError}</p>
                   )}
                 </div>
-                <button
-                  type="button"
+                <IconButton
                   onClick={() => void handleCreateItem()}
-                  disabled={itemPending || !newItemName.trim()}
-                  className="shrink-0 p-2.5 rounded-lg border transition-all active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={!newItemName.trim()}
+                  loading={itemPending}
+                  className="shrink-0 border"
                   style={{
                     borderColor: 'var(--color-border)',
                     backgroundColor: 'var(--color-teal-light)',
                     color: 'var(--color-teal-deep)',
                   }}
                   title="Add item"
+                  aria-label="Add item"
                 >
-                  {itemPending ? <Spinner size={14} /> : <Check size={14} weight="bold" />}
-                </button>
-                <button
-                  type="button"
+                  <Check size={14} weight="bold" />
+                </IconButton>
+                <IconButton
                   onClick={cancelAddItem}
                   disabled={itemPending}
-                  className="shrink-0 p-2.5 rounded-lg border transition-all active:scale-[0.97] disabled:opacity-50"
+                  className="shrink-0 border"
                   style={{
                     borderColor: 'var(--color-border)',
                     backgroundColor: 'var(--color-surface-raised)',
                     color: 'var(--color-ink-secondary)',
                   }}
                   title="Cancel"
+                  aria-label="Cancel adding item"
                 >
                   <X size={14} />
-                </button>
+                </IconButton>
               </div>
             )}
           </Field>
@@ -271,13 +280,12 @@ export function ItemFields({
             {...register(`items.${index}.quantity`, { valueAsNumber: true })}
             type="number"
             min={1}
-            max={50}
             required
             aria-invalid={itemErrors?.quantity ? true : undefined}
           />
         </Field>
         {orderType === 'cake' && (
-          <Field label="Cake Type" error={itemErrors?.cake_type?.message} required className="col-span-2">
+          <Field label="Cake Type" error={itemErrors?.cake_type?.message} required className="sm:col-span-2">
             <RadioGroup
               value={cakeType}
               onChange={(v) => {
@@ -293,7 +301,7 @@ export function ItemFields({
           </Field>
         )}
         {orderType === 'cake' && cakeType === 'theme' && (
-          <Field label="Theme" error={itemErrors?.theme?.message} required className="col-span-2">
+          <Field label="Theme" error={itemErrors?.theme?.message} required className="sm:col-span-2">
             <Input
               {...register(`items.${index}.theme`)}
               placeholder="e.g. Butterfly garden, football, unicorn…"
@@ -303,7 +311,7 @@ export function ItemFields({
           </Field>
         )}
         {orderType === 'cake' && (
-          <Field label="Message on Cake" error={itemErrors?.message_on_cake?.message} className="col-span-2">
+          <Field label="Message on Cake" error={itemErrors?.message_on_cake?.message} className="sm:col-span-2">
             <Input {...register(`items.${index}.message_on_cake`)} placeholder="Happy Birthday…" />
           </Field>
         )}
@@ -311,7 +319,7 @@ export function ItemFields({
           label="Cake Details"
           error={itemErrors?.special_requirements?.message}
           hint="Tiers, colours, decoration, toppers — everything the bake needs."
-          className="col-span-2"
+          className="sm:col-span-2"
         >
           <Textarea
             {...register(`items.${index}.special_requirements`)}

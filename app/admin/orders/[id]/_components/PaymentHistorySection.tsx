@@ -1,10 +1,10 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Plus, Trash, Receipt } from '@phosphor-icons/react'
-import { toast } from 'sonner'
 import { Modal, Button, Field, Input, Select } from '@/components/ui'
+import { useAsyncAction } from '@/lib/hooks/useAsyncAction'
 import { recordPayment, deletePayment } from '@/lib/actions/payments'
 import { formatDate, formatKWD } from '@/lib/utils'
 import type { Payment, PaymentMethod } from '@/lib/supabase/types'
@@ -24,31 +24,26 @@ export default function PaymentHistorySection({ orderId, payments, defaultMethod
   const router = useRouter()
   const [modalOpen, setModalOpen] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
-  const [isPending, startTransition] = useTransition()
+
+  const { run: runDelete, pending: isPending } = useAsyncAction(
+    async (paymentId: string) => {
+      try {
+        const result = await deletePayment(paymentId)
+        if (result.error) return { error: result.error }
+      } finally {
+        setDeletingId(null)
+      }
+    },
+    {
+      successToast: 'Payment deleted',
+      onSuccess: () => router.refresh(),
+    }
+  )
 
   const handleDelete = (paymentId: string) => {
     if (!confirm('Delete this payment record? This cannot be undone.')) return
     setDeletingId(paymentId)
-    startTransition(async () => {
-      // Without this try/catch, a thrown error here would leave the delete
-      // stuck pending forever with no feedback shown.
-      try {
-        const result = await deletePayment(paymentId)
-        if (result.error) {
-          toast.error(result.error)
-        } else {
-          toast.success('Payment deleted')
-          router.refresh()
-        }
-      } catch (err) {
-        console.error('[PaymentHistorySection] delete failed:', err)
-        toast.error('Something went wrong', {
-          description: err instanceof Error ? err.message : 'Please try again.',
-        })
-      } finally {
-        setDeletingId(null)
-      }
-    })
+    runDelete(paymentId)
   }
 
   return (
@@ -153,50 +148,40 @@ function RecordPaymentModal({
   const [amount, setAmount] = useState('')
   const [method, setMethod] = useState<PaymentMethod>(defaultMethod || 'cash')
   const [note, setNote] = useState('')
-  const [error, setError] = useState<string | null>(null)
-  const [isPending, startTransition] = useTransition()
 
   const reset = () => {
     setAmount('')
     setMethod(defaultMethod || 'cash')
     setNote('')
-    setError(null)
   }
+
+  const { run: runSubmit, pending: isPending, error } = useAsyncAction(
+    async () => {
+      const parsedAmount = Number(amount)
+      if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+        return { error: 'Enter an amount greater than zero' }
+      }
+      const result = await recordPayment(orderId, {
+        amount: parsedAmount,
+        method: method === 'wamd' ? 'wamd' : 'cash',
+        note: note.trim() || undefined,
+      })
+      if (result.error) return { error: result.error }
+    },
+    {
+      successToast: 'Payment recorded',
+      errorToast: false,
+      onSuccess: () => {
+        reset()
+        onSaved()
+      },
+    }
+  )
 
   const handleClose = () => {
     if (isPending) return
     reset()
     onClose()
-  }
-
-  const handleSubmit = () => {
-    setError(null)
-    const parsedAmount = Number(amount)
-    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
-      setError('Enter an amount greater than zero')
-      return
-    }
-    startTransition(async () => {
-      // Without this try/catch, a thrown error here would leave `isPending`
-      // stuck true forever with no error ever shown.
-      try {
-        const result = await recordPayment(orderId, {
-          amount: parsedAmount,
-          method: method === 'wamd' ? 'wamd' : 'cash',
-          note: note.trim() || undefined,
-        })
-        if (result.error) {
-          setError(result.error)
-          return
-        }
-        toast.success('Payment recorded')
-        reset()
-        onSaved()
-      } catch (err) {
-        console.error('[PaymentHistorySection] record payment failed:', err)
-        setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.')
-      }
-    })
   }
 
   return (
@@ -210,7 +195,7 @@ function RecordPaymentModal({
           <Button variant="ghost" onClick={handleClose} disabled={isPending}>
             Cancel
           </Button>
-          <Button variant="primary" onClick={handleSubmit} loading={isPending}>
+          <Button variant="primary" onClick={() => runSubmit()} loading={isPending}>
             Save Payment
           </Button>
         </>

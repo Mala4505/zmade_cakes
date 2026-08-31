@@ -1,10 +1,10 @@
 'use client'
 
-import { useState, useTransition, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { Check, Spinner } from '@phosphor-icons/react'
 import { updateInquiryStatus } from '@/lib/actions/inquiries'
-import { toast } from 'sonner'
+import { useAsyncAction } from '@/lib/hooks/useAsyncAction'
 import type { Inquiry, InquiryStatus } from '@/lib/supabase/types'
 import { pendingRecordLabel } from '@/lib/format'
 
@@ -40,7 +40,6 @@ export function InquiryStatusSelect({
   const router = useRouter()
   const [editing, setEditing] = useState(false)
   const [selected, setSelected] = useState<InquiryStatus>(value)
-  const [pending, startTransition] = useTransition()
   const wrapperRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -65,32 +64,39 @@ export function InquiryStatusSelect({
     }
   }, [editing, value])
 
-  const handleConfirm = () => {
-    if (selected === value) {
-      setEditing(false)
-      return
-    }
-    startTransition(async () => {
-      // Without this try/catch, a thrown error here would leave `pending` stuck
-      // true forever with no feedback shown.
+  // A failed update — server-returned error OR a thrown one — must roll the widget back
+  // to its committed state: restore the dropdown to `value` and leave edit mode. Before,
+  // the throw path did neither, pinning the widget open with a stale selection.
+  const revertUi = () => {
+    setSelected(value)
+    setEditing(false)
+  }
+
+  const { run: confirmStatus, pending } = useAsyncAction(
+    async () => {
+      if (selected === value) {
+        setEditing(false)
+        return false
+      }
       try {
         const result = await updateInquiryStatus(inquiryId, selected)
         if (result.error) {
-          toast.error(result.error)
-          setSelected(value)
-        } else {
-          toast.success('Status updated')
-          router.refresh()
+          revertUi()
+          return { error: result.error }
         }
         setEditing(false)
       } catch (err) {
-        console.error('[InquiryStatusSelect] status update failed:', err)
-        toast.error('Something went wrong', {
-          description: err instanceof Error ? err.message : 'Please try again.',
-        })
+        revertUi()
+        throw err
       }
-    })
-  }
+    },
+    {
+      successToast: 'Status updated',
+      onSuccess: () => router.refresh(),
+    }
+  )
+
+  const handleConfirm = () => confirmStatus()
 
   const style = STATUS_STYLE[value]
 

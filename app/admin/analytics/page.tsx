@@ -152,11 +152,17 @@ export default async function AnalyticsPage() {
           </h2>
         </div>
         <div className="px-4 pt-4 pb-3">
+          {/* Below sm, only the most recent 6 months fit legibly; older bars are
+              hidden rather than clipped by the card's overflow. */}
           <div className="flex items-end gap-1" style={{ height: '120px' }}>
-            {months.map((m) => {
+            {months.map((m, i) => {
               const pct = m.revenue > 0 ? (m.revenue / maxRevenue) * 100 : 0
+              const hiddenOnMobile = i < months.length - 6
               return (
-                <div key={m.key} className="flex-1 flex flex-col items-center gap-1.5 h-full">
+                <div
+                  key={m.key}
+                  className={`${hiddenOnMobile ? 'hidden sm:flex' : 'flex'} flex-1 min-w-0 flex-col items-center gap-1.5 h-full`}
+                >
                   <div className="flex-1 w-full flex items-end">
                     <div
                       className="w-full rounded-t"
@@ -170,7 +176,7 @@ export default async function AnalyticsPage() {
                     />
                   </div>
                   <span
-                    className="text-[9px] leading-none whitespace-nowrap"
+                    className="text-[9px] leading-none"
                     style={{ color: 'var(--color-ink-muted)' }}
                   >
                     {m.label}
@@ -239,7 +245,7 @@ function BarList({ title, items }: { title: string; items: [string, number][] })
           items.map(([name, count]) => (
             <div key={name}>
               <div className="flex items-center justify-between mb-1.5">
-                <span className="text-sm truncate" style={{ color: 'var(--color-ink)' }}>
+                <span className="text-sm truncate min-w-0" style={{ color: 'var(--color-ink)' }}>
                   {name}
                 </span>
                 <span

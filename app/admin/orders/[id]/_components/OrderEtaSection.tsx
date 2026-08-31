@@ -1,9 +1,11 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState } from 'react'
 import { PencilSimple, Check } from '@phosphor-icons/react'
 import { updateOrderEta } from '@/lib/actions/orders'
+import { useAsyncAction } from '@/lib/hooks/useAsyncAction'
 import { formatDateLong, formatTime } from '@/lib/utils'
+import { Input } from '@/components/ui'
 
 interface Props {
   orderId: string
@@ -18,30 +20,26 @@ export default function OrderEtaSection({ orderId, initialDate, initialTime, ini
   const [time, setTime] = useState(initialTime ?? '')
   const [note, setNote] = useState(initialNote)
   const [saved, setSaved] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [isPending, startTransition] = useTransition()
 
-  const handleSave = () => {
-    startTransition(async () => {
-      setError(null)
-      // Without this try/catch, a thrown error here would leave `isPending` stuck
-      // true forever with no error ever shown.
-      try {
-        const result = await updateOrderEta(orderId, {
-          eta_date: date || null,
-          eta_time: time || null,
-          eta_note: note,
-        })
-        if (result.error) { setError(result.error); return }
+  const { run: handleSave, pending: isPending, error } = useAsyncAction(
+    async () => {
+      const result = await updateOrderEta(orderId, {
+        eta_date: date || null,
+        eta_time: time || null,
+        eta_note: note,
+      })
+      if (result.error) return { error: result.error }
+    },
+    {
+      successToast: 'ETA updated',
+      errorToast: false,
+      onSuccess: () => {
         setSaved(true)
         setEditing(false)
         setTimeout(() => setSaved(false), 2000)
-      } catch (err) {
-        console.error('[OrderEtaSection] save failed:', err)
-        setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.')
-      }
-    })
-  }
+      },
+    }
+  )
 
   return (
     <div
@@ -77,44 +75,38 @@ export default function OrderEtaSection({ orderId, initialDate, initialTime, ini
         </div>
       ) : (
         <div className="flex flex-col gap-3">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium mb-1" style={{ color: 'var(--color-ink-muted)' }}>Date</label>
-              <input
+              <Input
                 type="date"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                className="w-full rounded-lg border px-3 py-2 text-sm outline-none"
-                style={{ backgroundColor: 'var(--color-cream)', borderColor: 'var(--color-border)', color: 'var(--color-ink)' }}
               />
             </div>
             <div>
               <label className="block text-xs font-medium mb-1" style={{ color: 'var(--color-ink-muted)' }}>Time</label>
-              <input
+              <Input
                 type="time"
                 value={time}
                 onChange={(e) => setTime(e.target.value)}
-                className="w-full rounded-lg border px-3 py-2 text-sm outline-none"
-                style={{ backgroundColor: 'var(--color-cream)', borderColor: 'var(--color-border)', color: 'var(--color-ink)' }}
               />
             </div>
           </div>
           <div>
             <label className="block text-xs font-medium mb-1" style={{ color: 'var(--color-ink-muted)' }}>Note (optional)</label>
-            <input
+            <Input
               type="text"
               value={note}
               onChange={(e) => setNote(e.target.value)}
               placeholder="e.g. Ready between 3–5 PM"
-              className="w-full rounded-lg border px-3 py-2 text-sm outline-none"
-              style={{ backgroundColor: 'var(--color-cream)', borderColor: 'var(--color-border)', color: 'var(--color-ink)' }}
             />
           </div>
           {error && <p className="text-xs" style={{ color: 'var(--color-danger)' }}>{error}</p>}
           {saved && <p className="text-xs" style={{ color: 'var(--color-success, #2d7a3f)' }}>Saved!</p>}
           <button
             type="button"
-            onClick={handleSave}
+            onClick={() => handleSave()}
             disabled={isPending}
             className="py-2.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-60"
             style={{ backgroundColor: 'var(--color-teal)', color: 'var(--color-cream)' }}

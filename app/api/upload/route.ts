@@ -7,6 +7,22 @@ const MAX_SIZE_MB = 10
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic']
 
 export async function POST(req: NextRequest) {
+  try {
+    return await handleUpload(req)
+  } catch (err) {
+    // sharp failures, malformed multipart bodies, storage timeouts, etc. all
+    // land here — without this the route returns Next's HTML error page and the
+    // client's `res.json()` throws a cryptic "Unexpected token <" instead of a
+    // usable message. Mirrors app/api/inquiries/route.ts.
+    console.error('[api/upload] unhandled error:', err)
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : 'Upload failed' },
+      { status: 500 }
+    )
+  }
+}
+
+async function handleUpload(req: NextRequest) {
   // Auth check
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()

@@ -1,11 +1,13 @@
 'use client'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useFieldArray, useForm, type FieldPath } from 'react-hook-form'
+import { useFieldArray, useForm, type FieldErrors, type FieldPath } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { EASE_OUT_QUART, holdMinimumVisible } from '@/lib/motion'
 import { formatDate } from '@/lib/format'
+import { useAsyncAction } from '@/lib/hooks/useAsyncAction'
 import PhoneInput from '@/components/PhoneInput'
 import ReferencePhotoUpload, { type ReferenceImage } from '@/components/ReferencePhotoUpload'
 import {
@@ -171,7 +173,7 @@ export default function OrderForm({
     trigger,
     reset,
     control,
-    formState: { errors, isSubmitting },
+    formState: { errors },
   } = useForm<PublicInquiryInput, unknown, PublicInquiryData>({
     resolver: zodResolver(publicInquirySchema),
     mode: 'onTouched',
@@ -336,52 +338,85 @@ export default function OrderForm({
     }
   }
 
-  const onValid = async (data: PublicInquiryData) => {
-    setServerError(null)
-    const startedAt = Date.now()
-    try {
-      const res = await fetch('/api/inquiries', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...data, reference_images: referenceImages }),
-      })
-      const json = await res.json()
-      if (!res.ok) {
-        // Errors surface immediately — never held back to let the loader finish.
-        if (json.fieldErrors) {
-          const erroredFields = Object.keys(json.fieldErrors)
-          erroredFields.forEach(field => {
-            setError(field as FieldPath<PublicInquiryInput>, { message: (json.fieldErrors[field] as string[])[0] })
-          })
+  // Keeps the <CakeLoader> up through the redirect: `onSuccess` runs *after*
+  // `submitting` clears, so without this the review screen would flash for a
+  // frame between the loader vanishing and /inquire/success mounting.
+  const [navigating, setNavigating] = useState(false)
 
-          const dataSteps = Array.from({ length: reviewStep - 1 }, (_, i) => i + 1)
-          // zod's `flatten()` (run server-side in /api/inquiries) buckets every issue
-          // under its *top-level* path segment only — an error on `items.0.cake_size`
-          // comes back keyed as plain `"items"`, not the full dotted path. An exact-string
-          // match against STEP_FIELDS (whose Cake Basics entries are the full
-          // `items.${i}.${key}` paths) would then never match, leaving the customer
-          // stranded on Review with a server error banner but no indication which step —
-          // or which cake — needs fixing. Match by prefix as well so a bare `"items"`
-          // key still routes to step 2.
-          const earliestStep = dataSteps.find(s =>
-            (STEP_FIELDS[s] ?? []).some(field => erroredFields.some(ef => field === ef || field.startsWith(`${ef}.`)))
-          )
-          if (earliestStep && earliestStep !== step) {
-            goToStep(earliestStep, earliestStep < step ? -1 : 1)
-            setTimeout(() => {
-              document.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()
-            }, 200)
+  const scrollToFirstInvalid = () => {
+    const el = document.querySelector<HTMLElement>('[aria-invalid="true"]')
+    if (!el) return
+    el.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'center' })
+    el.focus({ preventScroll: true })
+  }
+
+  // Earliest wizard step holding an errored field. Both the server-error path and
+  // the RHF onInvalid path key their errors by *top-level* field name (zod's
+  // `flatten()` server-side; RHF's errors object client-side) — an error on
+  // `items.0.cake_size` shows up as a bare `"items"` — so match by prefix as well
+  // so it still routes to step 2 (Cake Basics).
+  const earliestErroredStep = (erroredFields: string[]) => {
+    const dataSteps = Array.from({ length: reviewStep - 1 }, (_, i) => i + 1)
+    return dataSteps.find(s =>
+      (STEP_FIELDS[s] ?? []).some(field => erroredFields.some(ef => field === ef || field.startsWith(`${ef}.`)))
+    )
+  }
+
+  const { run: submitInquiry, pending: submitting } = useAsyncAction(
+    async (data: PublicInquiryData) => {
+      const startedAt = Date.now()
+      try {
+        const res = await fetch('/api/inquiries', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...data, reference_images: referenceImages }),
+        })
+        const json = await res.json()
+        if (!res.ok) {
+          // Errors surface immediately — never held back to let the loader finish.
+          if (json.fieldErrors) {
+            const erroredFields = Object.keys(json.fieldErrors)
+            erroredFields.forEach(field => {
+              setError(field as FieldPath<PublicInquiryInput>, { message: (json.fieldErrors[field] as string[])[0] })
+            })
+            const earliestStep = earliestErroredStep(erroredFields)
+            if (earliestStep && earliestStep !== step) {
+              goToStep(earliestStep, earliestStep < step ? -1 : 1)
+              setTimeout(scrollToFirstInvalid, 200)
+            }
           }
+          setServerError(json.error ?? 'Something went wrong. Please try again.')
+          return false
         }
-        setServerError(json.error ?? 'Something went wrong. Please try again.')
-        return
+        sessionStorage.removeItem(DRAFT_STORAGE_KEY)
+        await holdMinimumVisible(startedAt, 1400)
+        setNavigating(true)
+      } catch {
+        setServerError('Network error. Please try again.')
+        return false
       }
-      sessionStorage.removeItem(DRAFT_STORAGE_KEY)
-      await holdMinimumVisible(startedAt, 1400)
-      router.push('/inquire/success')
-    } catch {
-      setServerError('Network error. Please try again.')
+    },
+    {
+      successToast: 'Inquiry sent',
+      onSuccess: () => router.push('/inquire/success'),
     }
+  )
+
+  const onValid = (data: PublicInquiryData) => {
+    setServerError(null)
+    submitInquiry(data)
+  }
+
+  // §2.5 — on an invalid submit, jump to the step holding the first errored field
+  // BEFORE the toast + scroll (otherwise that field isn't mounted yet), then
+  // surface the toast and scroll it into view.
+  const onInvalid = (formErrors: FieldErrors<PublicInquiryInput>) => {
+    setServerError(null)
+    const earliestStep = earliestErroredStep(Object.keys(formErrors))
+    const jumped = !!earliestStep && earliestStep !== step
+    if (jumped) goToStep(earliestStep!, earliestStep! < step ? -1 : 1)
+    toast.error('Check the highlighted fields')
+    setTimeout(scrollToFirstInvalid, jumped ? 200 : 0)
   }
 
   const advanceStep = async () => {
@@ -404,7 +439,7 @@ export default function OrderForm({
     goToStep(target, -1)
   }
 
-  if (isSubmitting) {
+  if (submitting || navigating) {
     return (
       <div
         className="rounded-2xl border flex flex-col items-center justify-center gap-2 text-center"
@@ -422,7 +457,7 @@ export default function OrderForm({
   }
 
   return (
-    <form onSubmit={handleSubmit(onValid)} noValidate>
+    <form onSubmit={handleSubmit(onValid, onInvalid)} noValidate>
       {/* Page heading — the customer's first brand moment, in the /confirm hero's voice */}
       <div className="mb-7">
         <h1
@@ -941,8 +976,8 @@ export default function OrderForm({
             Next
           </Button>
         ) : (
-          <Button key="submit" type="submit" size="lg" className="flex-1 rounded-xl" loading={isSubmitting}>
-            {isSubmitting ? 'Sending…' : 'Send My Inquiry'}
+          <Button key="submit" type="submit" size="lg" className="flex-1 rounded-xl" loading={submitting}>
+            {submitting ? 'Sending…' : 'Send My Inquiry'}
           </Button>
         )}
       </div>

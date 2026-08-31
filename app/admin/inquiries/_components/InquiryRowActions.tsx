@@ -1,14 +1,14 @@
 'use client'
 
-import { useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { toast } from 'sonner'
-import { CurrencyCircleDollar, Spinner } from '@phosphor-icons/react'
+import { CurrencyCircleDollar } from '@phosphor-icons/react'
 import { setInquiryPaymentFlags } from '@/lib/actions/inquiries'
+import { useAsyncAction } from '@/lib/hooks/useAsyncAction'
 import { derivePaymentStatus } from '@/lib/payments'
 import { confirmationLink } from '@/lib/utils'
 import { pickWhatsAppAction } from '@/lib/whatsapp'
 import WhatsAppButton from '@/components/admin/WhatsAppButton'
+import { IconButton } from '@/components/ui'
 import type { WhatsAppTemplates } from '@/lib/supabase/types'
 
 interface RowInquiry {
@@ -35,7 +35,6 @@ export default function InquiryRowActions({
   fallbackLinkUrl?: string
 }) {
   const router = useRouter()
-  const [pending, startTransition] = useTransition()
 
   const waAction = pickWhatsAppAction(
     {
@@ -56,46 +55,35 @@ export default function InquiryRowActions({
   const paymentStatus = derivePaymentStatus(inquiry.fully_paid, inquiry.amount_paid)
   const isPaid = paymentStatus === 'paid'
 
+  const { run: togglePaid, pending } = useAsyncAction(
+    async () => {
+      const result = await setInquiryPaymentFlags(inquiry.id, { fully_paid: !isPaid })
+      if (result.error) return { error: result.error }
+    },
+    {
+      successToast: isPaid ? 'Marked unpaid' : 'Marked fully paid',
+      onSuccess: () => router.refresh(),
+    }
+  )
+
   const handleTogglePaid = (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    startTransition(async () => {
-      // Without this try/catch, a thrown error here would leave `pending` stuck
-      // true forever with no feedback shown.
-      try {
-        const result = await setInquiryPaymentFlags(inquiry.id, { fully_paid: !isPaid })
-        if (result.error) {
-          toast.error(result.error)
-        } else {
-          toast.success(isPaid ? 'Marked unpaid' : 'Marked fully paid')
-          router.refresh()
-        }
-      } catch (err) {
-        console.error('[InquiryRowActions] toggle paid failed:', err)
-        toast.error('Something went wrong', {
-          description: err instanceof Error ? err.message : 'Please try again.',
-        })
-      }
-    })
+    togglePaid()
   }
 
   return (
     <div className="flex items-center gap-1.5" onClick={(e) => e.preventDefault()}>
       <WhatsAppButton variant="icon" action={waAction} customer_phone={inquiry.customer_phone} />
-      <button
-        type="button"
+      <IconButton
         onClick={handleTogglePaid}
-        disabled={pending}
+        loading={pending}
         title={isPaid ? 'Fully paid — click to mark unpaid' : 'Mark as fully paid'}
-        className="inline-flex items-center justify-center w-7 h-7 transition-all active:scale-[0.9] hover:opacity-70 disabled:opacity-50"
+        aria-label={isPaid ? 'Fully paid — click to mark unpaid' : 'Mark as fully paid'}
         style={{ color: isPaid ? 'var(--color-success)' : 'var(--color-ink-muted)' }}
       >
-        {pending ? (
-          <Spinner size={16} className="animate-spin" />
-        ) : (
-          <CurrencyCircleDollar size={20} weight={isPaid ? 'fill' : 'regular'} />
-        )}
-      </button>
+        <CurrencyCircleDollar size={20} weight={isPaid ? 'fill' : 'regular'} />
+      </IconButton>
     </div>
   )
 }

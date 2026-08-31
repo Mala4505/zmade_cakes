@@ -1,11 +1,11 @@
 'use client'
 
-import { useState, useTransition, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Plus } from '@phosphor-icons/react'
-import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { Input, Button } from '@/components/ui'
 import { createOption } from '@/lib/actions/options'
+import { useAsyncAction } from '@/lib/hooks/useAsyncAction'
 import type { FlavorWithPrices } from '@/lib/supabase/types'
 
 interface Props {
@@ -51,7 +51,6 @@ export function FlavorList({ flavors, selectedFlavorId, onSelectFlavor, onFlavor
   const [adding, setAdding] = useState(false)
   const [newName, setNewName] = useState('')
   const [error, setError] = useState<string | null>(null)
-  const [isPending, startTransition] = useTransition()
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -64,35 +63,29 @@ export function FlavorList({ flavors, selectedFlavorId, onSelectFlavor, onFlavor
     setError(null)
   }
 
+  const { run: runAdd, pending: isPending } = useAsyncAction(
+    async (trimmed: string) => {
+      const result = await createOption('flavor_options', { name: trimmed, sort_order: 0, is_active: true })
+      if (result.error !== null) return { error: result.error }
+      if (result.fieldErrors !== null) {
+        setError(result.fieldErrors.name?.[0] ?? 'Could not add flavor')
+        return false
+      }
+      onFlavorCreated({ ...result.data, theme_available: true, prices: [] })
+      setNewName('')
+      setError(null)
+      setAdding(false)
+    },
+    { successToast: 'Flavor added' }
+  )
+
   const handleAdd = () => {
     const trimmed = newName.trim()
     if (!trimmed) {
       setError('Enter a flavor name')
       return
     }
-    startTransition(async () => {
-      // Without this try/catch, a thrown error here would leave `isPending` stuck
-      // true forever with no error ever shown.
-      try {
-        const result = await createOption('flavor_options', { name: trimmed, sort_order: 0, is_active: true })
-        if (result.error !== null) {
-          setError(result.error)
-          return
-        }
-        if (result.fieldErrors !== null) {
-          setError(result.fieldErrors.name?.[0] ?? 'Could not add flavor')
-          return
-        }
-        onFlavorCreated({ ...result.data, theme_available: true, prices: [] })
-        toast.success('Flavor added')
-        setNewName('')
-        setError(null)
-        setAdding(false)
-      } catch (err) {
-        console.error('[FlavorList] add failed:', err)
-        setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.')
-      }
-    })
+    runAdd(trimmed)
   }
 
   return (

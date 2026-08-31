@@ -17,7 +17,7 @@ const inquiryItemShape = {
     .number({ error: 'Quantity must be a number' })
     .int()
     .min(1, 'Minimum 1 cake')
-    .max(50, 'Maximum 50 cakes'),
+    .max(100000, 'That quantity looks wrong — contact us for very large orders'),
   // "Cake Details" — consolidated free-text field (decoration dropdown folded into this).
   special_requirements: z.string().max(1000).optional().default(''),
   order_type: z.enum(['cake', 'other_item']).default('cake'),

@@ -33,6 +33,11 @@ export function FlavorImageUpload({ flavorId, currentUrl, onChanged }: Props) {
         onChanged(result.data!.url)
         toast.success('Photo updated')
       }
+    } catch (err) {
+      console.error('[FlavorImageUpload] upload failed:', err)
+      toast.error('Something went wrong', {
+        description: err instanceof Error ? err.message : 'Please try again.',
+      })
     } finally {
       setUploading(false)
       if (fileInputRef.current) fileInputRef.current.value = ''
@@ -49,6 +54,11 @@ export function FlavorImageUpload({ flavorId, currentUrl, onChanged }: Props) {
         onChanged(null)
         toast.success('Photo removed')
       }
+    } catch (err) {
+      console.error('[FlavorImageUpload] remove failed:', err)
+      toast.error('Something went wrong', {
+        description: err instanceof Error ? err.message : 'Please try again.',
+      })
     } finally {
       setUploading(false)
     }

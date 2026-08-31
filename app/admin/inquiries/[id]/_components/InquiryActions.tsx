@@ -1,9 +1,9 @@
 'use client'
 
-import { useTransition, useState } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { updateInquiryStatus } from '@/lib/actions/inquiries'
-import { toast } from 'sonner'
+import { useAsyncAction } from '@/lib/hooks/useAsyncAction'
 import {
   CheckCircle,
   Truck,
@@ -40,32 +40,26 @@ export default function InquiryActions({
   fallbackLinkUrl?: string
 }) {
   const router = useRouter()
-  const [pending, startTransition] = useTransition()
   const [copied, setCopied] = useState(false)
 
   const nextStep = NEXT_STEP[inquiry.status]
   const nextStatus = STATUS_PROGRESSION[inquiry.status]
 
+  const { run: advanceStatus, pending } = useAsyncAction(
+    async () => {
+      if (!nextStatus) return false
+      const result = await updateInquiryStatus(inquiry.id, nextStatus)
+      if (result.error) return { error: result.error }
+    },
+    {
+      successToast: 'Status updated',
+      onSuccess: () => router.refresh(),
+    }
+  )
+
   const handleNextStep = () => {
     if (!nextStatus) return
-    startTransition(async () => {
-      // Without this try/catch, a thrown error here would leave `pending` stuck
-      // true forever with no feedback shown.
-      try {
-        const result = await updateInquiryStatus(inquiry.id, nextStatus)
-        if (result.error) {
-          toast.error(result.error)
-        } else {
-          toast.success('Status updated')
-          router.refresh()
-        }
-      } catch (err) {
-        console.error('[InquiryActions] status update failed:', err)
-        toast.error('Something went wrong', {
-          description: err instanceof Error ? err.message : 'Please try again.',
-        })
-      }
-    })
+    advanceStatus()
   }
 
   const waAction = pickWhatsAppAction(

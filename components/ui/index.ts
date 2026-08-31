@@ -1,4 +1,6 @@
 export { Button, type ButtonProps, type ButtonVariant, type ButtonSize } from './Button'
+export { IconButton, type IconButtonProps, type IconButtonTone } from './IconButton'
+export { FieldRow, fieldRowClass, type FieldRowProps } from './FieldRow'
 export { Input, inputBaseClass, type InputProps, type InputSize } from './Input'
 export { Select, type SelectProps } from './Select'
 export { Textarea, type TextareaProps } from './Textarea'

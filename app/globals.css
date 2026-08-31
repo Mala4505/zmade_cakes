@@ -96,7 +96,10 @@
    app/layout.tsx is what makes the env() calls below resolve non-zero. */
 :root {
   --admin-header-h: 56px;
-  --admin-tabbar-h: 56px;
+  /* Real rendered height of AdminBottomNav: the 56px min-height tab row plus the
+     always-on 8px cushion in its paddingBottom (see AdminNav.tsx). The safe-area
+     inset is added on top by each consumer, not folded in here. */
+  --admin-tabbar-h: 64px;
   --safe-t: env(safe-area-inset-top, 0px);
   --safe-b: env(safe-area-inset-bottom, 0px);
 }
@@ -129,6 +132,29 @@ body {
   font-family: var(--font-sans);
   font-size: 0.9375rem;
   line-height: 1.6;
+}
+
+/* ---- Navigation progress bar (components/admin/NavigationOverlay.tsx) ----
+   Indeterminate: a quarter-width segment sweeps left→right on a linear loop
+   (constant motion → linear easing). Transform-only so it stays on the GPU. */
+@keyframes zmade-nav-progress {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(400%); }
+}
+.zmade-nav-progress-bar {
+  animation: zmade-nav-progress 1.1s linear infinite;
+  will-change: transform;
+}
+@media (prefers-reduced-motion: reduce) {
+  @keyframes zmade-nav-progress-pulse {
+    0%, 100% { opacity: 0.35; }
+    50%      { opacity: 1; }
+  }
+  .zmade-nav-progress-bar {
+    width: 100%;
+    transform: none;
+    animation: zmade-nav-progress-pulse 1.2s ease-in-out infinite;
+  }
 }
 
 /* Every heading gets the display face by default so it doesn't fall back

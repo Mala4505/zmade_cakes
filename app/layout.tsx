@@ -57,6 +57,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <Footer businessPhone={businessPhone} businessInstagram={businessInstagram} />
         <Toaster
           position="bottom-right"
+          // On phones the toast stack is centred at the bottom edge, where the
+          // admin tab bar lives — lift it clear of the bar (and the safe-area
+          // inset) so a success toast never hides behind the nav.
+          mobileOffset={{ bottom: 'calc(var(--admin-tabbar-h) + var(--safe-b) + 16px)' }}
           toastOptions={{
             duration: 4000,
             classNames: {

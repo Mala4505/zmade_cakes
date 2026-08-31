@@ -1,9 +1,8 @@
 'use client'
 
-import { useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { updateOrderStatus } from '@/lib/actions/orders'
-import { toast } from 'sonner'
+import { useAsyncAction } from '@/lib/hooks/useAsyncAction'
 import { ArrowRight, Spinner } from '@phosphor-icons/react'
 import type { OrderStatus } from '@/lib/supabase/types'
 
@@ -19,36 +18,26 @@ export default function OrderStatusActions({
   currentStatus: OrderStatus
 }) {
   const router = useRouter()
-  const [pending, startTransition] = useTransition()
-
   const next = NEXT_STATUS[currentStatus]
-  if (!next) return null
 
-  const handleAdvance = () => {
-    startTransition(async () => {
-      // Without this try/catch, a thrown error here would leave `pending` stuck
-      // true forever with no feedback shown.
-      try {
-        const result = await updateOrderStatus(orderId, next.status)
-        if (result.error) {
-          toast.error(result.error)
-        } else {
-          toast.success('Status updated')
-          router.refresh()
-        }
-      } catch (err) {
-        console.error('[OrderStatusActions] status update failed:', err)
-        toast.error('Something went wrong', {
-          description: err instanceof Error ? err.message : 'Please try again.',
-        })
-      }
-    })
-  }
+  const { run: handleAdvance, pending } = useAsyncAction(
+    async () => {
+      if (!next) return false
+      const result = await updateOrderStatus(orderId, next.status)
+      if (result.error) return { error: result.error }
+    },
+    {
+      successToast: 'Status updated',
+      onSuccess: () => router.refresh(),
+    }
+  )
+
+  if (!next) return null
 
   return (
     <button
       type="button"
-      onClick={handleAdvance}
+      onClick={() => handleAdvance()}
       disabled={pending}
       className="flex items-center justify-center gap-1.5 w-full py-2 rounded-lg text-xs font-medium transition-colors disabled:opacity-50"
       style={{ backgroundColor: 'var(--color-teal-light)', color: 'var(--color-teal-deep)' }}

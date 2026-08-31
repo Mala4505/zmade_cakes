@@ -93,8 +93,8 @@ export function RadioGroup<T extends string>({
             tabIndex={option.value === tabbableValue ? 0 : -1}
             onClick={() => onChange(option.value)}
             className={cn(
-              'flex-1 rounded-md px-3 py-2 text-sm transition-colors text-left',
-              option.description ? 'flex flex-col gap-0.5' : 'text-center',
+              'flex-1 min-h-11 rounded-md px-3 py-2 text-sm transition-colors text-left',
+              option.description ? 'flex flex-col justify-center gap-0.5' : 'flex items-center justify-center text-center',
               selected
                 ? 'bg-[var(--color-teal-light)] text-[var(--color-teal-deep)] font-semibold'
                 : 'font-medium text-[var(--color-ink-muted)] enabled:hover:text-[var(--color-ink-secondary)] enabled:hover:bg-[var(--color-surface)]',

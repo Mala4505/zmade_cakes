@@ -1,8 +1,9 @@
 'use client'
 
-import { useTransition, useState } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { updateOrderStatus, cancelOrder } from '@/lib/actions/orders'
+import { useAsyncAction } from '@/lib/hooks/useAsyncAction'
 import { toast } from 'sonner'
 import { Copy, Check, Printer, ArrowRight, X, Image, Spinner } from '@phosphor-icons/react'
 import { toPng } from 'html-to-image'
@@ -23,14 +24,36 @@ export default function OrderDetailActions({
   inquiry: { customer_name: string }
 }) {
   const router = useRouter()
-  const [advancing, startAdvance] = useTransition()
-  const [cancelling, startCancel] = useTransition()
   const [copied, setCopied] = useState(false)
   const [downloading, setDownloading] = useState(false)
 
-  const pending = advancing || cancelling
   const next = NEXT_STATUS[order.status]
   const canCancel = order.status !== 'delivered' && order.status !== 'cancelled'
+
+  const { run: handleAdvance, pending: advancing } = useAsyncAction(
+    async () => {
+      if (!next) return false
+      const result = await updateOrderStatus(order.id, next.status)
+      if (result.error) return { error: result.error }
+    },
+    {
+      successToast: 'Status updated',
+      onSuccess: () => router.refresh(),
+    }
+  )
+
+  const { run: runCancel, pending: cancelling } = useAsyncAction(
+    async () => {
+      const result = await cancelOrder(order.id)
+      if (result.error) return { error: result.error }
+    },
+    {
+      successToast: 'Order cancelled',
+      onSuccess: () => router.refresh(),
+    }
+  )
+
+  const pending = advancing || cancelling
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(trackingLink)
@@ -38,30 +61,9 @@ export default function OrderDetailActions({
     setTimeout(() => setCopied(false), 2000)
   }
 
-  const handleAdvance = () => {
-    if (!next) return
-    startAdvance(async () => {
-      const result = await updateOrderStatus(order.id, next.status)
-      if (result.error) {
-        toast.error(result.error)
-      } else {
-        toast.success('Status updated')
-        router.refresh()
-      }
-    })
-  }
-
   const handleCancel = () => {
     if (!confirm('Cancel this order?')) return
-    startCancel(async () => {
-      const result = await cancelOrder(order.id)
-      if (result.error) {
-        toast.error(result.error)
-      } else {
-        toast.success('Order cancelled')
-        router.refresh()
-      }
-    })
+    runCancel()
   }
 
   const handleDownloadImage = async () => {
@@ -152,7 +154,7 @@ export default function OrderDetailActions({
       {next && (
         <button
           type="button"
-          onClick={handleAdvance}
+          onClick={() => handleAdvance()}
           disabled={pending}
           className="flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-medium transition-colors disabled:opacity-60"
           style={{ backgroundColor: 'var(--color-teal)', color: 'var(--color-cream)' }}

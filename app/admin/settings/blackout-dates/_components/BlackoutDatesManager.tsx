@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState } from 'react'
 import { format, parseISO } from 'date-fns'
 import { X } from '@phosphor-icons/react'
 import { createBlackout, deleteBlackout } from '@/lib/actions/settings'
+import { useAsyncAction } from '@/lib/hooks/useAsyncAction'
 import type { BlackoutDate } from '@/lib/supabase/types'
 
 export default function BlackoutDatesManager({
@@ -17,27 +18,32 @@ export default function BlackoutDatesManager({
   const [dateTo, setDateTo] = useState('')
   const [reason, setReason] = useState('')
   const [addError, setAddError] = useState<string | null>(null)
-  const [isPending, startTransition] = useTransition()
 
-  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const { run: runDelete, pending: deleting } = useAsyncAction(
+    async (id: string) => {
+      const result = await deleteBlackout(id)
+      if (result.error) return { error: result.error }
+      setBlackouts((prev) => prev.filter((b) => b.id !== id))
+    },
+    { successToast: 'Removed' }
+  )
+
+  const { run: runAdd, pending: adding } = useAsyncAction(
+    async () => {
+      const result = await createBlackout({ date_from: dateFrom, date_to: dateTo, reason })
+      if (result.error || !result.data) return { error: result.error ?? 'Failed to add blackout' }
+      setBlackouts((prev) => [...prev, result.data!])
+      setDateFrom('')
+      setDateTo('')
+      setReason('')
+    },
+    { successToast: 'Date blocked' }
+  )
+
+  const busy = adding || deleting
 
   function handleDelete(id: string) {
-    setDeleteError(null)
-    startTransition(async () => {
-      // Without this try/catch, a thrown error here would leave `isPending` stuck
-      // true forever with no error ever shown.
-      try {
-        const result = await deleteBlackout(id)
-        if (result.error) {
-          setDeleteError(result.error)
-          return
-        }
-        setBlackouts((prev) => prev.filter((b) => b.id !== id))
-      } catch (err) {
-        console.error('[BlackoutDatesManager] delete failed:', err)
-        setDeleteError(err instanceof Error ? err.message : 'Something went wrong. Please try again.')
-      }
-    })
+    runDelete(id)
   }
 
   function handleAdd(e: React.FormEvent) {
@@ -49,24 +55,7 @@ export default function BlackoutDatesManager({
       return
     }
 
-    startTransition(async () => {
-      // Without this try/catch, a thrown error here would leave `isPending` stuck
-      // true forever with no error ever shown.
-      try {
-        const result = await createBlackout({ date_from: dateFrom, date_to: dateTo, reason })
-        if (result.error || !result.data) {
-          setAddError(result.error ?? 'Failed to add blackout')
-          return
-        }
-        setBlackouts((prev) => [...prev, result.data!])
-        setDateFrom('')
-        setDateTo('')
-        setReason('')
-      } catch (err) {
-        console.error('[BlackoutDatesManager] add failed:', err)
-        setAddError(err instanceof Error ? err.message : 'Something went wrong. Please try again.')
-      }
-    })
+    runAdd()
   }
 
   return (
@@ -105,7 +94,7 @@ export default function BlackoutDatesManager({
                 <button
                   type="button"
                   onClick={() => handleDelete(b.id)}
-                  disabled={isPending}
+                  disabled={busy}
                   className="shrink-0 p-1 rounded transition-opacity disabled:opacity-40"
                   style={{ color: 'var(--color-danger)' }}
                   aria-label="Delete blackout"
@@ -115,12 +104,6 @@ export default function BlackoutDatesManager({
               </li>
             ))}
           </ul>
-        )}
-
-        {deleteError && (
-          <p className="text-xs mt-2" style={{ color: 'var(--color-danger)' }}>
-            {deleteError}
-          </p>
         )}
       </div>
 
@@ -212,11 +195,11 @@ export default function BlackoutDatesManager({
 
           <button
             type="submit"
-            disabled={isPending}
+            disabled={busy}
             className="w-full py-3 rounded-lg text-sm font-medium transition-opacity disabled:opacity-60"
             style={{ backgroundColor: 'var(--color-teal)', color: 'var(--color-cream)' }}
           >
-            {isPending ? 'Adding…' : 'Add'}
+            {adding ? 'Adding…' : 'Add'}
           </button>
         </form>
       </div>

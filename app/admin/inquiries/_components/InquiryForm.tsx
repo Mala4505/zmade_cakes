@@ -1,6 +1,6 @@
 'use client'
 
-import { useTransition, useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useForm, useFieldArray, FormProvider } from 'react-hook-form'
 import { toast } from 'sonner'
 import PhoneInput from '@/components/PhoneInput'
@@ -10,6 +10,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { EASE_OUT_QUART } from '@/lib/motion'
 import { inquirySchema } from '@/lib/validations/inquiry'
 import { createInquiry, updateInquiry } from '@/lib/actions/inquiries'
+import { useAsyncAction } from '@/lib/hooks/useAsyncAction'
 import { lookupCustomerByPhone, searchCustomersByName, upsertCustomer, type CustomerWithHistory } from '@/lib/actions/customers'
 import { derivePaymentStatus, balanceOwed } from '@/lib/payments'
 import { PaymentBadge } from '@/components/admin/StatusBadge'
@@ -62,8 +63,10 @@ const numberOrZero = (v: unknown) => (v === '' || v == null ? 0 : Number(v))
 
 export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, pricingMatrix, minPriceGuard, rushMultiplier }: Props) {
   const router = useRouter()
-  const [pending, startTransition] = useTransition()
   const ledgerRef = useRef<HTMLDivElement>(null)
+  // Holds the id of a freshly-created inquiry so the hook's `onSuccess` (which runs after
+  // `pending` clears) knows where to navigate. Ref, not state — setting it never re-renders.
+  const createdIdRef = useRef<string | null>(null)
   // Staged pre-inquiry (no inquiry_id to attach to yet, same reasoning as the customer
   // /order form) — attached as inquiry_images once createInquiry returns a real id.
   const [referenceImages, setReferenceImages] = useState<ReferenceImage[]>([])
@@ -297,86 +300,90 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
     prevDeliveryType.current = deliveryType
   }, [deliveryType])
 
-  const onSubmit = (data: FormOutput) => {
-    startTransition(async () => {
-      // Without this try/catch, any thrown error here (network failure, a rejected
-      // server action, etc.) would leave `pending` stuck true forever — the submit
-      // button spins indefinitely with no error ever shown, since nothing downstream
-      // of the throw runs to reset it or surface a toast.
-      try {
-        const { address_governorate, address_area, address_block, address_street, address_house_no, address_extra_notes, address_location_link, ...inquiryData } = data
+  const { run: submit, pending } = useAsyncAction(
+    async (data: FormOutput) => {
+      const { address_governorate, address_area, address_block, address_street, address_house_no, address_extra_notes, address_location_link, ...inquiryData } = data
 
-        const addressData = deliveryType === 'delivery' && address_area
-          ? {
-              governorate: address_governorate,
-              area: address_area,
-              block: address_block,
-              street: address_street,
-              house_no: address_house_no,
-              extra_notes: address_extra_notes,
-              location_link: address_location_link,
-            }
-          : undefined
-
-        // Resolve the customer link BEFORE creating/updating the inquiry — an explicit
-        // "use this customer" selection wins, otherwise fall back to an upsert-by-phone
-        // (awaited, not fire-and-forget) so every admin-created inquiry ends up linked.
-        let customerId: string | null = selectedCustomerId
-        if (!customerId && inquiryData.customer_phone && inquiryData.customer_name) {
-          const upsertResult = await upsertCustomer(inquiryData.customer_phone, inquiryData.customer_name)
-          if (upsertResult.error || !upsertResult.data) {
-            toast.warning('Could not link customer record', {
-              description: upsertResult.error ?? 'Order will be saved without a customer link.',
-            })
-            customerId = null
-          } else {
-            customerId = upsertResult.data.id
+      const addressData = deliveryType === 'delivery' && address_area
+        ? {
+            governorate: address_governorate,
+            area: address_area,
+            block: address_block,
+            street: address_street,
+            house_no: address_house_no,
+            extra_notes: address_extra_notes,
+            location_link: address_location_link,
           }
-        }
+        : undefined
 
-        const payload = { ...inquiryData, customer_id: customerId }
-
-        const result = inquiry
-          ? await updateInquiry(inquiry.id, payload, addressData)
-          : await createInquiry(payload, addressData, referenceImages)
-
-        if (result.error) {
-          toast.error('Failed to save', { description: result.error })
-          return
-        }
-        if (result.fieldErrors) {
-          Object.entries(result.fieldErrors).forEach(([field, msgs]) => {
-            setError(field as keyof FormInput, { message: (msgs as string[])[0] })
+      // Resolve the customer link BEFORE creating/updating the inquiry — an explicit
+      // "use this customer" selection wins, otherwise fall back to an upsert-by-phone
+      // (awaited, not fire-and-forget) so every admin-created inquiry ends up linked.
+      let customerId: string | null = selectedCustomerId
+      if (!customerId && inquiryData.customer_phone && inquiryData.customer_name) {
+        const upsertResult = await upsertCustomer(inquiryData.customer_phone, inquiryData.customer_name)
+        if (upsertResult.error || !upsertResult.data) {
+          toast.warning('Could not link customer record', {
+            description: upsertResult.error ?? 'Order will be saved without a customer link.',
           })
-          return
-        }
-
-        // Editing pushes to the route we're already on (a no-op navigation), so it needs
-        // an explicit refresh to pick up the update. Creating pushes to a route that's
-        // never been rendered, which already fetches fresh data on its own — calling
-        // refresh() there too raced the two router operations and left the app stuck
-        // showing the old page until a hard reload, even though the inquiry was created.
-        if (inquiry) {
-          router.push(`/admin/inquiries/${inquiry.id}`)
-          router.refresh()
+          customerId = null
         } else {
-          router.push(`/admin/inquiries/${result.data!.id}`)
+          customerId = upsertResult.data.id
         }
-      } catch (err) {
-        console.error('[InquiryForm] submit failed:', err)
-        toast.error('Something went wrong', {
-          description: err instanceof Error ? err.message : 'Please try again.',
-        })
       }
-    })
+
+      const payload = { ...inquiryData, customer_id: customerId }
+
+      const result = inquiry
+        ? await updateInquiry(inquiry.id, payload, addressData)
+        : await createInquiry(payload, addressData, referenceImages)
+
+      if (result.fieldErrors) {
+        Object.entries(result.fieldErrors).forEach(([field, msgs]) => {
+          setError(field as keyof FormInput, { message: (msgs as string[])[0] })
+        })
+        return false // form now shows the field errors — no toast
+      }
+      if (result.error) {
+        toast.error('Failed to save', { description: result.error })
+        return false
+      }
+
+      createdIdRef.current = inquiry ? null : result.data!.id
+    },
+    {
+      successToast: inquiry ? 'Changes saved' : 'Order created',
+      // Navigation lives here so it runs *after* `pending` clears — router.push inside the
+      // write transition would pin the submit spinner through the destination's full
+      // server re-render (~11 queries). The edit case pushes to the route it's already on
+      // (a no-op navigation), so it also needs an explicit refresh to refetch.
+      onSuccess: () => {
+        router.push(inquiry ? `/admin/inquiries/${inquiry.id}` : `/admin/inquiries/${createdIdRef.current}`)
+        if (inquiry) router.refresh()
+      },
+    }
+  )
+
+  const onInvalid = () => {
+    toast.error('Check the highlighted fields')
+    // Two frames: let RHF's error state commit (so aria-invalid lands in the DOM), then read.
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        const el = document.querySelector<HTMLElement>('[aria-invalid="true"]')
+        el?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'center' })
+        el?.focus({ preventScroll: true })
+      })
+    )
   }
 
   return (
     <FormProvider {...form}>
-    <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-8">
+    {/* pb-20: clearance for PinnedOrderTotal, which can cover the last ~2-3 fields
+        (and the submit button) once the ledger above has scrolled out of view. */}
+    <form onSubmit={handleSubmit(submit, onInvalid)} className="flex flex-col gap-8 pb-20">
       {/* Customer info */}
       <Section title="Customer">
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Field label="Name" error={errors.customer_name?.message} required>
             <Input
               {...register('customer_name')}
@@ -531,8 +538,8 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
 
       {/* Event & delivery */}
       <Section title="Event & Delivery">
-        <div className="grid grid-cols-2 gap-4">
-          <Field label="Delivery Type" error={errors.delivery_type?.message} required className="col-span-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Field label="Delivery Type" error={errors.delivery_type?.message} required className="sm:col-span-2">
             <RadioGroup
               value={deliveryType}
               onChange={(v) => setValue('delivery_type', v, { shouldDirty: true })}
@@ -562,11 +569,11 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
         </div>
 
         {deliveryType === 'delivery' && (
-          <div className="mt-4 pt-4 border-t grid grid-cols-2 gap-4" style={{ borderColor: 'var(--color-border)' }}>
-            <p className="col-span-2 text-xs font-medium" style={{ color: 'var(--color-ink-muted)' }}>
+          <div className="mt-4 pt-4 border-t grid grid-cols-1 sm:grid-cols-2 gap-4" style={{ borderColor: 'var(--color-border)' }}>
+            <p className="sm:col-span-2 text-xs font-medium" style={{ color: 'var(--color-ink-muted)' }}>
               Delivery address (Kuwait)
             </p>
-            <Field label="Governorate" required className="col-span-2">
+            <Field label="Governorate" required className="sm:col-span-2">
               <Select {...register('address_governorate')}>
                 <option value="">Select governorate</option>
                 {Object.entries(GOVERNORATE_LABELS).map(([val, label]) => (
@@ -586,13 +593,13 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
             <Field label="House / Building No." required>
               <Input {...register('address_house_no')} placeholder="Villa 15" />
             </Field>
-            <Field label="Extra Notes" className="col-span-2">
+            <Field label="Extra Notes" className="sm:col-span-2">
               <Input {...register('address_extra_notes')} placeholder="Ring bell twice" />
             </Field>
-            <Field label="Google Maps Pin" className="col-span-2">
+            <Field label="Google Maps Pin" className="sm:col-span-2">
               <Input {...register('address_location_link')} placeholder="https://maps.app.goo.gl/…" />
             </Field>
-            <div className="col-span-2 pt-3 border-t" style={{ borderColor: 'var(--color-border)' }}>
+            <div className="sm:col-span-2 pt-3 border-t" style={{ borderColor: 'var(--color-border)' }}>
               <Field
                 label="Delivery Charge (KD)"
                 error={errors.delivery_charge?.message}
@@ -839,7 +846,7 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
       )}
 
       <Button type="submit" size="lg" loading={pending} className="w-full">
-        {inquiry ? 'Save Changes' : 'Create Order'}
+        {pending ? (inquiry ? 'Saving…' : 'Creating…') : (inquiry ? 'Save Changes' : 'Create Order')}
       </Button>
 
       <PinnedOrderTotal anchorRef={ledgerRef} total={orderTotalAmt} />

@@ -34,7 +34,7 @@ const publicInquiryItemShape = {
     .number({ error: 'Quantity must be a number' })
     .int()
     .min(1, 'Minimum 1 cake')
-    .max(50, 'Maximum 50 cakes')
+    .max(100000, 'That quantity looks wrong — contact us for very large orders')
     .optional()
     .default(1),
 }

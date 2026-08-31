@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { Calendar, dateFnsLocalizer, type View } from 'react-big-calendar'
 import { format, parse, startOfWeek, getDay, parseISO } from 'date-fns'
 import { enUS } from 'date-fns/locale'
@@ -8,6 +8,7 @@ import 'react-big-calendar/lib/css/react-big-calendar.css'
 import { ArrowSquareOut, CaretLeft, CaretRight } from '@phosphor-icons/react'
 import Link from 'next/link'
 import { Modal } from '@/components/ui/Modal'
+import { IconButton } from '@/components/ui/IconButton'
 import { StatusBadge, PaymentBadge } from '@/components/admin/StatusBadge'
 import { derivePaymentStatus } from '@/lib/payments'
 import { formatDate, formatTime, formatKWD, orderSummary } from '@/lib/utils'
@@ -92,69 +93,71 @@ function CustomToolbar({
   onView,
   onNavigate,
   view,
+  hideViewSwitcher,
 }: {
   label: string
   onView: (v: View) => void
   onNavigate: (action: string) => void
   view: View
+  hideViewSwitcher?: boolean
 }) {
   return (
     <div
-      className="flex items-center justify-between px-4 py-3 border-b"
+      className="flex flex-wrap items-center justify-between gap-y-2 px-4 py-3 border-b"
       style={{ borderColor: 'var(--color-border)' }}
     >
-      <div className="flex items-center gap-1">
-        <button
-          type="button"
+      <div className="flex items-center gap-1 min-w-0">
+        <IconButton
           onClick={() => onNavigate('PREV')}
-          className="p-1.5 rounded-lg transition-colors hover:bg-[var(--color-surface-raised)]"
-          style={{ color: 'var(--color-ink-muted)' }}
+          tone="muted"
+          className="-mx-1 shrink-0"
           aria-label="Previous"
         >
           <CaretLeft size={16} />
-        </button>
+        </IconButton>
         <button
           type="button"
           onClick={() => onNavigate('TODAY')}
-          className="px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors hover:bg-[var(--color-surface-raised)]"
+          className="px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors hover:bg-[var(--color-surface-raised)] shrink-0"
           style={{ borderColor: 'var(--color-border)', color: 'var(--color-ink-secondary)' }}
         >
           Today
         </button>
-        <button
-          type="button"
+        <IconButton
           onClick={() => onNavigate('NEXT')}
-          className="p-1.5 rounded-lg transition-colors hover:bg-[var(--color-surface-raised)]"
-          style={{ color: 'var(--color-ink-muted)' }}
+          tone="muted"
+          className="-mx-1 shrink-0"
           aria-label="Next"
         >
           <CaretRight size={16} />
-        </button>
+        </IconButton>
         <span
-          className="ml-2 text-sm font-semibold"
+          className="ml-2 text-sm font-semibold truncate min-w-0"
           style={{ color: 'var(--color-ink)' }}
         >
           {label}
         </span>
       </div>
 
-      <div className="flex items-center gap-1">
-        {(['month', 'week', 'day'] as const).map((v) => (
-          <button
-            key={v}
-            type="button"
-            onClick={() => onView(v)}
-            className="px-2.5 py-1 rounded-lg text-xs font-medium capitalize transition-colors"
-            style={
-              view === v
-                ? { backgroundColor: 'var(--color-teal)', color: 'var(--color-cream)' }
-                : { color: 'var(--color-ink-muted)', backgroundColor: 'transparent' }
-            }
-          >
-            {v}
-          </button>
-        ))}
-      </div>
+      {!hideViewSwitcher && (
+        <div className="flex items-center gap-1">
+          {(['month', 'week', 'day'] as const).map((v) => (
+            <button
+              key={v}
+              type="button"
+              onClick={() => onView(v)}
+              className="px-2.5 py-1 rounded-lg text-xs font-medium capitalize transition-colors"
+              style={
+                view === v
+                  ? { backgroundColor: 'var(--color-teal)', color: 'var(--color-cream)' }
+                  : { color: 'var(--color-ink-muted)', backgroundColor: 'transparent' }
+              }
+            >
+              {v}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -352,6 +355,20 @@ export default function CalendarView({ orders, inquiries, blackouts, deliveryCou
   const [detailOpen, setDetailOpen] = useState(false)
   const [view, setView] = useState<View>('month')
   const [date, setDate] = useState(new Date())
+  const [isMobile, setIsMobile] = useState(false)
+
+  // react-big-calendar's month grid collapses to ~47px/column on a phone and is
+  // unusable. Below `md` we force the agenda list and hide the view switcher.
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return
+    const mq = window.matchMedia('(max-width: 767px)')
+    const apply = () => setIsMobile(mq.matches)
+    apply()
+    mq.addEventListener('change', apply)
+    return () => mq.removeEventListener('change', apply)
+  }, [])
+
+  const effectiveView: View = isMobile ? 'agenda' : view
 
   const events = useMemo<CalendarEvent[]>(() => {
     const orderEvents: OrderEvent[] = orders
@@ -489,39 +506,37 @@ export default function CalendarView({ orders, inquiries, blackouts, deliveryCou
         style={{
           borderColor: 'var(--color-border)',
           backgroundColor: 'var(--color-surface)',
-          minHeight: 560,
+          minHeight: isMobile ? 360 : 560,
         }}
       >
         <CustomToolbar
-          label={format(date, view === 'month' ? 'MMMM yyyy' : view === 'week' ? "MMM d 'week'" : 'EEEE, MMM d')}
+          label={format(
+            date,
+            effectiveView === 'week' ? "MMM d 'week'" : effectiveView === 'day' ? 'EEEE, MMM d' : 'MMMM yyyy',
+          )}
           onView={setView}
           onNavigate={(action) => {
             const d = new Date(date)
             if (action === 'TODAY') { setDate(new Date()); return }
-            if (action === 'PREV') {
-              if (view === 'month') d.setMonth(d.getMonth() - 1)
-              else if (view === 'week') d.setDate(d.getDate() - 7)
-              else d.setDate(d.getDate() - 1)
-            }
-            if (action === 'NEXT') {
-              if (view === 'month') d.setMonth(d.getMonth() + 1)
-              else if (view === 'week') d.setDate(d.getDate() + 7)
-              else d.setDate(d.getDate() + 1)
-            }
+            const dir = action === 'PREV' ? -1 : 1
+            if (effectiveView === 'week') d.setDate(d.getDate() + dir * 7)
+            else if (effectiveView === 'day') d.setDate(d.getDate() + dir)
+            else d.setMonth(d.getMonth() + dir)
             setDate(d)
           }}
-          view={view}
+          view={effectiveView}
+          hideViewSwitcher={isMobile}
         />
         <div className="flex-1 min-h-0 flex flex-col">
           <Calendar
             className="flex-1 min-h-0"
             localizer={localizer}
             events={events}
-            view={view}
+            view={effectiveView}
             date={date}
             onView={setView}
             onNavigate={setDate}
-            views={['month', 'week', 'day']}
+            views={['month', 'week', 'day', 'agenda']}
             eventPropGetter={eventPropGetter as any}
             onSelectEvent={(event) => {
               const e = event as CalendarEvent

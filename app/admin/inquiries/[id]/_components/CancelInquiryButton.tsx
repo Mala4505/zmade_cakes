@@ -1,35 +1,27 @@
 'use client'
 
-import { useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { X } from '@phosphor-icons/react'
 import { cancelInquiry } from '@/lib/actions/inquiries'
-import { toast } from 'sonner'
+import { useAsyncAction } from '@/lib/hooks/useAsyncAction'
 
 export default function CancelInquiryButton({ inquiryId }: { inquiryId: string }) {
   const router = useRouter()
-  const [pending, startTransition] = useTransition()
+
+  const { run: cancel, pending } = useAsyncAction(
+    async () => {
+      const result = await cancelInquiry(inquiryId)
+      if (result.error) return { error: result.error }
+    },
+    {
+      successToast: 'Inquiry cancelled',
+      onSuccess: () => router.refresh(),
+    }
+  )
 
   const handleCancel = () => {
     if (!confirm('Cancel this inquiry? This cannot be undone.')) return
-    startTransition(async () => {
-      // Without this try/catch, a thrown error here would leave `pending` stuck
-      // true forever with no feedback shown.
-      try {
-        const result = await cancelInquiry(inquiryId)
-        if (result.error) {
-          toast.error(result.error)
-        } else {
-          toast.success('Inquiry cancelled')
-          router.refresh()
-        }
-      } catch (err) {
-        console.error('[CancelInquiryButton] cancel failed:', err)
-        toast.error('Something went wrong', {
-          description: err instanceof Error ? err.message : 'Please try again.',
-        })
-      }
-    })
+    cancel()
   }
 
   return (
