@@ -47,7 +47,7 @@ export function EditOrderModal({ businessPhone, cakeSummary, eventDate }: EditOr
             <button
               type="button"
               onClick={() => setOpen(false)}
-              className="px-5 py-2.5 rounded-lg text-sm font-medium"
+              className="min-h-11 px-5 rounded-lg text-sm font-medium"
               style={{ backgroundColor: 'var(--color-surface-raised)', color: 'var(--color-ink-secondary)' }}
             >
               Cancel

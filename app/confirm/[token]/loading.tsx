@@ -31,18 +31,20 @@ export default async function ConfirmLoading() {
           <Skeleton className="h-3.5 w-5/6" />
         </div>
 
-        {/* Order summary: teal-wash hero + detail rows (matches the real
-            highlighted header block over `--color-teal-light`) */}
+        {/* Order summary: header + detail rows (matches the real neutral
+            header block over `--color-surface-raised` — kept neutral so the
+            Confirm Order button stays the one teal moment on the live page,
+            same as `page.tsx`) */}
         <div
           className="rounded-2xl border overflow-hidden"
           style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
         >
-          <div className="p-5" style={{ backgroundColor: 'var(--color-teal-light)' }}>
-            <Skeleton className="h-3 w-32 mb-3" style={{ backgroundColor: 'rgba(0, 104, 96, 0.16)' }} />
-            <Skeleton className="h-7 w-52" style={{ backgroundColor: 'rgba(0, 104, 96, 0.16)' }} />
+          <div className="p-5" style={{ backgroundColor: 'var(--color-surface-raised)' }}>
+            <Skeleton className="h-3 w-32 mb-3" style={{ backgroundColor: 'var(--color-border-strong)' }} />
+            <Skeleton className="h-7 w-52" style={{ backgroundColor: 'var(--color-border-strong)' }} />
             <div className="flex flex-wrap gap-1.5 mt-3">
-              <Skeleton className="h-6 w-20 rounded-full" style={{ backgroundColor: 'rgba(0, 104, 96, 0.16)' }} />
-              <Skeleton className="h-6 w-16 rounded-full" style={{ backgroundColor: 'rgba(0, 104, 96, 0.16)' }} />
+              <Skeleton className="h-6 w-20 rounded-full" style={{ backgroundColor: 'var(--color-border-strong)' }} />
+              <Skeleton className="h-6 w-16 rounded-full" style={{ backgroundColor: 'var(--color-border-strong)' }} />
             </div>
           </div>
           <div className="p-5 flex flex-col gap-3">

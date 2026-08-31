@@ -182,7 +182,7 @@ export default function OrderForm({
 
   // Cake Basics (step 2) is the repeatable unit — one field-array entry per distinct
   // cake in the order. The rest of the wizard's steps stay flat/order-level.
-  const { fields, append, remove } = useFieldArray({ control, name: 'items' })
+  const { fields, append, remove, insert } = useFieldArray({ control, name: 'items' })
 
   const form = watch()
   const deliveryType = form.delivery_type
@@ -617,7 +617,19 @@ export default function OrderForm({
                       {fields.length > 1 && (
                         <button
                           type="button"
-                          onClick={() => remove(index)}
+                          onClick={() => {
+                            const removedItem = form.items?.[index]
+                            const removedIndex = index
+                            remove(index)
+                            toast('Cake removed', {
+                              action: {
+                                label: 'Undo',
+                                onClick: () => {
+                                  if (removedItem) insert(removedIndex, removedItem)
+                                },
+                              },
+                            })
+                          }}
                           aria-label={`Remove Cake ${index + 1}`}
                           className="inline-flex items-center gap-1.5 text-xs font-medium shrink-0 min-h-11 px-2 -my-2"
                           style={{ color: 'var(--color-ink-muted)' }}

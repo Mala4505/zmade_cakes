@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
+import { AnimatePresence, motion, useDragControls, useReducedMotion } from 'framer-motion'
 import { X } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 import { EASE_OUT_QUART } from '@/lib/motion'
@@ -48,6 +48,11 @@ export function Modal({
   const [isDesktop, setIsDesktop] = useState(false)
   const panelRef = useRef<HTMLDivElement>(null)
   const reduceMotion = useReducedMotion()
+  // Drag-to-dismiss on the mobile sheet's handle. dragListener is off on the
+  // panel itself so only the handle (via onPointerDown -> dragControls.start)
+  // can initiate a drag — scrolling the body content and tapping buttons stay
+  // untouched by the gesture.
+  const dragControls = useDragControls()
 
   useEffect(() => setMounted(true), [])
 
@@ -149,6 +154,15 @@ export function Modal({
             animate={panelAnimate}
             exit={panelExit}
             transition={{ duration: reduceMotion ? 0 : 0.2, ease: EASE_OUT_QUART }}
+            drag={!isDesktop && !reduceMotion ? 'y' : false}
+            dragControls={dragControls}
+            dragListener={false}
+            dragConstraints={{ top: 0, bottom: 0 }}
+            dragElastic={{ top: 0, bottom: 0.55 }}
+            dragMomentum={false}
+            onDragEnd={(_, info) => {
+              if (info.offset.y > 120 || info.velocity.y > 500) onClose()
+            }}
             className={cn(
               'flex w-full max-w-none flex-col max-h-[85svh] rounded-t-xl border outline-none',
               'sm:rounded-xl',
@@ -157,8 +171,16 @@ export function Modal({
               className
             )}
           >
-            {/* Drag handle: mobile-only affordance for the bottom sheet. */}
-            <div className="flex justify-center pt-2.5 pb-1 shrink-0 sm:hidden" aria-hidden="true">
+            {/* Drag handle: swipe down to dismiss the mobile bottom sheet.
+                touch-action: none stops the browser's own scroll gesture from
+                competing with the drag on touch devices. */}
+            <div
+              onPointerDown={(e) => {
+                if (!isDesktop && !reduceMotion) dragControls.start(e)
+              }}
+              className="flex justify-center pt-2.5 pb-1 shrink-0 sm:hidden cursor-grab touch-none active:cursor-grabbing"
+              aria-hidden="true"
+            >
               <div className="h-1 w-9 rounded-full bg-[var(--color-border-strong)]" />
             </div>
 

@@ -19,7 +19,7 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(
           'flex items-center gap-2.5 cursor-pointer rounded-lg px-3 py-2.5 border transition-colors',
           'bg-[var(--color-cream)] border-[var(--color-border)]',
           'hover:border-[var(--color-border-strong)]',
-          'has-[:checked]:border-[var(--color-teal)] has-[:checked]:bg-[var(--color-teal-light)]',
+          'has-[:checked]:bg-[var(--color-teal-light)]',
           'has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-60',
           className
         )}
