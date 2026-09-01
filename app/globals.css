@@ -39,6 +39,13 @@
   --color-teal-deep: #004d49;
   --color-teal-light: #e6f5f4;
 
+  /* Admin sidebar: Forest (Blackened Spruce) */
+  --color-forest: #142e24;
+  --color-forest-active: #204a38;
+  --color-forest-border: #20392c;
+  --color-forest-ink: #f3f0e9;
+  --color-forest-ink-muted: #b9c9bd;
+
   /* Neutral: Warm surfaces */
   --color-cream: #fcf9f5;
   --color-surface: #faf8f5;
