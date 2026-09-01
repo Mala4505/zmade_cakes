@@ -3,7 +3,7 @@ import { formatDate, formatKWD, orderSummary } from '@/lib/utils'
 import AnimatedCardList from './AnimatedCardList'
 import { PaymentBadge } from '@/components/admin/StatusBadge'
 import { derivePaymentStatus } from '@/lib/payments'
-import { hasAllergens, ALLERGEN_LABELS, type AllergenFlags, type InquiryItem, type OrderStatus } from '@/lib/supabase/types'
+import { hasAllergens, ALLERGEN_LABELS, type AllergenFlags, type InquiryItem, type OrderStatus, type WhatsAppTemplates } from '@/lib/supabase/types'
 import OrderStatusActions from './OrderStatusActions'
 import OrderPaymentMenu from './OrderPaymentMenu'
 
@@ -48,7 +48,7 @@ function daysUntil(dateStr: string): number {
   return Math.round((eventDate.getTime() - today.getTime()) / 86400000)
 }
 
-function MobileOrderCard({ order }: { order: MobileOrder }) {
+function MobileOrderCard({ order, templates }: { order: MobileOrder; templates?: WhatsAppTemplates }) {
   const inq = order.inquiry
   const days = inq?.event_date ? daysUntil(inq.event_date) : null
   const paymentStatus = inq
@@ -94,6 +94,7 @@ function MobileOrderCard({ order }: { order: MobileOrder }) {
                 orderTotal={Number(order.final_price ?? 0)}
                 amountPaid={Number(inq.amount_paid ?? 0)}
                 defaultMethod={inq.payment_method === 'wamd' ? 'wamd' : 'cash'}
+                templates={templates}
               />
             </div>
           )}
@@ -166,7 +167,7 @@ function MobileOrderCard({ order }: { order: MobileOrder }) {
   )
 }
 
-export default function MobileOrderList({ orders }: { orders: MobileOrder[] }) {
+export default function MobileOrderList({ orders, templates }: { orders: MobileOrder[]; templates?: WhatsAppTemplates }) {
   const grouped = STATUS_ORDER.reduce<Record<string, MobileOrder[]>>((acc, s) => {
     acc[s] = orders.filter((o) => o.status === s)
     return acc
@@ -193,7 +194,7 @@ export default function MobileOrderList({ orders }: { orders: MobileOrder[] }) {
               <AnimatedCardList
                 items={group.map((order) => ({
                   id: order.id,
-                  node: <MobileOrderCard order={order} />,
+                  node: <MobileOrderCard order={order} templates={templates} />,
                 }))}
               />
             </div>

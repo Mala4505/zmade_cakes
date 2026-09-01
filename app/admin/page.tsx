@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { getSettings } from '@/lib/actions/settings'
 import { formatDate, formatDateLong, formatKWD, orderSummary } from '@/lib/utils'
 import { derivePaymentStatus, balanceOwed, orderTotal } from '@/lib/payments'
 import { StatusBadge } from '@/components/admin/StatusBadge'
@@ -6,6 +7,7 @@ import OrderPaymentMenu from './orders/_components/OrderPaymentMenu'
 import Link from 'next/link'
 import { ClipboardText, Package, Bell, ArrowRight, Plus, Warning, CalendarBlank, Wallet, TrendUp } from '@phosphor-icons/react/dist/ssr'
 import type { Metadata } from 'next'
+import type { WhatsAppTemplates } from '@/lib/supabase/types'
 
 export const metadata: Metadata = { title: 'Dashboard' }
 
@@ -135,8 +137,12 @@ async function getDashboardData() {
 }
 
 export default async function DashboardPage() {
-  const { pendingCount, todayPickups, activeOrders, pendingPayments, urgentOrders, notifications, unreadCount, monthlyStats } =
-    await getDashboardData()
+  const [
+    { pendingCount, todayPickups, activeOrders, pendingPayments, urgentOrders, notifications, unreadCount, monthlyStats },
+    settingsResult,
+  ] = await Promise.all([getDashboardData(), getSettings(['whatsapp_templates'])])
+  if (settingsResult.error) throw new Error(`Dashboard: failed to load settings — ${settingsResult.error}`)
+  const templates = settingsResult.data?.whatsapp_templates as WhatsAppTemplates | undefined
 
   return (
     <div className="px-4 py-6 md:px-8 md:py-8 max-w-5xl mx-auto">
@@ -376,6 +382,7 @@ export default async function DashboardPage() {
                         orderTotal={Number(order.final_price)}
                         amountPaid={Number(inq.amount_paid ?? 0)}
                         defaultMethod={inq.payment_method || 'cash'}
+                        templates={templates}
                       />
                     )}
                   </div>

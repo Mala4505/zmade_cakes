@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { DotsThreeVertical, Wallet } from '@phosphor-icons/react'
 import RecordPaymentSheet from '@/components/admin/RecordPaymentSheet'
 import { IconButton } from '@/components/ui'
-import type { PaymentMethod } from '@/lib/supabase/types'
+import type { PaymentMethod, WhatsAppTemplates } from '@/lib/supabase/types'
 
 export interface OrderPaymentMenuProps {
   inquiryId: string
@@ -17,6 +17,7 @@ export interface OrderPaymentMenuProps {
   /** Ledger total collected so far, before any new payment. */
   amountPaid: number
   defaultMethod: PaymentMethod
+  templates?: WhatsAppTemplates
 }
 
 /**
@@ -33,6 +34,7 @@ export default function OrderPaymentMenu({
   orderTotal,
   amountPaid,
   defaultMethod,
+  templates,
 }: OrderPaymentMenuProps) {
   const router = useRouter()
   const [menuOpen, setMenuOpen] = useState(false)
@@ -129,6 +131,7 @@ export default function OrderPaymentMenu({
         orderTotal={orderTotal}
         amountPaid={amountPaid}
         defaultMethod={defaultMethod || 'cash'}
+        templates={templates}
         onSaved={() => {
           setSheetOpen(false)
           router.refresh()
