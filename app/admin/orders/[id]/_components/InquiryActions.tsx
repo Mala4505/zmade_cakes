@@ -6,7 +6,6 @@ import { updateInquiryStatus } from '@/lib/actions/inquiries'
 import { useAsyncAction } from '@/lib/hooks/useAsyncAction'
 import {
   CheckCircle,
-  Truck,
   Spinner,
   WhatsappLogo,
   Copy,
@@ -18,14 +17,16 @@ import WhatsAppButton from '@/components/admin/WhatsAppButton'
 
 const NEXT_STEP: Record<string, { label: string; Icon: React.ElementType } | null> = {
   pending: { label: 'Mark as Confirmed', Icon: CheckCircle },
-  confirmed: { label: 'Mark as Delivered', Icon: Truck },
+  // confirmed -> delivered is OrderDetailActions' "Mark Delivered" button's job once an order
+  // exists (it goes through updateOrderStatus, which validates the transition and fires the
+  // delivery notification) — showing a second banner for the same step here would duplicate it.
+  confirmed: null,
   delivered: null,
   cancelled: null,
 }
 
 const STATUS_PROGRESSION: Record<string, InquiryStatus> = {
   pending: 'confirmed',
-  confirmed: 'delivered',
 }
 
 export default function InquiryActions({

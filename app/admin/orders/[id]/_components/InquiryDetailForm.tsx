@@ -15,9 +15,10 @@ import { upsertCustomer } from '@/lib/actions/customers'
 import { derivePaymentStatus, balanceOwed } from '@/lib/payments'
 import { PaymentBadge } from '@/components/admin/StatusBadge'
 import { PinnedOrderTotal } from '@/components/admin/PinnedOrderTotal'
+import RecordPaymentSheet from '@/components/admin/RecordPaymentSheet'
 import { Button, Checkbox, Field, IconButton, Input, RadioGroup, Select, Switch, Textarea } from '@/components/ui'
-import { Copy, WhatsappLogo, Plus } from '@phosphor-icons/react'
-import type { OptionRow, Inquiry, BlackoutDate } from '@/lib/supabase/types'
+import { Copy, WhatsappLogo, Plus, Wallet } from '@phosphor-icons/react'
+import type { OptionRow, Inquiry, BlackoutDate, WhatsAppTemplates } from '@/lib/supabase/types'
 import { z } from 'zod'
 import { GOVERNORATE_LABELS } from '@/lib/utils'
 import { whatsappUrlNoText } from '@/lib/whatsapp'
@@ -52,6 +53,7 @@ interface Props {
   minPriceGuard?: number
   rushMultiplier?: number
   orderId: string | null
+  templates?: WhatsAppTemplates
 }
 
 const numberOrNull = (v: unknown) => (v === '' || v == null ? null : Number(v))
@@ -68,9 +70,11 @@ export default function InquiryDetailForm({
   minPriceGuard,
   rushMultiplier,
   orderId,
+  templates,
 }: Props) {
   const router = useRouter()
   const [copiedPhone, setCopiedPhone] = useState(false)
+  const [paymentSheetOpen, setPaymentSheetOpen] = useState(false)
   const ledgerRef = useRef<HTMLDivElement>(null)
   const [showDietary, setShowDietary] = useState(() =>
     !!(
@@ -768,28 +772,51 @@ export default function InquiryDetailForm({
                 >
                   {orderId ? (
                     <p className="text-xs" style={{ color: 'var(--color-ink-muted)' }}>
-                      Record payments from the{' '}
+                      Or scroll down to the{' '}
                       <Link
-                        href={`/admin/orders/${orderId}`}
+                        href={`/admin/orders/${orderId}#payment-history`}
                         className="font-medium underline underline-offset-2"
                         style={{ color: 'var(--color-teal)' }}
                       >
-                        order&apos;s payment history
+                        payment history
                       </Link>
-                      .
+                      {' '}below.
                     </p>
                   ) : (
                     <p className="text-xs" style={{ color: 'var(--color-ink-muted)' }}>
-                      Payments can be recorded once this order is confirmed.
+                      Payments can be recorded before confirmation too — the order adopts them once priced.
                     </p>
                   )}
-                  {/* TODO Phase 2: open <RecordPaymentSheet/> */}
-                  <Button type="button" variant="secondary" size="sm" disabled className="shrink-0">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    className="shrink-0"
+                    onClick={() => setPaymentSheetOpen(true)}
+                  >
+                    <Wallet size={14} />
                     Record payment
                   </Button>
                 </div>
               </div>
             </div>
+
+            <RecordPaymentSheet
+              open={paymentSheetOpen}
+              onClose={() => setPaymentSheetOpen(false)}
+              inquiryId={inquiry.id}
+              orderId={orderId}
+              customerName={inquiry.customer_name}
+              customerPhone={inquiry.customer_phone}
+              orderTotal={orderTotalAmt ?? 0}
+              amountPaid={paidAmt}
+              defaultMethod={inquiry.payment_method || 'cash'}
+              templates={templates}
+              onSaved={() => {
+                setPaymentSheetOpen(false)
+                router.refresh()
+              }}
+            />
 
             <div className="pt-1 border-t" style={{ borderColor: 'var(--color-border)' }}>
               <Field

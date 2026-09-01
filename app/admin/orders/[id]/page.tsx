@@ -403,6 +403,7 @@ export default async function OrderDetailPage({ params }: Props) {
           minPriceGuard={minPriceGuard}
           rushMultiplier={rushMultiplier}
           orderId={order?.id ?? null}
+          templates={templates}
         />
 
         {/* Order-only sections: these need an orders row (payments/ETA/actions/invoice
@@ -410,7 +411,7 @@ export default async function OrderDetailPage({ params }: Props) {
             only exist once the record is confirmed). */}
         {order && (
           <>
-            <div className="mt-4">
+            <div className="mt-4" id="payment-history">
               <PaymentHistorySection
                 inquiryId={inquiry.id}
                 orderId={order.id}
