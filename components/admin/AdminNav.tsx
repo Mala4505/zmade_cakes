@@ -6,7 +6,6 @@ import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import {
   HouseSimple,
-  ClipboardText,
   Package,
   CalendarBlank,
   ChartBar,
@@ -32,7 +31,6 @@ type AnyIcon = React.ComponentType<{ size?: number; weight?: string; 'aria-hidde
 const NAV_ITEMS: { href: string; label: string; Icon: AnyIcon; exact: boolean }[] = [
   { href: '/admin/calendar', label: 'Calendar', Icon: CalendarBlank as AnyIcon, exact: false },
   { href: '/admin', label: 'Dashboard', Icon: HouseSimple as AnyIcon, exact: true },
-  { href: '/admin/inquiries', label: 'Inquiries', Icon: ClipboardText as AnyIcon, exact: false },
   { href: '/admin/orders', label: 'Orders', Icon: Package as AnyIcon, exact: false },
   { href: '/admin/analytics', label: 'Analytics', Icon: ChartBar as AnyIcon, exact: false },
   { href: '/admin/customers', label: 'Customers', Icon: Users as AnyIcon, exact: false },
@@ -42,7 +40,7 @@ const NAV_ITEMS: { href: string; label: string; Icon: AnyIcon; exact: boolean }[
 
 // Bottom nav only has room for a handful of tabs before it gets cramped —
 // these are the ones used day-to-day; the rest live behind "More".
-const MOBILE_PRIMARY_HREFS = ['/admin', '/admin/orders', '/admin/inquiries', '/admin/calendar']
+const MOBILE_PRIMARY_HREFS = ['/admin', '/admin/orders', '/admin/calendar']
 
 /** Longest-prefix match so nested routes (e.g. /admin/orders/12) resolve to the right label. */
 function currentNavItem(pathname: string) {
@@ -58,8 +56,7 @@ function isActive(pathname: string, href: string, exact: boolean) {
 }
 
 function getBadge(href: string, pendingCount: number, activeOrdersCount: number): number {
-  if (href === '/admin/inquiries') return pendingCount
-  if (href === '/admin/orders') return activeOrdersCount
+  if (href === '/admin/orders') return pendingCount + activeOrdersCount
   return 0
 }
 

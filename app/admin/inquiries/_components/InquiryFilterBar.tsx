@@ -99,7 +99,7 @@ export default function InquiryFilterBar({
       <input type="hidden" name="dir" value={dir} />
       {hasActiveFilters && (
         <Link
-          href="/admin/inquiries"
+          href="/admin/orders"
           className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border transition-all active:scale-[0.97] hover:bg-[var(--color-teal-light)]"
           style={{ borderColor: 'var(--color-teal)', color: 'var(--color-teal-deep)' }}
         >
