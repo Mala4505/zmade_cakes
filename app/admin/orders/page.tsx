@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { getSettings } from '@/lib/actions/settings'
 import { formatDate, formatKWD, orderSummary } from '@/lib/utils'
 import { PageHeader } from '@/components/admin/PageHeader'
 import { PaymentBadge } from '@/components/admin/StatusBadge'
@@ -9,7 +10,7 @@ import MobileOrderList from './_components/MobileOrderList'
 import AnimatedCardList from './_components/AnimatedCardList'
 import Link from 'next/link'
 import type { Metadata } from 'next'
-import type { OrderStatus } from '@/lib/supabase/types'
+import type { OrderStatus, WhatsAppTemplates } from '@/lib/supabase/types'
 import { hasAllergens, ALLERGEN_LABELS } from '@/lib/supabase/types'
 
 export const metadata: Metadata = { title: 'Orders' }
@@ -55,7 +56,12 @@ export default async function OrdersPage({
 }) {
   const { cancelled } = await searchParams
   const showCancelled = cancelled === '1'
-  const orders = await getOrders(showCancelled)
+  const [orders, settingsResult] = await Promise.all([
+    getOrders(showCancelled),
+    getSettings(['whatsapp_templates']),
+  ])
+  if (settingsResult.error) throw new Error(`Orders: failed to load settings — ${settingsResult.error}`)
+  const templates = settingsResult.data?.whatsapp_templates as WhatsAppTemplates | undefined
   const columns = showCancelled ? [...BASE_COLUMNS, CANCELLED_COLUMN] : BASE_COLUMNS
 
   const byStatus = columns.reduce(
@@ -88,7 +94,7 @@ export default async function OrdersPage({
 
       {/* Mobile list — shown below md breakpoint */}
       <div className="block md:hidden -mx-4">
-        <MobileOrderList orders={orders} />
+        <MobileOrderList orders={orders} templates={templates} />
       </div>
 
       {/* Kanban — hidden on mobile, shown md and up */}
@@ -120,7 +126,7 @@ export default async function OrdersPage({
               <AnimatedCardList
                 items={(byStatus[status] ?? []).map((order: any) => ({
                   id: order.id,
-                  node: <OrderCard order={order} />,
+                  node: <OrderCard order={order} templates={templates} />,
                 }))}
                 empty={
                   <div className="flex-1 flex items-center justify-center py-8">
@@ -144,7 +150,7 @@ function daysUntil(dateStr: string): number {
   return Math.round((eventDate.getTime() - today.getTime()) / 86400000)
 }
 
-function OrderCard({ order }: { order: any }) {
+function OrderCard({ order, templates }: { order: any; templates?: WhatsAppTemplates }) {
   const inq = order.inquiry
   const days = inq?.event_date ? daysUntil(inq.event_date) : null
   const paymentStatus = inq ? derivePaymentStatus(inq.amount_paid, order.final_price, inq.fully_paid) : null
@@ -182,6 +188,7 @@ function OrderCard({ order }: { order: any }) {
               orderTotal={Number(order.final_price)}
               amountPaid={Number(inq.amount_paid ?? 0)}
               defaultMethod={inq.payment_method || 'cash'}
+              templates={templates}
             />
           )}
         </div>
