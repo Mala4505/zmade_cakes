@@ -5,9 +5,13 @@ import { PaymentBadge } from '@/components/admin/StatusBadge'
 import { derivePaymentStatus } from '@/lib/payments'
 import { hasAllergens, ALLERGEN_LABELS, type AllergenFlags, type InquiryItem, type OrderStatus } from '@/lib/supabase/types'
 import OrderStatusActions from './OrderStatusActions'
+import OrderPaymentMenu from './OrderPaymentMenu'
 
 interface OrderInquiry {
+  id?: string | null
   customer_name?: string | null
+  customer_phone?: string | null
+  payment_method?: string | null
   items?: InquiryItem[] | null
   event_date?: string | null
   admin_price?: string | number | null
@@ -78,7 +82,22 @@ function MobileOrderCard({ order }: { order: MobileOrder }) {
             {inq ? orderSummary(inq.items ?? []) : '—'}
           </p>
         </div>
-        {paymentStatus && <PaymentBadge status={paymentStatus} />}
+        <div className="flex items-start gap-1 shrink-0">
+          {paymentStatus && <PaymentBadge status={paymentStatus} />}
+          {inq?.id && (
+            <div className="relative z-10">
+              <OrderPaymentMenu
+                inquiryId={inq.id}
+                orderId={order.id}
+                customerName={inq.customer_name ?? ''}
+                customerPhone={inq.customer_phone ?? ''}
+                orderTotal={Number(order.final_price ?? 0)}
+                amountPaid={Number(inq.amount_paid ?? 0)}
+                defaultMethod={inq.payment_method === 'wamd' ? 'wamd' : 'cash'}
+              />
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Date + countdown + price */}

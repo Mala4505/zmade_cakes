@@ -4,6 +4,7 @@ import { PageHeader } from '@/components/admin/PageHeader'
 import { PaymentBadge } from '@/components/admin/StatusBadge'
 import { derivePaymentStatus } from '@/lib/payments'
 import OrderStatusActions from './_components/OrderStatusActions'
+import OrderPaymentMenu from './_components/OrderPaymentMenu'
 import MobileOrderList from './_components/MobileOrderList'
 import AnimatedCardList from './_components/AnimatedCardList'
 import Link from 'next/link'
@@ -33,7 +34,7 @@ async function getOrders(includeCancelled: boolean) {
     .select(`
       id, status, final_price, delivery_type, created_at, tracking_token,
       inquiry:inquiries (
-        id, customer_name, customer_phone, event_date,
+        id, customer_name, customer_phone, payment_method, event_date,
         pickup_time, occasion, theme, message_on_cake,
         allergen_nut_free, allergen_gluten_free, allergen_dairy_free, allergen_egg_free,
         allergen_halal, allergen_raw_sugar, allergen_other,
@@ -170,7 +171,20 @@ function OrderCard({ order }: { order: any }) {
             {inq ? orderSummary(inq.items ?? []) : '—'}
           </p>
         </div>
-        {paymentStatus && <PaymentBadge status={paymentStatus} />}
+        <div className="flex items-start gap-1 shrink-0">
+          {paymentStatus && <PaymentBadge status={paymentStatus} />}
+          {inq?.id && (
+            <OrderPaymentMenu
+              inquiryId={inq.id}
+              orderId={order.id}
+              customerName={inq.customer_name ?? ''}
+              customerPhone={inq.customer_phone ?? ''}
+              orderTotal={Number(order.final_price)}
+              amountPaid={Number(inq.amount_paid ?? 0)}
+              defaultMethod={inq.payment_method || 'cash'}
+            />
+          )}
+        </div>
       </div>
 
       <div className="flex items-center gap-3 flex-wrap">

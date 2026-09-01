@@ -5,7 +5,8 @@ import { getSettings } from '@/lib/actions/settings'
 import { formatDate, formatTime, formatKWD, trackingLink, myOrdersLink, orderSummary, GOVERNORATE_LABELS } from '@/lib/utils'
 import { generatePortalToken } from '@/lib/portal'
 import { PageHeader } from '@/components/admin/PageHeader'
-import { StatusBadge } from '@/components/admin/StatusBadge'
+import { StatusBadge, PaymentBadge } from '@/components/admin/StatusBadge'
+import { derivePaymentStatus, balanceOwed } from '@/lib/payments'
 import OrderDetailActions from './_components/OrderDetailActions'
 import OrderEtaSection from './_components/OrderEtaSection'
 import OrderImageSection from './_components/OrderImageSection'
@@ -34,7 +35,7 @@ export default async function OrderDetailPage({ params }: Props) {
   const { id } = await params
   const supabase = await createClient()
 
-  const [{ data: order, error }, settingsResult, paymentsResult] = await Promise.all([
+  const [{ data: order, error }, settingsResult] = await Promise.all([
     supabase
       .from('orders')
       .select(`
@@ -45,14 +46,19 @@ export default async function OrderDetailPage({ params }: Props) {
       .eq('id', id)
       .single(),
     getSettings(['business_phone', 'business_instagram', 'whatsapp_templates']),
-    supabase.from('payments').select('*').eq('order_id', id).order('paid_at', { ascending: false }),
   ])
 
   if (error || !order) notFound()
   if (settingsResult.error) throw new Error(`Order: failed to load settings — ${settingsResult.error}`)
-  if (paymentsResult.error) throw new Error(`Order: failed to load payments — ${paymentsResult.error.message}`)
 
   const inq = (order as any).inquiry
+
+  // Payments are keyed to the inquiry (migration 037): fetching by inquiry_id
+  // rather than order_id also catches any pre-confirmation orphan payments.
+  const paymentsResult = inq?.id
+    ? await supabase.from('payments').select('*').eq('inquiry_id', inq.id).order('paid_at', { ascending: false })
+    : { data: [], error: null }
+  if (paymentsResult.error) throw new Error(`Order: failed to load payments — ${paymentsResult.error.message}`)
   const trackLink = trackingLink(order.tracking_token)
   const myOrdersUrl = inq?.customer_id ? myOrdersLink(generatePortalToken(inq.customer_id)) : null
   const businessPhone = (settingsResult.data?.business_phone as string) ?? ''
@@ -63,6 +69,15 @@ export default async function OrderDetailPage({ params }: Props) {
   if (imagesResult.error) throw new Error(`Order: failed to load images — ${imagesResult.error}`)
 
   const payments = (paymentsResult.data ?? []) as unknown as Payment[]
+
+  // Total / Paid / Balance — derived from the ledger, never a hand-typed field.
+  // final_price is kept re-synced with admin_price/discount/delivery on edit (Phase 1.4).
+  const orderTotalKwd = Number(order.final_price ?? 0)
+  const amountPaidKwd = Number(inq?.amount_paid ?? 0)
+  const settled = !!inq?.fully_paid
+  const paymentStatus = derivePaymentStatus(amountPaidKwd, orderTotalKwd, settled)
+  const balanceKwd = balanceOwed(orderTotalKwd, amountPaidKwd, settled)
+  const paidPct = orderTotalKwd > 0 ? Math.min(100, Math.round((amountPaidKwd / orderTotalKwd) * 100)) : 0
 
   return (
     <div className="px-4 py-6 md:px-8 md:py-8 max-w-2xl mx-auto">
@@ -86,7 +101,57 @@ export default async function OrderDetailPage({ params }: Props) {
           <Detail label="Pickup Time" value={formatTime(inq?.pickup_time)} mono />
           <Detail label="Cake" value={inq ? orderSummary(inq.items ?? []) : undefined} />
           {inq?.decoration_style && <Detail label="Decoration" value={inq.decoration_style} />}
-          <Detail label="Final Price" value={formatKWD(order.final_price?.toString())} mono />
+
+          <div className="sm:col-span-2">
+            <div
+              className="rounded-lg border"
+              style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface-raised)' }}
+            >
+              <div className="px-3.5 py-3 flex flex-col gap-1.5">
+                <div className="flex items-center justify-between text-sm">
+                  <span style={{ color: 'var(--color-ink-muted)' }}>Order total</span>
+                  <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-ink-secondary)' }}>
+                    {formatKWD(orderTotalKwd.toFixed(3))}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span style={{ color: 'var(--color-ink-muted)' }}>Paid</span>
+                  <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-ink-secondary)' }}>
+                    {formatKWD(amountPaidKwd.toFixed(3))}
+                  </span>
+                </div>
+                <div
+                  className="pt-1.5 mt-0.5 border-t flex items-center justify-between gap-2"
+                  style={{ borderColor: 'var(--color-border-strong)' }}
+                >
+                  <span className="text-sm font-bold" style={{ color: 'var(--color-ink)' }}>
+                    {settled ? 'Settled' : 'Balance'}
+                  </span>
+                  <span className="flex items-center gap-2">
+                    <span className="text-base font-bold" style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-ink)' }}>
+                      {formatKWD(balanceKwd.toFixed(3))}
+                    </span>
+                    <PaymentBadge status={paymentStatus} />
+                  </span>
+                </div>
+                {orderTotalKwd > 0 && (
+                  <div
+                    className="mt-1 h-2 rounded-full overflow-hidden"
+                    style={{ backgroundColor: 'var(--color-border)' }}
+                  >
+                    <div
+                      className="h-full rounded-full"
+                      style={{
+                        width: `${paymentStatus === 'paid' ? 100 : paidPct}%`,
+                        backgroundColor: 'var(--color-teal)',
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
           {order.delivery_type === 'delivery' && Number(order.delivery_charge) > 0 && (
             <Detail label="Delivery Charge (KD)" value={formatKWD(order.delivery_charge?.toString())} mono />
           )}
@@ -153,8 +218,13 @@ export default async function OrderDetailPage({ params }: Props) {
         {/* Payments */}
         <div className="mb-6">
           <PaymentHistorySection
+            inquiryId={inq.id}
             orderId={order.id}
             payments={payments}
+            orderTotal={orderTotalKwd}
+            amountPaid={amountPaidKwd}
+            customerName={inq?.customer_name ?? ''}
+            customerPhone={inq?.customer_phone ?? ''}
             defaultMethod={inq?.payment_method || 'cash'}
           />
         </div>
