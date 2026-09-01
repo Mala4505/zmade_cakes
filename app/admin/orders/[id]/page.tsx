@@ -226,6 +226,7 @@ export default async function OrderDetailPage({ params }: Props) {
             customerName={inq?.customer_name ?? ''}
             customerPhone={inq?.customer_phone ?? ''}
             defaultMethod={inq?.payment_method || 'cash'}
+            templates={templates}
           />
         </div>
 

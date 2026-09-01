@@ -8,7 +8,8 @@ import { useAsyncAction } from '@/lib/hooks/useAsyncAction'
 import { recordPayment, updatePayment } from '@/lib/actions/payments'
 import { formatKWD } from '@/lib/utils'
 import { EASE_OUT_QUART } from '@/lib/motion'
-import type { Payment, PaymentMethod } from '@/lib/supabase/types'
+import ReceiptSendButtons from '@/components/admin/ReceiptSendButtons'
+import type { Payment, PaymentMethod, WhatsAppTemplates } from '@/lib/supabase/types'
 
 export interface RecordPaymentSheetProps {
   open: boolean
@@ -22,6 +23,7 @@ export interface RecordPaymentSheetProps {
   defaultMethod: PaymentMethod
   payment?: Payment | null // when set -> EDIT mode (calls updatePayment), prefill fields
   onSaved?: (payment: Payment) => void // caller does router.refresh() here
+  templates?: WhatsAppTemplates
 }
 
 type Method = 'cash' | 'wamd'
@@ -52,6 +54,7 @@ export default function RecordPaymentSheet({
   defaultMethod,
   payment = null,
   onSaved,
+  templates,
 }: RecordPaymentSheetProps): JSX.Element {
   const reduceMotion = useReducedMotion()
   const isEdit = payment != null
@@ -231,7 +234,15 @@ export default function RecordPaymentSheet({
             View receipt
           </a>
 
-          {/* Phase 3: Send receipt / Send link only / Copy link buttons go here */}
+          <ReceiptSendButtons
+            customerName={customerName}
+            customerPhone={customerPhone}
+            amount={Number(saved.amount)}
+            amountPaid={paidAfter}
+            orderTotal={orderTotal}
+            receiptToken={saved.receipt_token}
+            templates={templates}
+          />
         </motion.div>
       ) : (
         <div className="flex flex-col gap-4">

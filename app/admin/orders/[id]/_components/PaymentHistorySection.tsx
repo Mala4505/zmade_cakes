@@ -1,13 +1,14 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Plus, Trash, Receipt, PencilSimple } from '@phosphor-icons/react'
 import RecordPaymentSheet from '@/components/admin/RecordPaymentSheet'
+import ReceiptSendButtons from '@/components/admin/ReceiptSendButtons'
 import { useAsyncAction } from '@/lib/hooks/useAsyncAction'
 import { deletePayment } from '@/lib/actions/payments'
 import { formatDate, formatKWD } from '@/lib/utils'
-import type { Payment, PaymentMethod } from '@/lib/supabase/types'
+import type { Payment, PaymentMethod, WhatsAppTemplates } from '@/lib/supabase/types'
 
 interface Props {
   inquiryId: string
@@ -20,6 +21,7 @@ interface Props {
   customerName: string
   customerPhone: string
   defaultMethod: PaymentMethod
+  templates?: WhatsAppTemplates
 }
 
 const METHOD_LABEL: Record<Exclude<PaymentMethod, ''>, string> = {
@@ -36,11 +38,29 @@ export default function PaymentHistorySection({
   customerName,
   customerPhone,
   defaultMethod,
+  templates,
 }: Props) {
   const router = useRouter()
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editPayment, setEditPayment] = useState<Payment | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+
+  // Cumulative amount paid *through* each payment (i.e. as of its paid_at),
+  // matching the semantics app/receipt/[token]/page.tsx uses when freezing a
+  // receipt's "paid to date" figure. `payments` here is sorted paid_at desc
+  // for display, so this reduces over an ascending copy instead.
+  const cumulativeById = useMemo(() => {
+    const ascending = [...payments].sort(
+      (a, b) => new Date(a.paid_at).getTime() - new Date(b.paid_at).getTime()
+    )
+    const map = new Map<string, number>()
+    let running = 0
+    for (const p of ascending) {
+      running += Number(p.amount)
+      map.set(p.id, running)
+    }
+    return map
+  }, [payments])
 
   const { run: runDelete, pending: isPending } = useAsyncAction(
     async (paymentId: string) => {
@@ -140,16 +160,28 @@ export default function PaymentHistorySection({
                 {p.note && (
                   <p className="text-xs italic" style={{ color: 'var(--color-ink-muted)' }}>{p.note}</p>
                 )}
-                <a
-                  href={`/receipt/${p.receipt_token}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1 text-xs font-semibold mt-0.5"
-                  style={{ color: 'var(--color-teal)' }}
-                >
-                  <Receipt size={13} />
-                  View receipt
-                </a>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <a
+                    href={`/receipt/${p.receipt_token}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 text-xs font-semibold"
+                    style={{ color: 'var(--color-teal)' }}
+                  >
+                    <Receipt size={13} />
+                    View receipt
+                  </a>
+                  <ReceiptSendButtons
+                    compact
+                    customerName={customerName}
+                    customerPhone={customerPhone}
+                    amount={p.amount}
+                    amountPaid={cumulativeById.get(p.id) ?? Number(p.amount)}
+                    orderTotal={orderTotal}
+                    receiptToken={p.receipt_token}
+                    templates={templates}
+                  />
+                </div>
               </div>
               <div className="flex items-center shrink-0">
                 <button
@@ -188,6 +220,7 @@ export default function PaymentHistorySection({
         amountPaid={sheetAmountPaid}
         defaultMethod={defaultMethod || 'cash'}
         payment={editPayment}
+        templates={templates}
         onSaved={() => {
           setSheetOpen(false)
           setEditPayment(null)
