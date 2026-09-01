@@ -127,7 +127,7 @@ export default async function CustomerDetailPage({ params }: Props) {
               {inquiryList.map((inq, i) => (
                 <li key={inq.id}>
                   <Link
-                    href={`/admin/inquiries/${inq.id}`}
+                    href={`/admin/orders/${inq.id}`}
                     className="flex items-center gap-4 px-4 py-3.5 transition-colors hover:bg-[var(--color-surface-raised)]"
                     style={
                       i !== inquiryList.length - 1

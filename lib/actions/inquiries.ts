@@ -123,7 +123,7 @@ export async function createInquiry(
         sendPushToAdmin('inquiry_created', {
           title,
           body,
-          url: `/admin/inquiries/${inquiry.id}`,
+          url: `/admin/orders/${inquiry.id}`,
           notificationId: data.id,
         })
       )
@@ -511,7 +511,7 @@ export async function confirmInquiry(
           sendPushToAdmin('general', {
             title,
             body,
-            url: `/admin/inquiries/${inquiry.id}`,
+            url: `/admin/orders/${inquiry.id}`,
             notificationId: data.id,
           })
         )

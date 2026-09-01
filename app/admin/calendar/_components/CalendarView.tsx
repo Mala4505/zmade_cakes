@@ -580,7 +580,7 @@ export default function CalendarView({ orders, inquiries, blackouts, deliveryCou
               href={
                 selected.resource.linkKind === 'order'
                   ? `/admin/orders/${selected.resource.linkId}`
-                  : `/admin/inquiries/${selected.resource.linkId}`
+                  : `/admin/orders/${selected.resource.linkId}`
               }
               className="flex items-center justify-center gap-1.5 w-full py-2.5 rounded-lg text-sm font-medium transition-colors hover:bg-[var(--color-teal-deep)]"
               style={{ backgroundColor: 'var(--color-teal)', color: 'var(--color-cream)' }}
