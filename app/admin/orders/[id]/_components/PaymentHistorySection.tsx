@@ -2,16 +2,23 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Trash, Receipt } from '@phosphor-icons/react'
-import { Modal, Button, Field, Input, Select } from '@/components/ui'
+import { Plus, Trash, Receipt, PencilSimple } from '@phosphor-icons/react'
+import RecordPaymentSheet from '@/components/admin/RecordPaymentSheet'
 import { useAsyncAction } from '@/lib/hooks/useAsyncAction'
-import { recordPayment, deletePayment } from '@/lib/actions/payments'
+import { deletePayment } from '@/lib/actions/payments'
 import { formatDate, formatKWD } from '@/lib/utils'
 import type { Payment, PaymentMethod } from '@/lib/supabase/types'
 
 interface Props {
-  orderId: string
+  inquiryId: string
+  orderId: string | null
   payments: Payment[]
+  /** Order total in KWD (3dp). */
+  orderTotal: number
+  /** Ledger total collected so far. */
+  amountPaid: number
+  customerName: string
+  customerPhone: string
   defaultMethod: PaymentMethod
 }
 
@@ -20,9 +27,19 @@ const METHOD_LABEL: Record<Exclude<PaymentMethod, ''>, string> = {
   wamd: 'WAMD',
 }
 
-export default function PaymentHistorySection({ orderId, payments, defaultMethod }: Props) {
+export default function PaymentHistorySection({
+  inquiryId,
+  orderId,
+  payments,
+  orderTotal,
+  amountPaid,
+  customerName,
+  customerPhone,
+  defaultMethod,
+}: Props) {
   const router = useRouter()
-  const [modalOpen, setModalOpen] = useState(false)
+  const [sheetOpen, setSheetOpen] = useState(false)
+  const [editPayment, setEditPayment] = useState<Payment | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
   const { run: runDelete, pending: isPending } = useAsyncAction(
@@ -46,19 +63,47 @@ export default function PaymentHistorySection({ orderId, payments, defaultMethod
     runDelete(paymentId)
   }
 
+  const openAdd = () => {
+    setEditPayment(null)
+    setSheetOpen(true)
+  }
+
+  const openEdit = (p: Payment) => {
+    setEditPayment(p)
+    setSheetOpen(true)
+  }
+
+  // The sheet's `amountPaid` is the ledger total BEFORE the payment being
+  // recorded/edited — so in edit mode we back this payment's amount out.
+  const sheetAmountPaid = editPayment
+    ? Math.max(0, amountPaid - Number(editPayment.amount))
+    : amountPaid
+
   return (
     <div
       className="rounded-xl border p-4"
       style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
     >
-      <div className="flex items-center justify-between mb-3">
-        <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--color-ink-muted)' }}>
-          Payment History
-        </p>
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <div className="flex flex-col gap-0.5">
+          <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--color-ink-muted)' }}>
+            Payment History
+          </p>
+          <p className="text-xs" style={{ color: 'var(--color-ink-muted)' }}>
+            Paid{' '}
+            <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-ink-secondary)' }}>
+              {formatKWD(amountPaid.toFixed(3))}
+            </span>{' '}
+            of{' '}
+            <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-ink-secondary)' }}>
+              {formatKWD(orderTotal.toFixed(3))}
+            </span>
+          </p>
+        </div>
         <button
           type="button"
-          onClick={() => setModalOpen(true)}
-          className="flex items-center gap-1 text-xs font-semibold"
+          onClick={openAdd}
+          className="flex items-center gap-1 text-xs font-semibold shrink-0"
           style={{ color: 'var(--color-teal)' }}
         >
           <Plus size={13} />
@@ -76,7 +121,10 @@ export default function PaymentHistorySection({ orderId, payments, defaultMethod
             <li key={p.id} className="flex items-start justify-between gap-3">
               <div className="flex flex-col gap-0.5 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-sm font-medium" style={{ color: 'var(--color-ink)' }}>
+                  <span
+                    className="text-sm font-medium"
+                    style={{ color: 'var(--color-ink)', fontFamily: 'var(--font-mono)' }}
+                  >
                     {formatKWD(p.amount)}
                   </span>
                   <span
@@ -103,132 +151,49 @@ export default function PaymentHistorySection({ orderId, payments, defaultMethod
                   View receipt
                 </a>
               </div>
-              <button
-                type="button"
-                onClick={() => handleDelete(p.id)}
-                disabled={isPending && deletingId === p.id}
-                aria-label="Delete payment"
-                className="p-1.5 -m-1.5 rounded-lg shrink-0 transition-colors disabled:opacity-60"
-                style={{ color: 'var(--color-ink-muted)' }}
-              >
-                <Trash size={15} />
-              </button>
+              <div className="flex items-center shrink-0">
+                <button
+                  type="button"
+                  onClick={() => openEdit(p)}
+                  aria-label="Edit payment"
+                  className="p-1.5 rounded-lg transition-colors"
+                  style={{ color: 'var(--color-ink-muted)' }}
+                >
+                  <PencilSimple size={15} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDelete(p.id)}
+                  disabled={isPending && deletingId === p.id}
+                  aria-label="Delete payment"
+                  className="p-1.5 rounded-lg transition-colors disabled:opacity-60"
+                  style={{ color: 'var(--color-ink-muted)' }}
+                >
+                  <Trash size={15} />
+                </button>
+              </div>
             </li>
           ))}
         </ul>
       )}
 
-      <RecordPaymentModal
+      <RecordPaymentSheet
+        open={sheetOpen}
+        onClose={() => setSheetOpen(false)}
+        inquiryId={inquiryId}
         orderId={orderId}
-        open={modalOpen}
-        onClose={() => setModalOpen(false)}
+        customerName={customerName}
+        customerPhone={customerPhone}
+        orderTotal={orderTotal}
+        amountPaid={sheetAmountPaid}
         defaultMethod={defaultMethod || 'cash'}
+        payment={editPayment}
         onSaved={() => {
-          setModalOpen(false)
+          setSheetOpen(false)
+          setEditPayment(null)
           router.refresh()
         }}
       />
     </div>
-  )
-}
-
-function RecordPaymentModal({
-  orderId,
-  open,
-  onClose,
-  defaultMethod,
-  onSaved,
-}: {
-  orderId: string
-  open: boolean
-  onClose: () => void
-  defaultMethod: PaymentMethod
-  onSaved: () => void
-}) {
-  const [amount, setAmount] = useState('')
-  const [method, setMethod] = useState<PaymentMethod>(defaultMethod || 'cash')
-  const [note, setNote] = useState('')
-
-  const reset = () => {
-    setAmount('')
-    setMethod(defaultMethod || 'cash')
-    setNote('')
-  }
-
-  const { run: runSubmit, pending: isPending, error } = useAsyncAction(
-    async () => {
-      const parsedAmount = Number(amount)
-      if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
-        return { error: 'Enter an amount greater than zero' }
-      }
-      const result = await recordPayment(orderId, {
-        amount: parsedAmount,
-        method: method === 'wamd' ? 'wamd' : 'cash',
-        note: note.trim() || undefined,
-      })
-      if (result.error) return { error: result.error }
-    },
-    {
-      successToast: 'Payment recorded',
-      errorToast: false,
-      onSuccess: () => {
-        reset()
-        onSaved()
-      },
-    }
-  )
-
-  const handleClose = () => {
-    if (isPending) return
-    reset()
-    onClose()
-  }
-
-  return (
-    <Modal
-      open={open}
-      onClose={handleClose}
-      title="Record Payment"
-      size="sm"
-      footer={
-        <>
-          <Button variant="ghost" onClick={handleClose} disabled={isPending}>
-            Cancel
-          </Button>
-          <Button variant="primary" onClick={() => runSubmit()} loading={isPending}>
-            Save Payment
-          </Button>
-        </>
-      }
-    >
-      <div className="flex flex-col gap-3">
-        <Field label="Amount (KD)" required>
-          <Input
-            type="number"
-            step="0.001"
-            min="0"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            placeholder="0.000"
-            prefix="KD"
-          />
-        </Field>
-        <Field label="Method" required>
-          <Select value={method} onChange={(e) => setMethod(e.target.value as PaymentMethod)}>
-            <option value="cash">Cash</option>
-            <option value="wamd">WAMD</option>
-          </Select>
-        </Field>
-        <Field label="Note (optional)">
-          <Input
-            type="text"
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            placeholder="e.g. Deposit at pickup"
-          />
-        </Field>
-        {error && <p className="text-xs" style={{ color: 'var(--color-danger)' }}>{error}</p>}
-      </div>
-    </Modal>
   )
 }

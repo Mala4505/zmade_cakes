@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { formatDate, formatDateLong, formatKWD, orderSummary } from '@/lib/utils'
 import { derivePaymentStatus, balanceOwed, orderTotal } from '@/lib/payments'
 import { StatusBadge } from '@/components/admin/StatusBadge'
+import OrderPaymentMenu from './orders/_components/OrderPaymentMenu'
 import Link from 'next/link'
 import { ClipboardText, Package, Bell, ArrowRight, Plus, Warning, CalendarBlank, Wallet, TrendUp } from '@phosphor-icons/react/dist/ssr'
 import type { Metadata } from 'next'
@@ -36,7 +37,7 @@ async function getDashboardData() {
 
     supabase
       .from('orders')
-      .select('id, status, final_price, inquiry:inquiries(customer_name, event_date, deposit_amount, amount_paid, admin_price, discount, delivery_charge, fully_paid, items:inquiry_items(*))')
+      .select('id, status, final_price, inquiry:inquiries(id, customer_name, customer_phone, payment_method, event_date, deposit_amount, amount_paid, admin_price, discount, delivery_charge, fully_paid, items:inquiry_items(*))')
       .in('status', ['confirmed'])
       .order('created_at', { ascending: false })
       .limit(5),
@@ -347,29 +348,37 @@ export default async function DashboardPage() {
                   ? balanceOwed(order.final_price, inq.amount_paid, inq.fully_paid)
                   : 0
                 return (
-                  <Link
+                  <div
                     key={order.id}
-                    href={`/admin/orders/${order.id}`}
-                    className="flex items-start justify-between py-3 border-b last:border-0"
+                    className="flex items-center justify-between gap-3 py-3 border-b last:border-0"
                     style={{ borderColor: 'var(--color-border)' }}
                   >
-                    <div className="min-w-0">
+                    <Link href={`/admin/orders/${order.id}`} className="min-w-0 flex-1">
                       <p className="text-sm font-medium truncate" style={{ color: 'var(--color-ink)' }}>
                         {inq?.customer_name ?? '—'}
                       </p>
-                    </div>
-                    <div className="ml-4 shrink-0 text-right">
-                      {balance > 0 && (
-                        <p
-                          className="text-sm font-semibold font-mono"
-                          style={{ color: 'var(--color-warning)', fontFamily: 'var(--font-mono)' }}
-                        >
-                          {formatKWD(balance.toFixed(3))}
-                        </p>
-                      )}
-                      <p className="text-xs" style={{ color: 'var(--color-ink-muted)' }}>balance due</p>
-                    </div>
-                  </Link>
+                      <p
+                        className="text-xs mt-0.5"
+                        style={{
+                          color: balance > 0 ? 'var(--color-warning)' : 'var(--color-ink-muted)',
+                          fontFamily: 'var(--font-mono)',
+                        }}
+                      >
+                        {balance > 0 ? `${formatKWD(balance.toFixed(3))} balance due` : 'balance due'}
+                      </p>
+                    </Link>
+                    {inq?.id && (
+                      <OrderPaymentMenu
+                        inquiryId={inq.id}
+                        orderId={order.id}
+                        customerName={inq.customer_name ?? ''}
+                        customerPhone={inq.customer_phone ?? ''}
+                        orderTotal={Number(order.final_price)}
+                        amountPaid={Number(inq.amount_paid ?? 0)}
+                        defaultMethod={inq.payment_method || 'cash'}
+                      />
+                    )}
+                  </div>
                 )
               })}
             </Section>
