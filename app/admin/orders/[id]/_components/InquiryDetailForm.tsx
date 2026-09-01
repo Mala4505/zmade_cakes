@@ -21,7 +21,7 @@ import type { OptionRow, Inquiry, BlackoutDate } from '@/lib/supabase/types'
 import { z } from 'zod'
 import { GOVERNORATE_LABELS } from '@/lib/utils'
 import { whatsappUrlNoText } from '@/lib/whatsapp'
-import { ItemFields, defaultItem } from '../../_components/ItemFields'
+import { ItemFields, defaultItem } from '@/app/admin/inquiries/_components/ItemFields'
 
 const fullSchema = inquirySchema.and(
   z.object({
