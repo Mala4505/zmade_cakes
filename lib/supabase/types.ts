@@ -238,6 +238,7 @@ export interface WhatsAppTemplates {
   balanceDue: string
   trackingLink: string
   myOrdersLink: string
+  paymentReceived: string
 }
 
 export const DEFAULT_WHATSAPP_TEMPLATES: WhatsAppTemplates = {
@@ -246,6 +247,8 @@ export const DEFAULT_WHATSAPP_TEMPLATES: WhatsAppTemplates = {
   balanceDue: 'Hi {name}! A reminder that your balance of KWD {amount} is due on delivery.\n\n{link}',
   trackingLink: `Hi {name}! Track your ${BRAND_NAME} order here: {link}`,
   myOrdersLink: `Hi {name}! You can view all your ${BRAND_NAME} orders anytime here: {link}`,
+  paymentReceived:
+    "Hi {name}! We've received KD {amount} for your order.\nPaid so far: KD {paid} of KD {total}\nBalance due: KD {balance}\n\nReceipt: {link}",
 }
 
 export interface NotificationPrefs {

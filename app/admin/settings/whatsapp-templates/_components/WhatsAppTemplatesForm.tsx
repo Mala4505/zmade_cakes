@@ -15,6 +15,7 @@ const TEMPLATE_FIELDS: {
   { key: 'balanceDue', label: 'Balance Due', variables: '{name}, {amount}' },
   { key: 'trackingLink', label: 'Tracking Link', variables: '{name}, {link}' },
   { key: 'myOrdersLink', label: 'My Orders Link', variables: '{name}, {link}' },
+  { key: 'paymentReceived', label: 'Payment Received', variables: '{name}, {amount}, {paid}, {total}, {balance}, {link}' },
 ]
 
 export default function WhatsAppTemplatesForm({
