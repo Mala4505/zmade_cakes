@@ -20,7 +20,7 @@ import { Plus } from '@phosphor-icons/react'
 import type { OptionRow, Inquiry, BlackoutDate } from '@/lib/supabase/types'
 import { z } from 'zod'
 import { GOVERNORATE_LABELS } from '@/lib/utils'
-import { CustomerHistoryPanel } from './CustomerHistoryPanel'
+import { CustomerHistoryPanel, type PrefillItem } from './CustomerHistoryPanel'
 import { ItemFields, defaultItem } from './ItemFields'
 import ReferencePhotoUpload, { type ReferenceImage } from '@/components/ReferencePhotoUpload'
 
@@ -54,6 +54,15 @@ interface Props {
   pricingMatrix?: Record<string, number>
   minPriceGuard?: number
   rushMultiplier?: number
+  // "Repeat this order" entry point (order detail page / customer profile ->
+  // /admin/orders/new?from=<inquiryId>). Create-mode only (ignored when `inquiry` is set).
+  // Seeds customer_name/phone + items via defaultValues; the existing phone-lookup effect
+  // below then finds and offers to link the matching customer record same as manual entry.
+  prefillFrom?: {
+    customer_name: string
+    customer_phone: string
+    items: PrefillItem[]
+  }
 }
 
 const numberOrNull = (v: unknown) => (v === '' || v == null ? null : Number(v))
@@ -61,7 +70,7 @@ const numberOrNull = (v: unknown) => (v === '' || v == null ? null : Number(v))
 // resolves blank -> 0 instead of null.
 const numberOrZero = (v: unknown) => (v === '' || v == null ? 0 : Number(v))
 
-export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, pricingMatrix, minPriceGuard, rushMultiplier }: Props) {
+export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, pricingMatrix, minPriceGuard, rushMultiplier, prefillFrom }: Props) {
   const router = useRouter()
   const ledgerRef = useRef<HTMLDivElement>(null)
   // Holds the id of a freshly-created inquiry so the hook's `onSuccess` (which runs after
@@ -131,7 +140,9 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
           admin_notes: inquiry.admin_notes,
         }
       : {
-          items: [defaultItem()],
+          customer_name: prefillFrom?.customer_name,
+          customer_phone: prefillFrom?.customer_phone,
+          items: prefillFrom?.items?.length ? prefillFrom.items : [defaultItem()],
           delivery_type: 'pickup',
           discount: 0,
           delivery_charge: 0,

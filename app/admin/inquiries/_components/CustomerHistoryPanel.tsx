@@ -44,13 +44,12 @@ interface Props {
   onNewCustomer: () => void
 }
 
-export function CustomerHistoryPanel({ data, onPrefill, matchState, onUseExisting, onNewCustomer }: Props) {
-  const { customer, recentInquiries, totalCount } = data
-  const [notes, setNotes] = useState(customer.notes ?? '')
-  const last = recentInquiries[0]
-  const lastIsCake = !last || last.items.some((item) => item.order_type !== 'other_item')
-
-  const prefillItems: PrefillItem[] = (last?.items ?? []).map((item) => ({
+// Shared with the "Repeat this order" entry points (order detail page, customer profile —
+// see Phase 5 of the payment-ledger plan): converts DB item rows into the shape
+// InquiryForm's `replace()` / `prefillFrom` prop expects. Kept here since it's the same
+// mapping this panel's own prefill button already needed.
+export function toPrefillItems(items: InquiryItem[]): PrefillItem[] {
+  return items.map((item) => ({
     order_type: item.order_type,
     item_name: item.item_name,
     cake_size: item.cake_size,
@@ -61,6 +60,15 @@ export function CustomerHistoryPanel({ data, onPrefill, matchState, onUseExistin
     quantity: item.quantity,
     special_requirements: item.special_requirements,
   }))
+}
+
+export function CustomerHistoryPanel({ data, onPrefill, matchState, onUseExisting, onNewCustomer }: Props) {
+  const { customer, recentInquiries, totalCount } = data
+  const [notes, setNotes] = useState(customer.notes ?? '')
+  const last = recentInquiries[0]
+  const lastIsCake = !last || last.items.some((item) => item.order_type !== 'other_item')
+
+  const prefillItems: PrefillItem[] = toPrefillItems(last?.items ?? [])
 
   async function handleBlur() {
     const result = await updateCustomerNotes(customer.id, notes)
