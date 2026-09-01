@@ -1,6 +1,7 @@
 'use server'
 
 import { after } from 'next/server'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import {
   inquirySchema,
@@ -13,7 +14,8 @@ import { orderTotal } from '@/lib/payments'
 import { orderSummary, buildCustomerEditDiff, type CustomerEditDiffEntry } from '@/lib/format'
 import { generateShortToken } from '@/lib/tokens'
 import { sendPushToAdmin } from '@/lib/push'
-import type { Inquiry, Order, InquiryStatus, Json } from '@/lib/supabase/types'
+import { recordPayment } from './payments'
+import type { Inquiry, Order, InquiryStatus, PaymentMethod, Json, Database } from '@/lib/supabase/types'
 
 type FieldErrors = Record<string, string[]>
 
@@ -32,10 +34,93 @@ interface ReferenceImageInput {
   url_thumb: string
 }
 
+// Shared by confirmInquiry, updateInquiryStatus, and createInquiry's back-fill path —
+// creates the order for an inquiry once it's confirmed, idempotently. Looks up the
+// inquiry's pricing fields, validates a price is set, reuses an existing order if one is
+// already there (including recovering from a 23505 unique_violation race on inquiry_id),
+// and otherwise inserts one. Payments are intentionally NOT seeded here — any payment
+// recorded against this inquiry before the order existed is adopted automatically by the
+// AFTER INSERT ON orders trigger in 037_payment_ledger_truth.sql.
+//
+// Returns a generic admin-facing error message ("Set a price before confirming this
+// order") when admin_price is missing. confirmInquiry is called from the public confirm
+// page and needs its own customer-facing wording instead — it pre-checks admin_price
+// itself before calling this helper, so callers there never actually surface this
+// message to a customer.
+async function ensureOrderForInquiry(
+  supabase: SupabaseClient<Database>,
+  inquiryId: string
+): Promise<{ order: Order | null; error: string | null }> {
+  const { data: inquiry, error: fetchError } = await supabase
+    .from('inquiries')
+    .select('admin_price, discount, deposit_amount, delivery_charge, delivery_type')
+    .eq('id', inquiryId)
+    .single()
+  if (fetchError || !inquiry) {
+    return { order: null, error: fetchError?.message ?? 'Inquiry not found' }
+  }
+  if (!inquiry.admin_price) {
+    return { order: null, error: 'Set a price before confirming this order' }
+  }
+
+  const { data: existingOrder, error: existingOrderError } = await supabase
+    .from('orders')
+    .select('*')
+    .eq('inquiry_id', inquiryId)
+    .maybeSingle()
+  if (existingOrderError) {
+    return { order: null, error: existingOrderError.message }
+  }
+  if (existingOrder) {
+    return { order: existingOrder as unknown as Order, error: null }
+  }
+
+  const { data: newOrder, error: orderError } = await supabase
+    .from('orders')
+    .insert({
+      inquiry_id: inquiryId,
+      status: 'confirmed',
+      tracking_token: generateShortToken(),
+      final_price: orderTotal(inquiry.admin_price, inquiry.discount, inquiry.delivery_charge),
+      deposit_amount: inquiry.deposit_amount,
+      delivery_charge: Number(inquiry.delivery_charge),
+      delivery_type: inquiry.delivery_type,
+    })
+    .select()
+    .single()
+
+  // 23505 = unique_violation: a concurrent confirm created the order between our lookup
+  // and insert. Fall back to the row that won the race.
+  if (orderError?.code === '23505') {
+    const { data: racedOrder, error: racedOrderError } = await supabase
+      .from('orders')
+      .select('*')
+      .eq('inquiry_id', inquiryId)
+      .single()
+    if (racedOrderError || !racedOrder) {
+      return { order: null, error: racedOrderError?.message ?? 'Failed to create order' }
+    }
+    return { order: racedOrder as unknown as Order, error: null }
+  }
+  if (orderError || !newOrder) {
+    return { order: null, error: orderError?.message ?? 'Failed to create order' }
+  }
+
+  return { order: newOrder as unknown as Order, error: null }
+}
+
 export async function createInquiry(
   rawInquiry: unknown,
   rawAddress?: unknown,
-  referenceImages?: ReferenceImageInput[]
+  referenceImages?: ReferenceImageInput[],
+  // Back-fill support for "Back-fill a past order in one submit": lets the admin create an
+  // inquiry that's already confirmed/delivered, optionally with payment history attached,
+  // in a single form submit instead of create -> confirm -> record payment as separate
+  // steps. Omitted (or status omitted) entirely means today's plain "pending" behavior.
+  extra?: {
+    status?: 'confirmed' | 'delivered'
+    payments?: { amount: number; method: PaymentMethod; paid_at?: string }[]
+  }
 ): Promise<ActionResult<Inquiry>> {
   const parsed = inquirySchema.safeParse(rawInquiry)
   if (!parsed.success) {
@@ -99,6 +184,60 @@ export async function createInquiry(
         inquiry_id: inquiry.id,
         ...parsedAddress.data,
       })
+    }
+  }
+
+  // Back-fill: the inquiry above was always inserted as 'pending' — bring it up to
+  // 'confirmed'/'delivered' (creating its order via the same shared helper the customer
+  // confirm page and the admin status dropdown use) and attach any payment history, all in
+  // this one submit. The inquiry row already exists at this point, so a failure here is a
+  // partial-failure the admin can retry by editing the order — acceptable for this
+  // single-admin tool per this file's existing conventions (see updateInquiry above).
+  let order: Order | null = null
+  if (extra?.status) {
+    const { order: newOrder, error: orderError } = await ensureOrderForInquiry(supabase, inquiry.id)
+    if (orderError || !newOrder) {
+      return { data: null, error: orderError ?? 'Failed to create order', fieldErrors: null }
+    }
+    order = newOrder
+
+    if (extra.status === 'confirmed') {
+      const { error: statusError } = await supabase
+        .from('inquiries')
+        .update({ status: 'confirmed' })
+        .eq('id', inquiry.id)
+      if (statusError) {
+        return { data: null, error: statusError.message, fieldErrors: null }
+      }
+    } else {
+      // sync_order_status mirrors 'delivered' back onto inquiries.status too — see the
+      // matching comment in updateInquiryStatus above — so no separate inquiries update
+      // is needed in this branch.
+      const { error: syncError } = await supabase.rpc('sync_order_status', {
+        p_order_id: order.id,
+        p_new_status: 'delivered',
+      })
+      if (syncError) {
+        return { data: null, error: syncError.message, fieldErrors: null }
+      }
+    }
+  }
+
+  if (extra?.payments?.length) {
+    // Sequential, not Promise.all — at most a handful of rows for a back-filled order,
+    // and each recordPayment call needs to fail independently and stop the loop.
+    for (const payment of extra.payments) {
+      const paymentResult = await recordPayment(inquiry.id, {
+        amount: payment.amount,
+        method: payment.method,
+        paid_at: payment.paid_at,
+        // No order yet if status stayed 'pending' — the AFTER INSERT ON orders trigger in
+        // 037_payment_ledger_truth.sql adopts the orphaned payment once one is created.
+        orderId: order?.id ?? null,
+      })
+      if (paymentResult.error) {
+        return { data: null, error: paymentResult.error, fieldErrors: null }
+      }
     }
   }
 
@@ -382,58 +521,13 @@ export async function confirmInquiry(
     // Create order — idempotent. An order may already exist for this inquiry if
     // the admin advanced it to "confirmed" manually (updateInquiryStatus creates
     // an order without setting customer_confirmed), or if this action is retried /
-    // double-submitted. In those cases the unique constraint on orders.inquiry_id
-    // would reject a second INSERT, so reuse the existing order instead.
-    let order: Order | null = null
-
-    const { data: existingOrder, error: existingOrderError } = await supabase
-      .from('orders')
-      .select('*')
-      .eq('inquiry_id', inquiry.id)
-      .maybeSingle()
-    if (existingOrderError) {
-      return { data: null, error: existingOrderError.message, fieldErrors: null }
-    }
-
-    if (existingOrder) {
-      order = existingOrder as unknown as Order
-    } else {
-      const { data: newOrder, error: orderError } = await supabase
-        .from('orders')
-        .insert({
-          inquiry_id: inquiry.id,
-          status: 'confirmed',
-          tracking_token: generateShortToken(),
-          final_price: orderTotal(inquiry.admin_price, inquiry.discount, inquiry.delivery_charge),
-          deposit_amount: inquiry.deposit_amount,
-          delivery_charge: Number(inquiry.delivery_charge),
-          delivery_type: inquiry.delivery_type,
-        })
-        .select()
-        .single()
-
-      // 23505 = unique_violation: a concurrent confirm created the order between
-      // our lookup and insert. Fall back to the row that won the race.
-      if (orderError?.code === '23505') {
-        const { data: racedOrder } = await supabase
-          .from('orders')
-          .select('*')
-          .eq('inquiry_id', inquiry.id)
-          .single()
-        order = racedOrder as unknown as Order
-      } else if (orderError || !newOrder) {
-        return { data: null, error: orderError?.message ?? 'Failed to create order', fieldErrors: null }
-      } else {
-        order = newOrder as unknown as Order
-        // Any payment recorded against this inquiry before the order existed is adopted
-        // automatically by the AFTER INSERT ON orders trigger in
-        // 037_payment_ledger_truth.sql (it sets order_id and recomputes the totals), so
-        // there is nothing to seed here.
-      }
-    }
-
-    if (!order) {
-      return { data: null, error: 'Failed to create order', fieldErrors: null }
+    // double-submitted; ensureOrderForInquiry reuses the existing row in that case
+    // instead of hitting the unique constraint on orders.inquiry_id. admin_price was
+    // already validated above with this page's customer-facing wording, so the
+    // helper's own (admin-facing) price-missing message never actually surfaces here.
+    const { order, error: orderError } = await ensureOrderForInquiry(supabase, inquiry.id)
+    if (orderError || !order) {
+      return { data: null, error: orderError ?? 'Failed to create order', fieldErrors: null }
     }
 
     {
@@ -555,34 +649,8 @@ export async function updateInquiryStatus(
   }
 
   if (!existingOrder && status === 'confirmed') {
-    const { data: inquiry, error: fetchError } = await supabase
-      .from('inquiries')
-      .select('admin_price, discount, deposit_amount, delivery_charge, delivery_type')
-      .eq('id', id)
-      .single()
-    if (fetchError || !inquiry) return { data: null, error: fetchError?.message ?? 'Inquiry not found', fieldErrors: null }
-    if (!inquiry.admin_price) {
-      return { data: null, error: 'Set a price before confirming this order', fieldErrors: null }
-    }
-
-    const { data: newOrder, error: orderError } = await supabase
-      .from('orders')
-      .insert({
-        inquiry_id: id,
-        status: 'confirmed',
-        tracking_token: generateShortToken(),
-        final_price: orderTotal(inquiry.admin_price, inquiry.discount, inquiry.delivery_charge),
-        deposit_amount: inquiry.deposit_amount,
-        delivery_charge: Number(inquiry.delivery_charge),
-        delivery_type: inquiry.delivery_type,
-      })
-      .select('id')
-      .single()
-    if (orderError || !newOrder) return { data: null, error: orderError?.message ?? 'Failed to create order', fieldErrors: null }
-
-    // Any payment recorded against this inquiry before the order existed is adopted
-    // automatically by the AFTER INSERT ON orders trigger in
-    // 037_payment_ledger_truth.sql, so there is nothing to seed here.
+    const { error: orderError } = await ensureOrderForInquiry(supabase, id)
+    if (orderError) return { data: null, error: orderError, fieldErrors: null }
   }
 
   const { error } = await supabase

@@ -15,8 +15,8 @@ import { lookupCustomerByPhone, searchCustomersByName, upsertCustomer, type Cust
 import { derivePaymentStatus, balanceOwed } from '@/lib/payments'
 import { PaymentBadge } from '@/components/admin/StatusBadge'
 import { PinnedOrderTotal } from '@/components/admin/PinnedOrderTotal'
-import { Button, Checkbox, Field, Input, RadioGroup, Select, Switch, Textarea } from '@/components/ui'
-import { Plus } from '@phosphor-icons/react'
+import { Button, Checkbox, Field, IconButton, Input, RadioGroup, Select, Switch, Textarea } from '@/components/ui'
+import { Plus, Trash } from '@phosphor-icons/react'
 import type { OptionRow, Inquiry, BlackoutDate } from '@/lib/supabase/types'
 import { z } from 'zod'
 import { GOVERNORATE_LABELS } from '@/lib/utils'
@@ -25,6 +25,10 @@ import { ItemFields, defaultItem } from './ItemFields'
 import ReferencePhotoUpload, { type ReferenceImage } from '@/components/ReferencePhotoUpload'
 
 type MatchState = 'pending' | 'selected' | 'new'
+// Mirrors InquiryStatus minus 'cancelled' — a brand-new order created here can never start
+// cancelled, so the Status control (and createInquiry's `extra.status`) only ever offers
+// these three.
+type BackfillStatus = 'pending' | 'confirmed' | 'delivered'
 
 const fullSchema = inquirySchema.and(
   z.object({
@@ -35,6 +39,19 @@ const fullSchema = inquirySchema.and(
     address_house_no: z.string().optional(),
     address_extra_notes: z.string().optional(),
     address_location_link: z.string().optional(),
+    // Back-fill payments repeater (create-mode only, see the Payment section below) — not a
+    // real inquiries column. Loosely typed as plain strings since amount/date parsing happens
+    // explicitly in the submit handler, same as the address_* fields above; stripped out of
+    // the payload there and translated into createInquiry's `extra.payments` instead.
+    payments: z
+      .array(
+        z.object({
+          amount: z.string().optional(),
+          method: z.enum(['', 'cash', 'wamd']).optional(),
+          paid_at: z.string().optional(),
+        })
+      )
+      .optional(),
   })
 )
 
@@ -69,6 +86,8 @@ const numberOrNull = (v: unknown) => (v === '' || v == null ? null : Number(v))
 // discount is never nullable in the schema (defaults to 0) — mirrors numberOrNull but
 // resolves blank -> 0 instead of null.
 const numberOrZero = (v: unknown) => (v === '' || v == null ? 0 : Number(v))
+// Default date for a newly-appended payment row — same convention as RecordPaymentSheet.
+const todayISO = () => new Date().toISOString().slice(0, 10)
 
 export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, pricingMatrix, minPriceGuard, rushMultiplier, prefillFrom }: Props) {
   const router = useRouter()
@@ -153,6 +172,7 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
           allergen_egg_free: false,
           allergen_raw_sugar: false,
           allergen_other: '',
+          payments: [],
         },
   })
 
@@ -167,6 +187,20 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
   } = form
 
   const { fields, append, remove, replace } = useFieldArray({ control, name: 'items' })
+  // Back-fill payments repeater — create-mode only (see the Payment section below). Not part
+  // of `fullSchema`'s submittable inquiry data; read out in the submit handler and translated
+  // into createInquiry's `extra.payments`.
+  const { fields: paymentFields, append: appendPayment, remove: removePayment } = useFieldArray({
+    control,
+    name: 'payments',
+  })
+  const watchedPayments = watch('payments')
+
+  // Back-fill status — create-mode only. Routing info for createInquiry's `extra` param
+  // (which order/payment steps to run in the same submit), not a submittable inquiry column
+  // in the normal sense, so it's local state rather than a schema field like the rest of
+  // this form.
+  const [status, setStatus] = useState<BackfillStatus>('pending')
 
   const deliveryType = watch('delivery_type')
   const paymentMethod = watch('payment_method')
@@ -295,6 +329,14 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
   const balanceAmt =
     orderTotalAmt !== null ? balanceOwed(orderTotalAmt, paidAmt, !!fullyPaid) : null
 
+  // Live sum of the back-fill payments repeater (create-mode only) — there's no ledger to
+  // read from yet, so this is computed straight off the entered rows.
+  const enteredPaidAmt = (watchedPayments ?? []).reduce((sum, row) => {
+    const n = Number(row?.amount)
+    return sum + (Number.isFinite(n) ? n : 0)
+  }, 0)
+  const enteredPaymentStatus = derivePaymentStatus(enteredPaidAmt, orderTotalAmt, !!fullyPaid)
+
   // Delivery charge only makes sense on a delivery order — clear a stale charge (and say
   // so) the moment an admin flips an order from Delivery back to Pickup, rather than
   // leaving a hidden number that would otherwise fail the pickup=0 DB check on save.
@@ -309,7 +351,7 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
 
   const { run: submit, pending } = useAsyncAction(
     async (data: FormOutput) => {
-      const { address_governorate, address_area, address_block, address_street, address_house_no, address_extra_notes, address_location_link, ...inquiryData } = data
+      const { address_governorate, address_area, address_block, address_street, address_house_no, address_extra_notes, address_location_link, payments: paymentRows, ...inquiryData } = data
 
       const addressData = deliveryType === 'delivery' && address_area
         ? {
@@ -341,9 +383,30 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
 
       const payload = { ...inquiryData, customer_id: customerId }
 
+      // Back-fill routing (create-mode only) — status defaults to 'pending' so there's
+      // nothing extra to pass in the common case; the repeater only contributes a payment
+      // list when at least one row has a valid amount entered.
+      let extra: Parameters<typeof createInquiry>[3]
+      if (!inquiry) {
+        const validPayments = (paymentRows ?? [])
+          .filter((row) => Number(row?.amount) > 0)
+          .map((row) => ({
+            amount: Number(row.amount),
+            method: row.method || 'cash',
+            paid_at: row.paid_at || undefined,
+          }))
+
+        if (status !== 'pending' || validPayments.length > 0) {
+          extra = {
+            ...(status !== 'pending' ? { status } : {}),
+            ...(validPayments.length > 0 ? { payments: validPayments } : {}),
+          }
+        }
+      }
+
       const result = inquiry
         ? await updateInquiry(inquiry.id, payload, addressData)
-        : await createInquiry(payload, addressData, referenceImages)
+        : await createInquiry(payload, addressData, referenceImages, extra)
 
       if (result.fieldErrors) {
         Object.entries(result.fieldErrors).forEach(([field, msgs]) => {
@@ -630,6 +693,24 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
       {/* Pricing & payment */}
       <Section title="Pricing & Payment">
         <div className="flex flex-col gap-4">
+          {/* Back-fill status — create-mode only. Lets an admin land a past order straight
+              into Confirmed/Delivered (creating its order, and optionally its payment
+              history below) in this one submit, instead of create -> confirm -> record
+              payment as separate steps. */}
+          {!inquiry && (
+            <Field label="Status" hint="Back-filling a past order? Jump straight to Confirmed or Delivered.">
+              <RadioGroup
+                value={status}
+                onChange={setStatus}
+                options={[
+                  { value: 'pending', label: 'Inquiry' },
+                  { value: 'confirmed', label: 'Confirmed' },
+                  { value: 'delivered', label: 'Delivered' },
+                ]}
+                aria-label="Order status"
+              />
+            </Field>
+          )}
           <Field label="Payment Method" error={errors.payment_method?.message}>
             <RadioGroup
               value={paymentMethod ?? ''}
@@ -790,18 +871,90 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
                 checked={!!fullyPaid}
                 onChange={(e) => setValue('fully_paid', e.target.checked, { shouldDirty: true })}
               />
-              <div
-                className="flex items-center justify-between gap-3 pt-3 border-t"
-                style={{ borderColor: 'var(--color-border)' }}
-              >
-                <p className="text-xs" style={{ color: 'var(--color-ink-muted)' }}>
-                  Payments are recorded from the order&apos;s payment history.
-                </p>
-                {/* TODO Phase 2: open <RecordPaymentSheet/> */}
-                <Button type="button" variant="secondary" size="sm" disabled className="shrink-0">
-                  Record payment
-                </Button>
-              </div>
+              {inquiry ? (
+                <div
+                  className="flex items-center justify-between gap-3 pt-3 border-t"
+                  style={{ borderColor: 'var(--color-border)' }}
+                >
+                  <p className="text-xs" style={{ color: 'var(--color-ink-muted)' }}>
+                    Payments are recorded from the order&apos;s payment history.
+                  </p>
+                  <Button type="button" variant="secondary" size="sm" disabled className="shrink-0">
+                    Record payment
+                  </Button>
+                </div>
+              ) : (
+                <div className="pt-3 border-t flex flex-col gap-3" style={{ borderColor: 'var(--color-border)' }}>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs font-medium" style={{ color: 'var(--color-ink)' }}>
+                      Payment history
+                      <span className="font-normal" style={{ color: 'var(--color-ink-muted)' }}>
+                        {' '}— optional, back-fill past payments
+                      </span>
+                    </p>
+                    <span className="flex items-center gap-2 shrink-0">
+                      <span
+                        className="text-xs"
+                        style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-ink-secondary)' }}
+                      >
+                        Paid {enteredPaidAmt.toFixed(3)}
+                        {orderTotalAmt !== null ? ` of ${orderTotalAmt.toFixed(3)}` : ''}
+                      </span>
+                      {paymentFields.length > 0 && <PaymentBadge status={enteredPaymentStatus} />}
+                    </span>
+                  </div>
+
+                  {paymentFields.map((field, index) => (
+                    <div key={field.id} className="flex items-start gap-2">
+                      <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        <Input
+                          {...register(`payments.${index}.amount`)}
+                          type="number"
+                          step="0.001"
+                          min="0"
+                          placeholder="0.000"
+                          prefix="KD"
+                          aria-label={`Payment ${index + 1} amount`}
+                        />
+                        <RadioGroup
+                          value={watch(`payments.${index}.method`) || 'cash'}
+                          onChange={(v) => setValue(`payments.${index}.method`, v, { shouldDirty: true })}
+                          options={[
+                            { value: 'cash', label: 'Cash' },
+                            { value: 'wamd', label: 'WAMD' },
+                          ]}
+                          aria-label={`Payment ${index + 1} method`}
+                        />
+                        <Input
+                          {...register(`payments.${index}.paid_at`)}
+                          type="date"
+                          max={todayISO()}
+                          aria-label={`Payment ${index + 1} date`}
+                        />
+                      </div>
+                      <IconButton
+                        onClick={() => removePayment(index)}
+                        tone="muted"
+                        className="mt-0.5"
+                        title="Remove payment"
+                        aria-label={`Remove payment ${index + 1}`}
+                      >
+                        <Trash size={14} />
+                      </IconButton>
+                    </div>
+                  ))}
+
+                  <button
+                    type="button"
+                    onClick={() => appendPayment({ amount: '', method: 'cash', paid_at: todayISO() })}
+                    className="flex items-center justify-center gap-2 text-sm rounded-lg border-2 border-dashed px-3 w-full transition-colors hover:border-[color:var(--color-border-strong)]"
+                    style={{ minHeight: 40, borderColor: 'var(--color-border)', color: 'var(--color-ink-muted)' }}
+                  >
+                    <Plus size={16} weight="bold" />
+                    <span>Add payment</span>
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 
