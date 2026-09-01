@@ -52,24 +52,26 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         <AdminHeaderProvider>
           <ServiceWorkerRegistration />
           <AppUpdateNotifier />
-          {/* Column at the top level: whichever header is showing, then the
-              sidebar/content row, then the bottom nav — all three genuinely
-              full-width and stacked, not row-siblings competing for width. */}
-          <div className="flex flex-col h-svh" style={{ backgroundColor: 'var(--color-surface)' }}>
-            <AdminTopBar />
-            <AdminMobileTopBar />
+          {/* Row at the top level: the sidebar first, then a column carrying
+              everything else — top bar, scroll region, bottom nav — so the
+              desktop top bar starts where the sidebar ends instead of
+              spanning full-width above it. On mobile the sidebar collapses to
+              nothing and the column is naturally full-width. */}
+          <div className="flex h-svh" style={{ backgroundColor: 'var(--color-surface)' }}>
+            <AdminSidebar pendingCount={pendingCount} activeOrdersCount={activeOrdersCount} user={user} />
 
-            <div className="flex flex-1 min-h-0">
-              <AdminSidebar pendingCount={pendingCount} activeOrdersCount={activeOrdersCount} user={user} />
+            <div className="flex flex-col flex-1 min-w-0 min-h-0">
+              <AdminTopBar />
+              <AdminMobileTopBar />
 
               <div className="relative flex-1 flex flex-col min-w-0 min-h-0">
                 <AdminScrollRegion>{children}</AdminScrollRegion>
 
                 <NavigationOverlay />
               </div>
-            </div>
 
-            <AdminBottomNav pendingCount={pendingCount} activeOrdersCount={activeOrdersCount} />
+              <AdminBottomNav pendingCount={pendingCount} activeOrdersCount={activeOrdersCount} />
+            </div>
           </div>
         </AdminHeaderProvider>
       </NavPendingProvider>

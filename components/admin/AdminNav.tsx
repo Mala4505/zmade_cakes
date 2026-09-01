@@ -101,10 +101,11 @@ function LogoutButton() {
 }
 
 /**
- * Desktop-only, full-width top bar. Replaces cramming the wordmark and the
- * notification bell into the sidebar's own 240px-wide header row — that row
- * was ~30-40px too narrow to hold both without overflowing its edge. This
- * gives both room, and the sidebar goes back to being nav-only.
+ * Desktop-only top bar. Lives inside the content column (a sibling of the
+ * sidebar, not a row above it), so it starts where the sidebar ends instead of
+ * spanning over it — the wordmark now lives in the sidebar's own header, so
+ * this bar is just the right-aligned utility row (notifications, and future
+ * page-level actions).
  */
 export function AdminTopBar() {
   return (
@@ -115,13 +116,6 @@ export function AdminTopBar() {
         borderColor: 'var(--color-border)',
       }}
     >
-      <Image src="/logo.svg" alt="" width={32} height={32} style={{ width: 32, height: 32, flexShrink: 0 }} priority />
-      <span
-        className="text-lg font-semibold tracking-tight"
-        style={{ fontFamily: 'var(--font-display)', color: 'var(--color-ink)' }}
-      >
-        ZMade Cakes
-      </span>
       <span className="flex-1" />
       <NotificationBellDesktop />
     </header>
@@ -144,6 +138,19 @@ export function AdminSidebar({
       className="hidden lg:flex flex-col w-60 shrink-0"
       style={{ backgroundColor: 'var(--color-forest)' }}
     >
+      <div
+        className="flex items-center gap-2.5 h-14 px-4 border-b shrink-0"
+        style={{ borderColor: 'var(--color-forest-border)' }}
+      >
+        <Image src="/logo.svg" alt="" width={28} height={28} style={{ width: 28, height: 28, flexShrink: 0 }} priority />
+        <span
+          className="text-base font-semibold tracking-tight truncate"
+          style={{ fontFamily: 'var(--font-display)', color: 'var(--color-forest-ink)' }}
+        >
+          ZMade Cakes
+        </span>
+      </div>
+
       <nav className="flex-1 overflow-y-auto px-3 py-4 flex flex-col gap-1">
         {NAV_ITEMS.map(({ href, label, Icon, exact }) => {
           const active = isActive(pathname, href, exact)
