@@ -162,7 +162,7 @@ export default async function DashboardPage() {
       {/* Quick actions */}
       <div className="flex gap-2 mb-6 flex-wrap">
         <Link
-          href="/admin/inquiries/new"
+          href="/admin/orders/new"
           className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium"
           style={{ backgroundColor: 'var(--color-teal)', color: 'var(--color-cream)' }}
         >
@@ -183,7 +183,7 @@ export default async function DashboardPage() {
         </Link>
         {pendingCount > 0 && (
           <Link
-            href="/admin/inquiries?status=pending"
+            href="/admin/orders?status=pending"
             className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium border"
             style={{
               borderColor: 'var(--color-warning)',
@@ -231,7 +231,7 @@ export default async function DashboardPage() {
         <StatCard
           label="Pending"
           value={pendingCount}
-          href="/admin/inquiries?status=pending"
+          href="/admin/orders?status=pending"
           accent={pendingCount > 0}
         />
         <StatCard
@@ -269,7 +269,7 @@ export default async function DashboardPage() {
           {todayPickups.map((inq: any) => (
             <Link
               key={inq.id}
-              href={`/admin/inquiries/${inq.id}`}
+              href={`/admin/orders/${inq.id}`}
               className="flex items-start justify-between py-3 border-b last:border-0 group"
               style={{ borderColor: 'var(--color-border)' }}
             >

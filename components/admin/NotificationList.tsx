@@ -28,7 +28,7 @@ function relativeTime(iso: string): string {
 
 function targetHref(n: Notification): string | null {
   if (n.order_id) return `/admin/orders/${n.order_id}`
-  if (n.inquiry_id) return `/admin/inquiries/${n.inquiry_id}`
+  if (n.inquiry_id) return `/admin/orders/${n.inquiry_id}`
   return null
 }
 
