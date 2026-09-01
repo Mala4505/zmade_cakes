@@ -89,3 +89,34 @@ export function pickWhatsAppAction(
   // 4. Plain / freeform fallback
   return { label: 'Message Customer', text: '', kind: 'plain' }
 }
+
+export interface ReceiptActionInput {
+  customer_name: string
+  amount: number | string        // THIS payment's amount
+  amount_paid: number | string   // cumulative paid to date, through this payment
+  order_total: number | string
+  receiptLinkUrl: string         // precomputed server-side via receiptLink(token)
+}
+
+export function buildReceiptAction(
+  input: ReceiptActionInput,
+  templates: WhatsAppTemplates | undefined
+): { text: string; linkUrl: string } {
+  const firstName = input.customer_name.split(' ')[0]
+  const amount = Number(input.amount ?? 0)
+  const paid = Number(input.amount_paid ?? 0)
+  const total = Number(input.order_total ?? 0)
+  const balance = Math.max(0, total - paid)
+  const rawText = interpolate(
+    templates?.paymentReceived ?? DEFAULT_WHATSAPP_TEMPLATES.paymentReceived,
+    {
+      name: firstName,
+      amount: amount.toFixed(3),
+      paid: paid.toFixed(3),
+      total: total.toFixed(3),
+      balance: balance.toFixed(3),
+      link: input.receiptLinkUrl,
+    }
+  )
+  return { text: withGuaranteedLink(rawText, input.receiptLinkUrl), linkUrl: input.receiptLinkUrl }
+}

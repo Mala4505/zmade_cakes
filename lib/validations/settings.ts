@@ -30,6 +30,7 @@ export const whatsappTemplatesSchema = z.object({
   balanceDue: z.string().min(1).max(1000),
   trackingLink: z.string().min(1).max(1000),
   myOrdersLink: z.string().min(1).max(1000),
+  paymentReceived: z.string().min(1).max(1000),
 })
 
 export type BlackoutDateData = z.infer<typeof blackoutDateSchema>

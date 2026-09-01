@@ -11,3 +11,7 @@ export function trackingLink(token: string): string {
 export function myOrdersLink(portalToken: string): string {
   return `${appUrl}/my-orders?token=${portalToken}`
 }
+
+export function receiptLink(token: string): string {
+  return `${appUrl}/receipt/${token}`
+}
