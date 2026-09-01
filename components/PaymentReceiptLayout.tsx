@@ -23,6 +23,7 @@ interface Props {
     event_date: string
     pickup_time: string | null
     fully_paid: boolean
+    invoice_number?: number | null
   }
   businessPhone?: string
   businessInstagram?: string
@@ -108,6 +109,13 @@ export default function PaymentReceiptLayout({ payment, order, inquiry, business
 
         <InvRow label="Customer" value={inquiry.customer_name} />
         <InvRow label="Phone" value={inquiry.customer_phone} mono />
+        {inquiry.invoice_number ? (
+          <InvRow
+            label="Invoice"
+            value={`ZM-${new Date().getFullYear()}-${String(inquiry.invoice_number).padStart(4, '0')}`}
+            mono
+          />
+        ) : null}
 
         {inquiry.items.map((item, idx) => {
           const n = inquiry.items.length > 1 ? ` ${idx + 1}` : ''
@@ -185,9 +193,9 @@ export default function PaymentReceiptLayout({ payment, order, inquiry, business
               Fully Paid
             </span>
           </div>
-        ) : balance > 0 ? (
+        ) : (
           <InvRow label="Balance Due" value={formatKWD(String(balance))} mono />
-        ) : null}
+        )}
       </div>
     </div>
   )

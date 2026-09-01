@@ -26,6 +26,7 @@ interface Props {
     event_date: string
     pickup_time: string | null
     fully_paid: boolean
+    invoice_number?: number | null
   }
   businessPhone?: string
   businessInstagram?: string
@@ -213,6 +214,13 @@ export default function PaymentReceiptPdfDocument({ payment, order, inquiry, bus
           <Text style={styles.sectionTitle}>Order Reference</Text>
           <Row label="Customer" value={inquiry.customer_name} />
           <Row label="Phone" value={inquiry.customer_phone} mono />
+          {inquiry.invoice_number ? (
+            <Row
+              label="Invoice"
+              value={`ZM-${new Date().getFullYear()}-${String(inquiry.invoice_number).padStart(4, '0')}`}
+              mono
+            />
+          ) : null}
           {inquiry.items.map((item, idx) => {
             const n = inquiry.items.length > 1 ? ` ${idx + 1}` : ''
             return (
@@ -264,9 +272,9 @@ export default function PaymentReceiptPdfDocument({ payment, order, inquiry, bus
               <Text style={styles.balancePaidLabel}>Balance</Text>
               <Text style={styles.balancePaidValue}>Fully Paid</Text>
             </View>
-          ) : balance > 0 ? (
+          ) : (
             <Row label="Balance Due" value={formatKWD(String(balance))} mono />
-          ) : null}
+          )}
         </View>
       </Page>
     </Document>
