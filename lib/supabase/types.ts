@@ -140,7 +140,11 @@ export interface Order {
 
 export interface Payment {
   id: string
-  order_id: string
+  // Post-037 (supabase/migrations/037_payment_ledger_truth.sql): a payment is keyed to
+  // the inquiry, which exists at every stage. order_id is adopted later by trigger 037c
+  // when the order row appears, so it is nullable pre-confirmation.
+  inquiry_id: string
+  order_id: string | null
   amount: string
   method: PaymentMethod
   receipt_token: string
@@ -389,10 +393,13 @@ export type Database = {
         Relationships: [{ foreignKeyName: 'orders_inquiry_id_fkey'; columns: ['inquiry_id']; isOneToOne: true; referencedRelation: 'inquiries'; referencedColumns: ['id'] }]
       }
       payments: {
-        Row: { amount: number; created_at: string; id: string; method: string; note: string | null; order_id: string; paid_at: string; receipt_token: string }
-        Insert: { amount: number; created_at?: string; id?: string; method: string; note?: string | null; order_id: string; paid_at?: string; receipt_token: string }
-        Update: { amount?: number; created_at?: string; id?: string; method?: string; note?: string | null; order_id?: string; paid_at?: string; receipt_token?: string }
-        Relationships: [{ foreignKeyName: 'payments_order_id_fkey'; columns: ['order_id']; isOneToOne: false; referencedRelation: 'orders'; referencedColumns: ['id'] }]
+        Row: { amount: number; created_at: string; id: string; inquiry_id: string; method: string; note: string | null; order_id: string | null; paid_at: string; receipt_token: string }
+        Insert: { amount: number; created_at?: string; id?: string; inquiry_id: string; method: string; note?: string | null; order_id?: string | null; paid_at?: string; receipt_token: string }
+        Update: { amount?: number; created_at?: string; id?: string; inquiry_id?: string; method?: string; note?: string | null; order_id?: string | null; paid_at?: string; receipt_token?: string }
+        Relationships: [
+          { foreignKeyName: 'payments_order_id_fkey'; columns: ['order_id']; isOneToOne: false; referencedRelation: 'orders'; referencedColumns: ['id'] },
+          { foreignKeyName: 'payments_inquiry_id_fkey'; columns: ['inquiry_id']; isOneToOne: false; referencedRelation: 'inquiries'; referencedColumns: ['id'] },
+        ]
       }
       push_subscriptions: {
         Row: { auth: string; created_at: string; endpoint: string; id: string; last_seen_at: string; p256dh: string; user_agent: string }
