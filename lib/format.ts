@@ -153,5 +153,5 @@ export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
 // unambiguously *is* an order regardless of origin, so INQUIRY_STATUS_LABELS/ORDER_STATUS_LABELS
 // above already work for both and don't need source-awareness.
 export function pendingRecordLabel(source: 'admin' | 'public_form'): string {
-  return source === 'admin' ? 'Order' : 'Inquiry'
+  return source === 'admin' ? 'Unconfirmed' : 'Inquiry'
 }
