@@ -2,10 +2,11 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { updateOrderStatus, cancelOrder } from '@/lib/actions/orders'
 import { useAsyncAction } from '@/lib/hooks/useAsyncAction'
 import { toast } from 'sonner'
-import { Copy, Check, Printer, ArrowRight, X, Image, Spinner } from '@phosphor-icons/react'
+import { Copy, Check, Printer, ArrowRight, ArrowClockwise, X, Image, Spinner } from '@phosphor-icons/react'
 import { toPng } from 'html-to-image'
 import { useAdminHeader } from '@/components/admin/AdminHeaderContext'
 import type { OrderStatus } from '@/lib/supabase/types'
@@ -21,7 +22,7 @@ export default function OrderDetailActions({
 }: {
   order: { id: string; status: OrderStatus }
   trackingLink: string
-  inquiry: { customer_name: string }
+  inquiry: { customer_name: string; id: string }
 }) {
   const router = useRouter()
   const [copied, setCopied] = useState(false)
@@ -84,7 +85,7 @@ export default function OrderDetailActions({
   }
 
   // Mobile: the customer's name replaces the sticky header's default section
-  // title, with a back link to the orders list. Print / Download / Cancel
+  // title, with a back link to the orders list. Repeat / Print / Download / Cancel
   // move into that header's overflow menu (the buttons below are hidden on
   // mobile) — they're occasional or destructive, and this keeps them
   // reachable without scrolling to the bottom of a long order page.
@@ -92,6 +93,12 @@ export default function OrderDetailActions({
     title: inquiry.customer_name || 'Order',
     backHref: '/admin/orders',
     menuItems: [
+      {
+        key: 'repeat',
+        label: 'Repeat this Order',
+        icon: ArrowClockwise,
+        onClick: () => router.push(`/admin/orders/new?from=${inquiry.id}`),
+      },
       {
         key: 'print',
         label: 'Print / Save PDF',
@@ -163,6 +170,20 @@ export default function OrderDetailActions({
           {advancing ? <Spinner size={15} className="animate-spin" /> : <ArrowRight size={15} />}
         </button>
       )}
+
+      {/* Repeat this order — mobile reaches this via the sticky header's overflow menu */}
+      <Link
+        href={`/admin/orders/new?from=${inquiry.id}`}
+        className="hidden lg:flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium border transition-colors"
+        style={{
+          borderColor: 'var(--color-border)',
+          backgroundColor: 'var(--color-surface-raised)',
+          color: 'var(--color-ink-secondary)',
+        }}
+      >
+        <ArrowClockwise size={15} />
+        Repeat this Order
+      </Link>
 
       {/* Print / Save PDF — mobile reaches this via the sticky header's overflow menu */}
       <button
