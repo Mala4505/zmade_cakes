@@ -33,12 +33,29 @@ async function maybeAutoSubscribe() {
 export function ServiceWorkerRegistration() {
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return;
-    navigator.serviceWorker.register('/sw.js').then(() => {
-      maybeAutoSubscribe().catch(() => {
-        // Best-effort — the manual "Enable notifications" controls in Settings
-        // and the bell panel remain as a fallback if this silently fails.
+
+    let onVisible: (() => void) | undefined;
+
+    // updateViaCache: 'none' — never serve /sw.js itself from the HTTP cache, so a
+    // changed worker is picked up on the next check.
+    navigator.serviceWorker
+      .register('/sw.js', { updateViaCache: 'none' })
+      .then((registration) => {
+        maybeAutoSubscribe().catch(() => {
+          // Best-effort — the manual "Enable notifications" controls in Settings
+          // and the bell panel remain as a fallback if this silently fails.
+        });
+
+        // Re-check for a new worker whenever the app returns to the foreground.
+        onVisible = () => {
+          if (document.visibilityState === 'visible') registration.update().catch(() => {});
+        };
+        document.addEventListener('visibilitychange', onVisible);
       });
-    });
+
+    return () => {
+      if (onVisible) document.removeEventListener('visibilitychange', onVisible);
+    };
   }, []);
 
   return null;

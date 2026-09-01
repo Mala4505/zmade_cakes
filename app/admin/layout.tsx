@@ -8,6 +8,7 @@ import { NavPendingProvider } from '@/components/admin/NavPendingContext'
 import { NavigationOverlay } from '@/components/admin/NavigationOverlay'
 import { NotificationProvider } from '@/components/admin/NotificationContext'
 import { ServiceWorkerRegistration } from '@/components/admin/ServiceWorkerRegistration'
+import { AppUpdateNotifier } from '@/components/admin/AppUpdateNotifier'
 import type { Notification } from '@/lib/supabase/types'
 
 export const metadata: Metadata = {
@@ -50,6 +51,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       <NavPendingProvider>
         <AdminHeaderProvider>
           <ServiceWorkerRegistration />
+          <AppUpdateNotifier />
           {/* Column at the top level: whichever header is showing, then the
               sidebar/content row, then the bottom nav — all three genuinely
               full-width and stacked, not row-siblings competing for width. */}
