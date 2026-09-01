@@ -503,7 +503,7 @@ export default async function OrderDetailPage({ params }: Props) {
             <OrderDetailActions
               order={order as any}
               trackingLink={trackLink}
-              inquiry={{ customer_name: inquiry.customer_name ?? '' }}
+              inquiry={{ customer_name: inquiry.customer_name ?? '', id: inquiry.id }}
             />
           </div>
         )}

@@ -5,6 +5,7 @@ import { PageHeader } from '@/components/admin/PageHeader'
 import { StatusBadge } from '@/components/admin/StatusBadge'
 import Link from 'next/link'
 import CustomerDetail from './_components/CustomerDetail'
+import { ArrowClockwise } from '@phosphor-icons/react/dist/ssr'
 import type { Metadata } from 'next'
 import type { InquiryItem, InquiryStatus } from '@/lib/supabase/types'
 
@@ -125,15 +126,18 @@ export default async function CustomerDetailPage({ params }: Props) {
           ) : (
             <ul>
               {inquiryList.map((inq, i) => (
-                <li key={inq.id}>
+                <li
+                  key={inq.id}
+                  className="flex items-center gap-1 px-2"
+                  style={
+                    i !== inquiryList.length - 1
+                      ? { borderBottom: '1px solid var(--color-border)' }
+                      : undefined
+                  }
+                >
                   <Link
                     href={`/admin/orders/${inq.id}`}
-                    className="flex items-center gap-4 px-4 py-3.5 transition-colors hover:bg-[var(--color-surface-raised)]"
-                    style={
-                      i !== inquiryList.length - 1
-                        ? { borderBottom: '1px solid var(--color-border)' }
-                        : undefined
-                    }
+                    className="flex-1 min-w-0 flex items-center gap-4 px-2 py-3.5 rounded-lg transition-colors hover:bg-[var(--color-surface-raised)]"
                   >
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium" style={{ color: 'var(--color-ink)' }}>
@@ -160,6 +164,15 @@ export default async function CustomerDetailPage({ params }: Props) {
                     <div className="shrink-0">
                       <StatusBadge status={inq.status as InquiryStatus} />
                     </div>
+                  </Link>
+                  <Link
+                    href={`/admin/orders/new?from=${inq.id}`}
+                    title="Repeat this order"
+                    aria-label="Repeat this order"
+                    className="shrink-0 flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors hover:bg-[var(--color-surface-raised)]"
+                    style={{ color: 'var(--color-teal)' }}
+                  >
+                    <ArrowClockwise size={14} />
                   </Link>
                 </li>
               ))}
