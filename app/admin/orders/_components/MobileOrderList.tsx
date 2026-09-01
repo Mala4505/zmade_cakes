@@ -48,7 +48,7 @@ function MobileOrderCard({ order }: { order: MobileOrder }) {
   const inq = order.inquiry
   const days = inq?.event_date ? daysUntil(inq.event_date) : null
   const paymentStatus = inq
-    ? derivePaymentStatus(inq.fully_paid ?? false, inq.amount_paid ?? null)
+    ? derivePaymentStatus(inq.amount_paid ?? null, order.final_price ?? null, inq.fully_paid ?? false)
     : null
 
   return (

@@ -30,7 +30,7 @@ interface Props {
 
 export default function PaymentReceiptLayout({ payment, order, inquiry, businessPhone, businessInstagram }: Props) {
   const balance = balanceOwed(order.final_price, order.amount_paid, inquiry.fully_paid)
-  const paymentStatus = derivePaymentStatus(inquiry.fully_paid, order.amount_paid)
+  const paymentStatus = derivePaymentStatus(order.amount_paid, order.final_price, inquiry.fully_paid)
 
   return (
     <div

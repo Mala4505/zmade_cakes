@@ -13,7 +13,7 @@ export const metadata: Metadata = { title: 'Calendar' }
 const INQUIRY_DETAIL_FIELDS = `
   id, status, customer_name, customer_phone,
   allergen_nut_free, allergen_dairy_free, allergen_egg_free, allergen_raw_sugar,
-  admin_price, deposit_amount, amount_paid, fully_paid,
+  admin_price, discount, delivery_charge, deposit_amount, amount_paid, fully_paid,
   event_date, pickup_time, delivery_type, created_at,
   items:inquiry_items(*)
 `

@@ -209,8 +209,10 @@ export default async function InquiriesPage({
     const hasNoPrice = inq.admin_price === null || inq.admin_price === undefined
     const urgent = isUrgent(inq.event_date)
     const isReturning = inq.customer_id && (customerInquiryCounts[inq.customer_id] ?? 0) > 1
-    const isPaid = inq.fully_paid
     const orderTotalAmt = inq.admin_price ? orderTotal(inq.admin_price, inq.discount, inq.delivery_charge) : null
+    // Ledger-derived, matching the generated `payment_status` column the ?payment= filter
+    // reads — `fully_paid` alone no longer means "paid" (it's the manual settle override).
+    const isPaid = inq.payment_status === 'paid'
     const balance = orderTotalAmt !== null
       ? balanceOwed(orderTotalAmt, inq.amount_paid, inq.fully_paid)
       : null

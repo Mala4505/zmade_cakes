@@ -15,11 +15,11 @@ import { upsertCustomer } from '@/lib/actions/customers'
 import { derivePaymentStatus, balanceOwed } from '@/lib/payments'
 import { PaymentBadge } from '@/components/admin/StatusBadge'
 import { PinnedOrderTotal } from '@/components/admin/PinnedOrderTotal'
-import { Button, Checkbox, Field, IconButton, Input, RadioGroup, Select, Textarea } from '@/components/ui'
+import { Button, Checkbox, Field, IconButton, Input, RadioGroup, Select, Switch, Textarea } from '@/components/ui'
 import { Copy, WhatsappLogo, Plus } from '@phosphor-icons/react'
 import type { OptionRow, Inquiry, BlackoutDate } from '@/lib/supabase/types'
 import { z } from 'zod'
-import { GOVERNORATE_LABELS, formatKWD } from '@/lib/utils'
+import { GOVERNORATE_LABELS } from '@/lib/utils'
 import { whatsappUrlNoText } from '@/lib/whatsapp'
 import { ItemFields, defaultItem } from '../../_components/ItemFields'
 
@@ -136,9 +136,7 @@ export default function InquiryDetailForm({
       discount: inquiry.discount ? Number(inquiry.discount) : 0,
       delivery_charge: inquiry.delivery_charge ? Number(inquiry.delivery_charge) : 0,
       deposit_amount: inquiry.deposit_amount ? Number(inquiry.deposit_amount) : undefined,
-      amount_paid: inquiry.amount_paid ? Number(inquiry.amount_paid) : undefined,
       fully_paid: inquiry.fully_paid,
-      payment_choice: derivePaymentStatus(inquiry.fully_paid, inquiry.amount_paid),
       payment_method: inquiry.payment_method,
       admin_notes: inquiry.admin_notes,
       address_governorate: inquiry.delivery_address?.governorate ?? '',
@@ -157,7 +155,6 @@ export default function InquiryDetailForm({
     watch,
     setValue,
     setError,
-    clearErrors,
     control,
     formState: { errors },
   } = form
@@ -175,9 +172,7 @@ export default function InquiryDetailForm({
   const watchedPrice = watch('admin_price')
   const watchedDiscount = watch('discount')
   const watchedDeliveryCharge = watch('delivery_charge')
-  const watchedAmountPaid = watch('amount_paid')
   const fullyPaid = watch('fully_paid')
-  const paymentChoice = watch('payment_choice')
   const locationLink = watch('address_location_link')
   const reduceMotion = useReducedMotion()
 
@@ -217,12 +212,6 @@ export default function InquiryDetailForm({
       ? '#92600f'
       : 'var(--color-ink-muted)'
 
-  // Live payment preview — same derivation as the DB's generated payment_status column.
-  // Driven by amount_paid, the only figure credited against the price; deposit_amount is
-  // collateral, held/returned/forfeited, and intentionally excluded — see lib/payments.ts.
-  const amountPaidNum =
-    typeof watchedAmountPaid === 'number' && !Number.isNaN(watchedAmountPaid) ? watchedAmountPaid : 0
-  const paymentStatus = derivePaymentStatus(!!fullyPaid, amountPaidNum)
   const priceNum =
     typeof watchedPrice === 'number' && !Number.isNaN(watchedPrice) ? watchedPrice : null
   const discountNum =
@@ -231,9 +220,18 @@ export default function InquiryDetailForm({
     typeof watchedDeliveryCharge === 'number' && !Number.isNaN(watchedDeliveryCharge) ? watchedDeliveryCharge : 0
   const orderTotalAmt =
     priceNum !== null ? Math.max(0, priceNum - discountNum) + deliveryChargeNum : null
-  const remaining = balanceOwed(orderTotalAmt, amountPaidNum, !!fullyPaid)
+
+  // Payment status + balance are DERIVED from the payments ledger, never entered here.
+  // `paidAmt` is read-only — inquiry.amount_paid, trigger-summed from `payments`. The
+  // `fully_paid` switch is the manual settle override for a comped/rounded remainder.
+  const paidAmt = Number(inquiry.amount_paid ?? 0)
+  const paymentStatus = derivePaymentStatus(paidAmt, orderTotalAmt, !!fullyPaid)
+  const balanceAmt =
+    orderTotalAmt !== null ? balanceOwed(orderTotalAmt, paidAmt, !!fullyPaid) : null
   const balanceFill =
-    orderTotalAmt && orderTotalAmt > 0 ? Math.min(((orderTotalAmt - remaining) / orderTotalAmt) * 100, 100) : 0
+    orderTotalAmt && orderTotalAmt > 0 && balanceAmt !== null
+      ? Math.min(((orderTotalAmt - balanceAmt) / orderTotalAmt) * 100, 100)
+      : 0
 
   // Delivery charge only makes sense on a delivery order — clear a stale charge (and say
   // so) the moment an admin flips an order from Delivery back to Pickup, rather than
@@ -267,12 +265,10 @@ export default function InquiryDetailForm({
             }
           : undefined
 
-      // Once an order exists, `payments` (not this form) is the source of truth for
-      // amount_paid: the DB trigger derives it from the payments ledger. Never let this
-      // form's local state (stale as soon as a payment is recorded on the order page)
-      // stomp that derived total, regardless of which payment_choice is selected.
-      const { amount_paid: _amountPaid, ...restInquiryData } = inquiryData
-      const payload = orderId ? restInquiryData : inquiryData
+      // This form never writes money columns: amount_paid is trigger-derived from the
+      // `payments` ledger at every stage, and payment status/balance derive from that.
+      // `fully_paid` (the manual settle override) is the only payment field it still sends.
+      const payload = inquiryData
 
       const result = await updateInquiry(inquiry.id, payload, addressData)
 
@@ -706,119 +702,93 @@ export default function InquiryDetailForm({
               )}
             </div>
 
-            <Field label="Payment Status" required>
-              <RadioGroup
-                value={paymentChoice}
-                onChange={(v) => {
-                  setValue('payment_choice', v, { shouldDirty: true, shouldValidate: true })
-                  if (v === 'unpaid') {
-                    setValue('fully_paid', false, { shouldDirty: true })
-                    setValue('amount_paid', null, { shouldDirty: true, shouldValidate: true })
-                    clearErrors('amount_paid')
-                  } else if (v === 'partial') {
-                    setValue('fully_paid', false, { shouldDirty: true })
-                  } else if (v === 'paid') {
-                    setValue('fully_paid', true, { shouldDirty: true })
-                    setValue('amount_paid', null, { shouldDirty: true, shouldValidate: true })
-                    clearErrors('amount_paid')
-                  }
-                }}
-                options={[
-                  { value: 'unpaid', label: 'Unpaid' },
-                  { value: 'partial', label: 'Partial' },
-                  { value: 'paid', label: 'Paid' },
-                ]}
-                aria-label="Payment status"
-              />
-            </Field>
-            <AnimatePresence initial={false}>
-              {paymentChoice === 'partial' && (
-                <motion.div
-                  key="amount-paid"
-                  initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -6 }}
-                  transition={{ duration: reduceMotion ? 0 : 0.16, ease: EASE_OUT_QUART }}
-                >
-                  {orderId ? (
-                    <Field label="Amount Paid (KD)">
-                      <p
-                        className="rounded-lg border px-3.5 py-2.5 text-sm"
-                        style={{
-                          fontFamily: 'var(--font-mono)',
-                          color: 'var(--color-ink)',
-                          borderColor: 'var(--color-border)',
-                          backgroundColor: 'var(--color-surface-raised)',
-                        }}
-                      >
-                        {formatKWD(inquiry.amount_paid)}
-                      </p>
-                      <p className="mt-1 text-xs" style={{ color: 'var(--color-ink-muted)' }}>
-                        Managed from the order&apos;s Payment History.{' '}
-                        <Link
-                          href={`/admin/orders/${orderId}`}
-                          className="font-medium underline underline-offset-2"
-                          style={{ color: 'var(--color-teal)' }}
-                        >
-                          view payments →
-                        </Link>
-                      </p>
-                    </Field>
-                  ) : (
-                    <Field
-                      label="Amount Paid (KD)"
-                      error={errors.amount_paid?.message}
-                      hint="How much the customer has paid so far"
-                      required
-                    >
-                      <Input
-                        {...register('amount_paid', { setValueAs: numberOrNull })}
-                        type="number"
-                        step="0.001"
-                        min="0"
-                        required
-                        autoFocus
-                        style={{ fontFamily: 'var(--font-mono)' }}
-                        aria-invalid={errors.amount_paid ? true : undefined}
-                      />
-                    </Field>
-                  )}
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {/* Live payment status + balance bar */}
+            {/* Payment — status and balance are DERIVED from the payments ledger, never
+                entered on this form. This strip is read-only; money is recorded against
+                the order, and the settle switch only writes off a leftover balance. */}
             <div
-              className="rounded-lg border px-3.5 py-2.5"
+              className="rounded-lg border"
               style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface-raised)' }}
             >
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-medium" style={{ color: 'var(--color-ink-muted)' }}>
-                  Payment status
-                </span>
-                <span className="flex items-center gap-2">
-                  {paymentStatus !== 'paid' && orderTotalAmt !== null && orderTotalAmt > 0 && (
-                    <span className="text-xs" style={{ color: 'var(--color-ink-muted)', fontFamily: 'var(--font-mono)' }}>
-                      KD {remaining.toFixed(3)} owed
-                    </span>
-                  )}
-                  <PaymentBadge status={paymentStatus} />
-                </span>
-              </div>
-              {orderTotalAmt !== null && orderTotalAmt > 0 && (
-                <div
-                  className="mt-2 h-2 rounded-full overflow-hidden"
-                  style={{ backgroundColor: 'var(--color-border)' }}
-                >
-                  <div
-                    className="h-full rounded-full transition-all duration-300"
-                    style={{
-                      width: `${paymentStatus === 'paid' ? 100 : balanceFill}%`,
-                      backgroundColor: 'var(--color-teal)',
-                    }}
-                  />
+              <div className="px-3.5 py-3 flex flex-col gap-1.5">
+                <div className="flex items-center justify-between text-sm">
+                  <span style={{ color: 'var(--color-ink-muted)' }}>Order total</span>
+                  <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-ink-secondary)' }}>
+                    {orderTotalAmt !== null ? `KD ${orderTotalAmt.toFixed(3)}` : '—'}
+                  </span>
                 </div>
-              )}
+                <div className="flex items-center justify-between text-sm">
+                  <span style={{ color: 'var(--color-ink-muted)' }}>Paid</span>
+                  <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-ink-secondary)' }}>
+                    KD {paidAmt.toFixed(3)}
+                  </span>
+                </div>
+                <div
+                  className="pt-1.5 mt-0.5 border-t flex items-center justify-between gap-2"
+                  style={{ borderColor: 'var(--color-border-strong)' }}
+                >
+                  <span className="text-sm font-bold" style={{ color: 'var(--color-ink)' }}>
+                    {fullyPaid ? 'Settled' : 'Balance'}
+                  </span>
+                  <span className="flex items-center gap-2">
+                    <span className="text-base font-bold" style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-ink)' }}>
+                      {balanceAmt !== null ? `KD ${balanceAmt.toFixed(3)}` : '—'}
+                    </span>
+                    <PaymentBadge status={paymentStatus} />
+                  </span>
+                </div>
+                {orderTotalAmt !== null && orderTotalAmt > 0 && (
+                  <div
+                    className="mt-1 h-2 rounded-full overflow-hidden"
+                    style={{ backgroundColor: 'var(--color-border)' }}
+                  >
+                    <div
+                      className="h-full rounded-full transition-all duration-300"
+                      style={{
+                        width: `${paymentStatus === 'paid' ? 100 : balanceFill}%`,
+                        backgroundColor: 'var(--color-teal)',
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div
+                className="px-3.5 py-3 border-t flex flex-col gap-3"
+                style={{ borderColor: 'var(--color-border)' }}
+              >
+                <Switch
+                  label="Mark settled"
+                  description="Settle a small leftover balance (comps, rounding). It does not mean the customer has paid."
+                  checked={!!fullyPaid}
+                  onChange={(e) => setValue('fully_paid', e.target.checked, { shouldDirty: true })}
+                />
+                <div
+                  className="flex items-center justify-between gap-3 pt-3 border-t"
+                  style={{ borderColor: 'var(--color-border)' }}
+                >
+                  {orderId ? (
+                    <p className="text-xs" style={{ color: 'var(--color-ink-muted)' }}>
+                      Record payments from the{' '}
+                      <Link
+                        href={`/admin/orders/${orderId}`}
+                        className="font-medium underline underline-offset-2"
+                        style={{ color: 'var(--color-teal)' }}
+                      >
+                        order&apos;s payment history
+                      </Link>
+                      .
+                    </p>
+                  ) : (
+                    <p className="text-xs" style={{ color: 'var(--color-ink-muted)' }}>
+                      Payments can be recorded once this order is confirmed.
+                    </p>
+                  )}
+                  {/* TODO Phase 2: open <RecordPaymentSheet/> */}
+                  <Button type="button" variant="secondary" size="sm" disabled className="shrink-0">
+                    Record payment
+                  </Button>
+                </div>
+              </div>
             </div>
 
             <div className="pt-1 border-t" style={{ borderColor: 'var(--color-border)' }}>

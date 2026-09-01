@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { formatDate, formatDateLong, formatKWD, orderSummary } from '@/lib/utils'
-import { derivePaymentStatus, balanceOwed } from '@/lib/payments'
+import { derivePaymentStatus, balanceOwed, orderTotal } from '@/lib/payments'
 import { StatusBadge } from '@/components/admin/StatusBadge'
 import Link from 'next/link'
 import { ClipboardText, Package, Bell, ArrowRight, Plus, Warning, CalendarBlank, Wallet, TrendUp } from '@phosphor-icons/react/dist/ssr'
@@ -36,7 +36,7 @@ async function getDashboardData() {
 
     supabase
       .from('orders')
-      .select('id, status, final_price, inquiry:inquiries(customer_name, event_date, deposit_amount, amount_paid, admin_price, fully_paid, items:inquiry_items(*))')
+      .select('id, status, final_price, inquiry:inquiries(customer_name, event_date, deposit_amount, amount_paid, admin_price, discount, delivery_charge, fully_paid, items:inquiry_items(*))')
       .in('status', ['confirmed'])
       .order('created_at', { ascending: false })
       .limit(5),
@@ -102,7 +102,11 @@ async function getDashboardData() {
   const pendingPayments = activeOrders.filter((o: any) => {
     const inq = o.inquiry
     if (!inq?.admin_price) return false
-    return derivePaymentStatus(inq.fully_paid, inq.amount_paid) !== 'paid'
+    return derivePaymentStatus(
+      inq.amount_paid,
+      orderTotal(inq.admin_price, inq.discount, inq.delivery_charge),
+      inq.fully_paid,
+    ) !== 'paid'
   })
 
   const thisMonthData = thisMonthRes.data ?? []
@@ -340,7 +344,7 @@ export default async function DashboardPage() {
               {pendingPayments.map((order: any) => {
                 const inq = order.inquiry
                 const balance = inq
-                  ? balanceOwed(inq.admin_price, inq.amount_paid, inq.fully_paid)
+                  ? balanceOwed(order.final_price, inq.amount_paid, inq.fully_paid)
                   : 0
                 return (
                   <Link

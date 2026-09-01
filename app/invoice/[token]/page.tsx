@@ -31,7 +31,7 @@ export default async function PublicInvoicePage({ params }: Props) {
   const inq = o.inquiry
   const businessPhone = (phoneRow?.value as string) ?? ''
   const businessInstagram = (igRow?.value as string) ?? ''
-  const isPaid = derivePaymentStatus(inq?.fully_paid, o.amount_paid) === 'paid'
+  const isPaid = derivePaymentStatus(o.amount_paid, o.final_price, inq?.fully_paid) === 'paid'
 
   return (
     <main

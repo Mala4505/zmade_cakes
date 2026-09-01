@@ -4,7 +4,7 @@ import Image from 'next/image'
 import { createServiceClient } from '@/lib/supabase/server'
 import { getBusinessContactSettings } from '@/lib/supabase/business-settings'
 import { isValidToken, formatDate, formatTime, formatKWD, formatDateLong, orderSummary } from '@/lib/utils'
-import { balanceOwed } from '@/lib/payments'
+import { balanceOwed, derivePaymentStatus } from '@/lib/payments'
 import { whatsappUrlNoText } from '@/lib/whatsapp'
 import type { Metadata } from 'next'
 import type { Order, OrderStatus, Payment, InquiryItem } from '@/lib/supabase/types'
@@ -77,7 +77,10 @@ export default async function TrackPage({ params }: Props) {
   const currentStep = STATUS_ORDER[o.status as OrderStatus] ?? -1
   const isCancelled = o.status === 'cancelled'
 
-  const fullyPaid = Boolean(inq?.fully_paid)
+  // Paid-in-full is derived from the payments ledger (amount vs order total), OR the admin's
+  // manual settle override — `inq.fully_paid` alone no longer means "paid".
+  const fullyPaid =
+    derivePaymentStatus(o.amount_paid, o.final_price, Boolean(inq?.fully_paid)) === 'paid'
   const hasDiscount = Number(inq?.discount) > 0
   const hasDeliveryCharge = o.delivery_type === 'delivery' && Number(o.delivery_charge) > 0
   const amountPaid = Number(o.amount_paid ?? 0)

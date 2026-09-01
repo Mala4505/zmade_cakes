@@ -69,7 +69,7 @@ export default function InvoiceLayout({ order, inquiry, adminMode, businessPhone
   const deposit = order.deposit_amount ? parseFloat(order.deposit_amount) : null
   const amountPaid = order.amount_paid ? parseFloat(order.amount_paid) : null
   const balance = balanceOwed(order.final_price, order.amount_paid, inquiry.fully_paid)
-  const paymentStatus = derivePaymentStatus(inquiry.fully_paid, order.amount_paid)
+  const paymentStatus = derivePaymentStatus(order.amount_paid, order.final_price, inquiry.fully_paid)
   const hasDiscount = Number(inquiry.discount) > 0
   const hasDeliveryCharge = order.delivery_type === 'delivery' && Number(order.delivery_charge) > 0
 

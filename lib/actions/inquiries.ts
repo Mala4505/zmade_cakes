@@ -48,10 +48,9 @@ export async function createInquiry(
   } = await supabase.auth.getUser()
   if (!user) return { data: null, error: 'Unauthorized', fieldErrors: null }
 
-  // items targets a different table (inquiry_items, inserted separately below) and
-  // payment_choice is a UI-only convenience field (not a DB column) — strip both before the
-  // inquiries insert. payment_choice only drove the real fully_paid/amount_paid fields above.
-  const { items, payment_choice: _paymentChoice, ...inquiryData } = parsed.data
+  // items targets a different table (inquiry_items, inserted separately below) — strip it
+  // before the inquiries insert. Everything else on the schema is a real inquiries column.
+  const { items, ...inquiryData } = parsed.data
 
   const { data: inquiry, error: inquiryError } = await supabase
     .from('inquiries')
@@ -154,10 +153,9 @@ export async function updateInquiry(
   } = await supabase.auth.getUser()
   if (!user) return { data: null, error: 'Unauthorized', fieldErrors: null }
 
-  // items targets a different table (inquiry_items, handled separately below) and
-  // payment_choice is a UI-only convenience field (not a DB column) — strip both before the
-  // inquiries update. payment_choice only drove the real fully_paid/amount_paid fields above.
-  const { items, payment_choice: _paymentChoice, ...updateData } = parsed.data
+  // items targets a different table (inquiry_items, handled separately below) — strip it
+  // before the inquiries update. Everything else on the schema is a real inquiries column.
+  const { items, ...updateData } = parsed.data
 
   const { data, error } = await supabase
     .from('inquiries')
@@ -202,11 +200,26 @@ export async function updateInquiry(
     await supabase.from('delivery_addresses').delete().eq('inquiry_id', id)
   }
 
+  // Keep the linked order's total in sync with the pricing the admin just edited.
+  // final_price is snapshotted onto `orders` at confirmation and was never re-synced, so
+  // any later edit to price/discount/delivery charge left every balance, invoice and
+  // receipt on that order computing against a stale total. Fine if it matches zero rows
+  // (an unconfirmed inquiry has no order yet).
+  if ('admin_price' in updateData || 'discount' in updateData || 'delivery_charge' in updateData) {
+    await supabase
+      .from('orders')
+      .update({ final_price: orderTotal(data.admin_price, data.discount, data.delivery_charge) })
+      .eq('inquiry_id', id)
+  }
+
   return { data: data as unknown as Inquiry, error: null, fieldErrors: null }
 }
 
-// Quick paid/unpaid toggle for list-row actions — a lighter-weight sibling to updateInquiry
-// for when the admin just wants to flip payment status without opening the full edit form.
+// Manual settle toggle for list-row actions — flips `fully_paid`, which no longer means
+// "is paid" (that's derived from the payments ledger) but "settled manually": a comped
+// remainder or rounding write-off that forces the order to read as paid. A lighter-weight
+// sibling to updateInquiry for when the admin just wants to settle without opening the
+// full edit form.
 export async function setInquiryPaymentFlags(
   id: string,
   patch: { fully_paid?: boolean }
@@ -412,19 +425,10 @@ export async function confirmInquiry(
         return { data: null, error: orderError?.message ?? 'Failed to create order', fieldErrors: null }
       } else {
         order = newOrder as unknown as Order
-        // orders.amount_paid is now trigger-derived from `payments` (see
-        // 032_add_payments_table.sql) — a deposit the admin recorded before this order
-        // existed needs a real payments row, or it's silently lost the moment the trigger
-        // next recomputes the total.
-        if (Number(inquiry.amount_paid) > 0) {
-          await supabase.from('payments').insert({
-            order_id: order.id,
-            amount: Number(inquiry.amount_paid),
-            method: inquiry.payment_method || 'cash',
-            note: 'Deposit recorded before order confirmation',
-            receipt_token: generateShortToken(),
-          })
-        }
+        // Any payment recorded against this inquiry before the order existed is adopted
+        // automatically by the AFTER INSERT ON orders trigger in
+        // 037_payment_ledger_truth.sql (it sets order_id and recomputes the totals), so
+        // there is nothing to seed here.
       }
     }
 
@@ -553,7 +557,7 @@ export async function updateInquiryStatus(
   if (!existingOrder && status === 'confirmed') {
     const { data: inquiry, error: fetchError } = await supabase
       .from('inquiries')
-      .select('admin_price, discount, deposit_amount, amount_paid, payment_method, delivery_charge, delivery_type')
+      .select('admin_price, discount, deposit_amount, delivery_charge, delivery_type')
       .eq('id', id)
       .single()
     if (fetchError || !inquiry) return { data: null, error: fetchError?.message ?? 'Inquiry not found', fieldErrors: null }
@@ -576,18 +580,9 @@ export async function updateInquiryStatus(
       .single()
     if (orderError || !newOrder) return { data: null, error: orderError?.message ?? 'Failed to create order', fieldErrors: null }
 
-    // orders.amount_paid is now trigger-derived from `payments` (see
-    // 032_add_payments_table.sql) — a deposit the admin recorded before this order existed
-    // needs a real payments row, or it's silently lost the moment the trigger next recomputes.
-    if (Number(inquiry.amount_paid) > 0) {
-      await supabase.from('payments').insert({
-        order_id: newOrder.id,
-        amount: Number(inquiry.amount_paid),
-        method: inquiry.payment_method || 'cash',
-        note: 'Deposit recorded before order confirmation',
-        receipt_token: generateShortToken(),
-      })
-    }
+    // Any payment recorded against this inquiry before the order existed is adopted
+    // automatically by the AFTER INSERT ON orders trigger in
+    // 037_payment_ledger_truth.sql, so there is nothing to seed here.
   }
 
   const { error } = await supabase

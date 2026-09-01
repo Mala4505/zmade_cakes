@@ -27,16 +27,11 @@ const inquiryShape = {
   allergen_egg_free: z.boolean().default(false),
   allergen_raw_sugar: z.boolean().default(false),
   allergen_other: z.string().max(500).optional().default(''),
+  // Manual settle override — NOT "is paid". Payment status and balance are derived from
+  // the `payments` ledger (see lib/payments.ts); this flag only lets an admin write off a
+  // small leftover balance (a comped remainder or a rounding difference), forcing the
+  // order to read as settled/paid regardless of the money actually collected.
   fully_paid: z.boolean().default(false),
-  // amount_paid is the only figure credited against the price (see lib/payments.ts).
-  // deposit_amount, below, is separate collateral and never subtracted from the balance.
-  amount_paid: z.number().positive().max(9999).optional().nullable(),
-  // UI-only convenience field — the 3-way Payment Status control (Unpaid/Partial/Paid).
-  // Not a DB column (the real, generated `payment_status` column lives in
-  // lib/supabase/types.ts and is never settable); must be stripped before any
-  // insert/update (see lib/actions/inquiries.ts). Named distinctly from that column
-  // to avoid ever being confused with it.
-  payment_choice: z.enum(['unpaid', 'partial', 'paid']).default('unpaid'),
   // No date-range restriction here — this schema backs the admin-only inquiry actions
   // (see lib/actions/inquiries.ts, gated on an authenticated admin user), and admins need
   // to backdate past orders and edit historical records freely. The minimum-lead-time rule
@@ -89,24 +84,10 @@ function deliveryChargeRefine(
   }
 }
 
-function paymentChoiceRefine(
-  data: { payment_choice?: 'unpaid' | 'partial' | 'paid'; amount_paid?: number | null },
-  ctx: z.RefinementCtx
-) {
-  if (data.payment_choice === 'partial' && !(data.amount_paid && data.amount_paid > 0)) {
-    ctx.addIssue({
-      code: 'custom',
-      message: 'Enter the amount paid so far',
-      path: ['amount_paid'],
-    })
-  }
-}
-
 export const inquirySchema = z
   .object(inquiryShape)
   .superRefine(discountRefine)
   .superRefine(deliveryChargeRefine)
-  .superRefine(paymentChoiceRefine)
 
 // .partial() makes `items` itself optional — omitting it from an update payload means "don't
 // touch items" (see updateInquiry in lib/actions/inquiries.ts). It does NOT relax validation
@@ -117,7 +98,6 @@ export const inquiryUpdateSchema = z
   .partial()
   .superRefine(discountRefine)
   .superRefine(deliveryChargeRefine)
-  .superRefine(paymentChoiceRefine)
 
 export const deliveryAddressSchema = z.object({
   governorate: z.enum(

@@ -10,7 +10,7 @@ import Link from 'next/link'
 import { Modal } from '@/components/ui/Modal'
 import { IconButton } from '@/components/ui/IconButton'
 import { StatusBadge, PaymentBadge } from '@/components/admin/StatusBadge'
-import { derivePaymentStatus } from '@/lib/payments'
+import { derivePaymentStatus, orderTotal } from '@/lib/payments'
 import { formatDate, formatTime, formatKWD, orderSummary } from '@/lib/utils'
 import type { InquiryItem, InquiryStatus, OrderStatus } from '@/lib/supabase/types'
 
@@ -44,7 +44,10 @@ type EventDetails = {
   eventDate: string
   pickupTime: string | null
   deliveryType: string
+  /** For an order event this is the order's final_price; for an inquiry event it's admin_price. */
   price: string | null
+  discount: string | null
+  deliveryCharge: string | null
   depositAmount: string | null
   amountPaid: string | null
   fullyPaid: boolean
@@ -82,6 +85,8 @@ function toDetails(inq: any, opts: { linkId: string; linkKind: 'order' | 'inquir
     pickupTime: inq.pickup_time,
     deliveryType: opts.deliveryType,
     price: opts.price == null ? null : String(opts.price),
+    discount: inq.discount == null ? null : String(inq.discount),
+    deliveryCharge: inq.delivery_charge == null ? null : String(inq.delivery_charge),
     depositAmount: inq.deposit_amount == null ? null : String(inq.deposit_amount),
     amountPaid: inq.amount_paid == null ? null : String(inq.amount_paid),
     fullyPaid: !!inq.fully_paid,
@@ -181,6 +186,10 @@ const DIETARY_CHIPS: { key: keyof Pick<EventDetails, 'nutFree' | 'dairyFree' | '
 function EventDetailBody({ event }: { event: DetailEvent }) {
   const r = event.resource
   const dietary = DIETARY_CHIPS.filter(({ key }) => r[key])
+  // Order events carry final_price (already net of discount + delivery); inquiry
+  // events only carry admin_price, so reconstruct the total from its parts.
+  const paymentTotal =
+    r.linkKind === 'order' ? r.price : orderTotal(r.price, r.discount, r.deliveryCharge)
 
   return (
     <div className="flex flex-col gap-4">
@@ -260,7 +269,7 @@ function EventDetailBody({ event }: { event: DetailEvent }) {
             </span>
           )}
         </div>
-        <PaymentBadge status={derivePaymentStatus(r.fullyPaid, r.amountPaid)} />
+        <PaymentBadge status={derivePaymentStatus(r.amountPaid, paymentTotal, r.fullyPaid)} />
       </div>
     </div>
   )

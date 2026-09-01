@@ -146,7 +146,7 @@ function daysUntil(dateStr: string): number {
 function OrderCard({ order }: { order: any }) {
   const inq = order.inquiry
   const days = inq?.event_date ? daysUntil(inq.event_date) : null
-  const paymentStatus = inq ? derivePaymentStatus(inq.fully_paid, inq.amount_paid) : null
+  const paymentStatus = inq ? derivePaymentStatus(inq.amount_paid, order.final_price, inq.fully_paid) : null
 
   return (
     <div

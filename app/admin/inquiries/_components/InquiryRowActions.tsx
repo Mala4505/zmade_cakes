@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation'
 import { CurrencyCircleDollar } from '@phosphor-icons/react'
 import { setInquiryPaymentFlags } from '@/lib/actions/inquiries'
 import { useAsyncAction } from '@/lib/hooks/useAsyncAction'
-import { derivePaymentStatus } from '@/lib/payments'
+import { derivePaymentStatus, orderTotal } from '@/lib/payments'
 import { confirmationLink } from '@/lib/utils'
 import { pickWhatsAppAction } from '@/lib/whatsapp'
 import WhatsAppButton from '@/components/admin/WhatsAppButton'
@@ -52,34 +52,42 @@ export default function InquiryRowActions({
     },
     templates
   )
-  const paymentStatus = derivePaymentStatus(inquiry.fully_paid, inquiry.amount_paid)
+  const paymentStatus = derivePaymentStatus(
+    inquiry.amount_paid,
+    orderTotal(inquiry.admin_price, inquiry.discount, inquiry.delivery_charge),
+    inquiry.fully_paid
+  )
+  // `fully_paid` is the manual settle override (comped remainder / rounding write-off),
+  // not "is paid" — the actual money is tracked in the payments ledger. The icon fills
+  // when the order reads as paid (ledger-covered OR settled); the action toggles settle.
+  const isSettled = inquiry.fully_paid
   const isPaid = paymentStatus === 'paid'
 
-  const { run: togglePaid, pending } = useAsyncAction(
+  const { run: toggleSettled, pending } = useAsyncAction(
     async () => {
-      const result = await setInquiryPaymentFlags(inquiry.id, { fully_paid: !isPaid })
+      const result = await setInquiryPaymentFlags(inquiry.id, { fully_paid: !isSettled })
       if (result.error) return { error: result.error }
     },
     {
-      successToast: isPaid ? 'Marked unpaid' : 'Marked fully paid',
+      successToast: isSettled ? 'Marked unsettled' : 'Marked settled',
       onSuccess: () => router.refresh(),
     }
   )
 
-  const handleTogglePaid = (e: React.MouseEvent) => {
+  const handleToggleSettled = (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    togglePaid()
+    toggleSettled()
   }
 
   return (
     <div className="flex items-center gap-1.5" onClick={(e) => e.preventDefault()}>
       <WhatsAppButton variant="icon" action={waAction} customer_phone={inquiry.customer_phone} />
       <IconButton
-        onClick={handleTogglePaid}
+        onClick={handleToggleSettled}
         loading={pending}
-        title={isPaid ? 'Fully paid — click to mark unpaid' : 'Mark as fully paid'}
-        aria-label={isPaid ? 'Fully paid — click to mark unpaid' : 'Mark as fully paid'}
+        title={isSettled ? 'Settled — click to unsettle' : 'Mark as settled (write off the balance)'}
+        aria-label={isSettled ? 'Settled — click to unsettle' : 'Mark as settled'}
         style={{ color: isPaid ? 'var(--color-success)' : 'var(--color-ink-muted)' }}
       >
         <CurrencyCircleDollar size={20} weight={isPaid ? 'fill' : 'regular'} />
