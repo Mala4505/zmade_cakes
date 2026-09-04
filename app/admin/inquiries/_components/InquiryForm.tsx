@@ -428,7 +428,7 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
       // server re-render (~11 queries). The edit case pushes to the route it's already on
       // (a no-op navigation), so it also needs an explicit refresh to refetch.
       onSuccess: () => {
-        router.push(inquiry ? `/admin/orders/${inquiry.id}` : `/admin/orders/${createdIdRef.current}`)
+        router.push(inquiry ? `/admin/orders/${inquiry.id}` : `/admin/orders/${createdIdRef.current}?created=1`)
         if (inquiry) router.refresh()
       },
     }

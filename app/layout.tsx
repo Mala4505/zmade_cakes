@@ -62,7 +62,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           // inset) so a success toast never hides behind the nav.
           mobileOffset={{ bottom: 'calc(var(--admin-tabbar-h) + var(--safe-b) + 16px)' }}
           toastOptions={{
-            duration: 4000,
+            // 4s wasn't enough headroom for admin creates: the success toast fires the
+            // instant the write completes, but the post-create navigation (new order's
+            // detail page) can take a few seconds to render, so the toast was gone by the
+            // time the destination page actually appeared.
+            duration: 6000,
             classNames: {
               toast: 'zmade-toast',
               title: 'zmade-toast-title',

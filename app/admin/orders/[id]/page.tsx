@@ -19,6 +19,7 @@ import InquiryDetailForm from './_components/InquiryDetailForm'
 import CancelInquiryButton from './_components/CancelInquiryButton'
 import CollapsibleImages from './_components/CollapsibleImages'
 import CustomerChangesBanner from './_components/CustomerChangesBanner'
+import { CreatedBanner } from './_components/CreatedBanner'
 import OrderDetailActions from './_components/OrderDetailActions'
 import OrderEtaSection from './_components/OrderEtaSection'
 import OrderImageSection from './_components/OrderImageSection'
@@ -32,6 +33,7 @@ import type { InquiryItem, InquiryStatus, Payment, PaymentMethod, WhatsAppTempla
 
 interface Props {
   params: Promise<{ id: string }>
+  searchParams: Promise<{ created?: string }>
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -109,8 +111,9 @@ function OrderTimeline({ currentStatus, source }: { currentStatus: InquiryStatus
   )
 }
 
-export default async function OrderDetailPage({ params }: Props) {
+export default async function OrderDetailPage({ params, searchParams }: Props) {
   const { id } = await params
+  const { created } = await searchParams
   const supabase = await createClient()
 
   const { data: inquiry, error } = await supabase
@@ -128,25 +131,57 @@ export default async function OrderDetailPage({ params }: Props) {
     notFound()
   }
 
-  const [flavors, sizes, occasions, items, settingsResult, blackoutsResult, imagesResult, { data: order }] =
-    await Promise.all([
-      getOptions('flavor_options'),
-      getOptions('size_options'),
-      getOptions('occasion_options'),
-      getOptions('item_options'),
-      getSettings([
-        'whatsapp_templates',
-        'min_lead_days',
-        'pricing_matrix',
-        'min_price_guard',
-        'rush_multiplier',
-        'business_phone',
-        'business_instagram',
-      ]),
-      getBlackouts(),
-      getInquiryImages(id),
-      supabase.from('orders').select('*').eq('inquiry_id', id).maybeSingle(),
-    ])
+  const customerId = (inquiry as any).customer_id
+  const myOrdersUrl = customerId ? myOrdersLink(generatePortalToken(customerId)) : undefined
+
+  // Everything here only depends on `inquiry`/`id` from the lookup above, so it all fires
+  // in one wave — customerData, payments, and pastOrderCount used to be awaited one after
+  // another *after* this Promise.all with no actual data dependency, adding three extra
+  // sequential round-trips (and a few real seconds on a slow connection) to a page that's
+  // reached straight from a create/save submit, right when the nav-progress bar and the
+  // success toast are both racing to still be visible.
+  const [
+    flavors,
+    sizes,
+    occasions,
+    items,
+    settingsResult,
+    blackoutsResult,
+    imagesResult,
+    { data: order },
+    paymentsResult,
+    { data: customerData },
+    { count: pastOrderCount },
+  ] = await Promise.all([
+    getOptions('flavor_options'),
+    getOptions('size_options'),
+    getOptions('occasion_options'),
+    getOptions('item_options'),
+    getSettings([
+      'whatsapp_templates',
+      'min_lead_days',
+      'pricing_matrix',
+      'min_price_guard',
+      'rush_multiplier',
+      'business_phone',
+      'business_instagram',
+    ]),
+    getBlackouts(),
+    getInquiryImages(id),
+    supabase.from('orders').select('*').eq('inquiry_id', id).maybeSingle(),
+    // Payments are keyed to the inquiry (migration 037): fetching by inquiry_id rather
+    // than order_id also catches any pre-confirmation orphan payments.
+    supabase.from('payments').select('*').eq('inquiry_id', inquiry.id).order('paid_at', { ascending: false }),
+    customerId
+      ? supabase.from('customers').select('*').eq('id', customerId).single()
+      : Promise.resolve({ data: null }),
+    supabase
+      .from('orders')
+      .select('id, inquiry:inquiries!inner(customer_phone)', { count: 'exact', head: true })
+      .eq('inquiry.customer_phone', inquiry.customer_phone)
+      .neq('inquiry.id', inquiry.id)
+      .in('status', ['confirmed', 'delivered']),
+  ])
 
   const fetchResults = {
     flavors,
@@ -160,14 +195,6 @@ export default async function OrderDetailPage({ params }: Props) {
   for (const [name, res] of Object.entries(fetchResults)) {
     if (res.error) throw new Error(`Order: failed to load ${name} — ${res.error}`)
   }
-
-  // Payments are keyed to the inquiry (migration 037): fetching by inquiry_id rather
-  // than order_id also catches any pre-confirmation orphan payments.
-  const paymentsResult = await supabase
-    .from('payments')
-    .select('*')
-    .eq('inquiry_id', inquiry.id)
-    .order('paid_at', { ascending: false })
   if (paymentsResult.error) throw new Error(`Order: failed to load payments — ${paymentsResult.error.message}`)
   const payments = (paymentsResult.data ?? []) as unknown as Payment[]
 
@@ -179,21 +206,6 @@ export default async function OrderDetailPage({ params }: Props) {
   const rushMultiplier = Number(settingsResult.data?.rush_multiplier ?? 1.3)
   const businessPhone = (settingsResult.data?.business_phone as string) ?? ''
   const businessInstagram = (settingsResult.data?.business_instagram as string) ?? ''
-
-  const customerId = (inquiry as any).customer_id
-  const myOrdersUrl = customerId ? myOrdersLink(generatePortalToken(customerId)) : undefined
-  let customerData = null
-  if (customerId) {
-    const { data } = await supabase.from('customers').select('*').eq('id', customerId).single()
-    customerData = data
-  }
-
-  const { count: pastOrderCount } = await supabase
-    .from('orders')
-    .select('id, inquiry:inquiries!inner(customer_phone)', { count: 'exact', head: true })
-    .eq('inquiry.customer_phone', inquiry.customer_phone)
-    .neq('inquiry.id', inquiry.id)
-    .in('status', ['confirmed', 'delivered'])
 
   const isCancelled = inquiry.status === 'cancelled'
 
@@ -231,6 +243,8 @@ export default async function OrderDetailPage({ params }: Props) {
           <ArrowLeft size={13} />
           Orders
         </Link>
+
+        <CreatedBanner created={created === '1'} />
 
         {/* Sticky header card */}
         <div
