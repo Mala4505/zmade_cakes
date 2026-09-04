@@ -26,7 +26,7 @@ const localizer = dateFnsLocalizer({
 // so old creation dates don't clutter the calendar.
 const INQUIRY_MADE_WINDOW_DAYS = 60
 
-type EventKind = 'order' | 'inquiry-delivery' | 'inquiry-made' | 'blackout'
+type EventKind = 'order' | 'inquiry-made' | 'blackout'
 
 /** Everything the detail modal needs, normalized from either an order or an inquiry. */
 type EventDetails = {
@@ -62,12 +62,11 @@ type BaseEvent = {
 }
 
 type OrderEvent = BaseEvent & { kind: 'order'; status: OrderStatus; resource: EventDetails }
-type InquiryDeliveryEvent = BaseEvent & { kind: 'inquiry-delivery'; resource: EventDetails }
 type InquiryMadeEvent = BaseEvent & { kind: 'inquiry-made'; resource: EventDetails }
 type BlackoutEvent = BaseEvent & { kind: 'blackout'; resource: null }
 
-type CalendarEvent = OrderEvent | InquiryDeliveryEvent | InquiryMadeEvent | BlackoutEvent
-type DetailEvent = OrderEvent | InquiryDeliveryEvent | InquiryMadeEvent
+type CalendarEvent = OrderEvent | InquiryMadeEvent | BlackoutEvent
+type DetailEvent = OrderEvent | InquiryMadeEvent
 
 function toDetails(inq: any, opts: { linkId: string; linkKind: 'order' | 'inquiry'; status: OrderStatus | InquiryStatus; deliveryType: string; price: unknown }): EventDetails {
   return {
@@ -301,16 +300,54 @@ function DateCellWrapper({
   )
 }
 
+// Solid (non-"-light") swatch per event kind/status — used for the agenda-row
+// dot below. Month/week/day pills get their color from eventPropGetter's own
+// background instead; this is the color that has to survive on its own once an
+// event is just a table row (agenda view, forced on mobile) with no pill behind it.
+function eventDotColor(event: CalendarEvent): string {
+  switch (event.kind) {
+    case 'blackout':
+      return 'var(--color-danger)'
+    case 'inquiry-made':
+      return 'var(--color-calendar-marker)'
+    case 'order':
+      return event.status === 'delivered' ? 'var(--color-success)' : 'var(--color-info)'
+  }
+}
+
 // Custom event content — flavor leads so it survives the single-line ellipsis
 // truncation react-big-calendar applies to month-view event pills.
+//
+// The leading dot matters specifically for the agenda view (forced on mobile,
+// see `effectiveView` below): agenda rows are plain table cells with no colored
+// background, and a blanket `.rbc-agenda-event-cell a { color: ... }` rule in
+// globals.css flattens every row's text to the same muted color — without this
+// dot, an agenda list can't tell an order from a tentative inquiry from a
+// blackout at a glance the way the month view's colored pills can.
 function EventContent({ event }: { event: CalendarEvent }) {
-  if (event.kind === 'blackout' || event.kind === 'inquiry-made') {
+  if (event.kind === 'blackout') {
     return <>{event.title}</>
+  }
+  if (event.kind === 'inquiry-made') {
+    return (
+      <>
+        <span
+          aria-hidden="true"
+          className="inline-block w-1.5 h-1.5 rounded-full mr-1.5 align-middle"
+          style={{ backgroundColor: eventDotColor(event) }}
+        />
+        {event.title}
+      </>
+    )
   }
   const r = event.resource
   return (
     <>
-      {event.kind === 'inquiry-delivery' && '? '}
+      <span
+        aria-hidden="true"
+        className="inline-block w-1.5 h-1.5 rounded-full mr-1.5 align-middle"
+        style={{ backgroundColor: eventDotColor(event) }}
+      />
       <strong className="font-semibold">
         {orderSummary(r.items)}
       </strong>
@@ -320,15 +357,11 @@ function EventContent({ event }: { event: CalendarEvent }) {
 }
 
 const LEGEND: { label: string; style: React.CSSProperties }[] = [
-  { label: 'Order', style: { backgroundColor: 'var(--color-teal)' } },
+  { label: 'Order', style: { backgroundColor: 'var(--color-info)' } },
   { label: 'Delivered', style: { backgroundColor: 'var(--color-success)' } },
   {
-    label: 'Inquiry delivery (tentative)',
-    style: { backgroundColor: 'var(--color-warning-light)', border: '1px dashed var(--color-warning)' },
-  },
-  {
     label: 'Inquiry made',
-    style: { backgroundColor: 'var(--color-surface-raised)', border: '1px solid var(--color-border-strong)' },
+    style: { backgroundColor: 'var(--color-calendar-marker-light)', border: '1px solid var(--color-calendar-marker)' },
   },
   {
     label: 'Unavailable',
@@ -403,27 +436,6 @@ export default function CalendarView({ orders, inquiries, blackouts, deliveryCou
         }
       })
 
-    const pendingWithDate = inquiries.filter((inq: any) => inq.event_date)
-
-    const inquiryDeliveryEvents: InquiryDeliveryEvent[] = pendingWithDate.map((inq: any) => {
-      const eventDate = parseISO(inq.event_date)
-      return {
-        id: `inquiry-delivery-${inq.id}`,
-        kind: 'inquiry-delivery' as const,
-        title: `? ${orderSummary(inq.items ?? [])} · ${inq.customer_name}`,
-        start: eventDate,
-        end: eventDate,
-        allDay: true as const,
-        resource: toDetails(inq, {
-          linkId: inq.id,
-          linkKind: 'inquiry',
-          status: inq.status as InquiryStatus,
-          deliveryType: inq.delivery_type,
-          price: inq.admin_price,
-        }),
-      }
-    })
-
     const madeCutoff = new Date()
     madeCutoff.setDate(madeCutoff.getDate() - INQUIRY_MADE_WINDOW_DAYS)
 
@@ -458,7 +470,7 @@ export default function CalendarView({ orders, inquiries, blackouts, deliveryCou
       resource: null,
     }))
 
-    return [...blackoutEvents, ...orderEvents, ...inquiryDeliveryEvents, ...inquiryMadeEvents]
+    return [...blackoutEvents, ...orderEvents, ...inquiryMadeEvents]
   }, [orders, inquiries, blackouts])
 
   function eventPropGetter(event: CalendarEvent) {
@@ -481,21 +493,12 @@ export default function CalendarView({ orders, inquiries, blackouts, deliveryCou
             cursor: 'default',
           },
         }
-      case 'inquiry-delivery':
-        return {
-          style: {
-            ...base,
-            backgroundColor: 'var(--color-warning-light)',
-            color: 'var(--color-warning)',
-            border: '1px dashed var(--color-warning)',
-          },
-        }
       case 'inquiry-made':
         return {
           style: {
             ...base,
-            backgroundColor: 'var(--color-surface-raised)',
-            color: 'var(--color-ink-muted)',
+            backgroundColor: 'var(--color-calendar-marker-light)',
+            color: 'var(--color-calendar-marker)',
             fontSize: '11px',
           },
         }
@@ -503,7 +506,7 @@ export default function CalendarView({ orders, inquiries, blackouts, deliveryCou
         if (event.status === 'delivered') {
           return { style: { ...base, backgroundColor: 'var(--color-success)', color: 'var(--color-cream)' } }
         }
-        return { style: { ...base, backgroundColor: 'var(--color-teal)', color: 'var(--color-cream)' } }
+        return { style: { ...base, backgroundColor: 'var(--color-info)', color: 'var(--color-cream)' } }
     }
   }
 

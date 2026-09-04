@@ -5,7 +5,7 @@ import { PencilSimple, Check } from '@phosphor-icons/react'
 import { updateOrderEta } from '@/lib/actions/orders'
 import { useAsyncAction } from '@/lib/hooks/useAsyncAction'
 import { formatDateLong, formatTime } from '@/lib/utils'
-import { Input } from '@/components/ui'
+import { Input, TimeScrollPicker } from '@/components/ui'
 
 interface Props {
   orderId: string
@@ -86,11 +86,7 @@ export default function OrderEtaSection({ orderId, initialDate, initialTime, ini
             </div>
             <div>
               <label className="block text-xs font-medium mb-1" style={{ color: 'var(--color-ink-muted)' }}>Time</label>
-              <Input
-                type="time"
-                value={time}
-                onChange={(e) => setTime(e.target.value)}
-              />
+              <TimeScrollPicker value={time} onChange={setTime} />
             </div>
           </div>
           <div>

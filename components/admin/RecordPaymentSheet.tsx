@@ -280,7 +280,7 @@ export default function RecordPaymentSheet({
               <Input
                 type="number"
                 inputMode="decimal"
-                step="0.001"
+                step="0.05"
                 min="0"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}

@@ -2,46 +2,25 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
-import { updateOrderStatus, cancelOrder } from '@/lib/actions/orders'
+import { cancelOrder } from '@/lib/actions/orders'
 import { useAsyncAction } from '@/lib/hooks/useAsyncAction'
 import { toast } from 'sonner'
-import { Copy, Check, Printer, ArrowRight, ArrowClockwise, X, Image, Spinner } from '@phosphor-icons/react'
+import { Printer, ArrowClockwise, X, Image, Spinner } from '@phosphor-icons/react'
 import { toPng } from 'html-to-image'
 import { useAdminHeader } from '@/components/admin/AdminHeaderContext'
 import type { OrderStatus } from '@/lib/supabase/types'
 
-const NEXT_STATUS: Partial<Record<OrderStatus, { status: OrderStatus; label: string }>> = {
-  confirmed: { status: 'delivered', label: 'Mark Delivered' },
-}
-
 export default function OrderDetailActions({
   order,
-  trackingLink,
   inquiry,
 }: {
   order: { id: string; status: OrderStatus }
-  trackingLink: string
   inquiry: { customer_name: string; id: string }
 }) {
   const router = useRouter()
-  const [copied, setCopied] = useState(false)
   const [downloading, setDownloading] = useState(false)
 
-  const next = NEXT_STATUS[order.status]
   const canCancel = order.status !== 'delivered' && order.status !== 'cancelled'
-
-  const { run: handleAdvance, pending: advancing } = useAsyncAction(
-    async () => {
-      if (!next) return false
-      const result = await updateOrderStatus(order.id, next.status)
-      if (result.error) return { error: result.error }
-    },
-    {
-      successToast: 'Status updated',
-      onSuccess: () => router.refresh(),
-    }
-  )
 
   const { run: runCancel, pending: cancelling } = useAsyncAction(
     async () => {
@@ -53,14 +32,6 @@ export default function OrderDetailActions({
       onSuccess: () => router.refresh(),
     }
   )
-
-  const pending = advancing || cancelling
-
-  const handleCopy = async () => {
-    await navigator.clipboard.writeText(trackingLink)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
-  }
 
   const handleCancel = () => {
     if (!confirm('Cancel this order?')) return
@@ -120,7 +91,7 @@ export default function OrderDetailActions({
               label: cancelling ? 'Cancelling…' : 'Cancel Order',
               icon: cancelling ? Spinner : X,
               spinning: cancelling,
-              disabled: pending,
+              disabled: cancelling,
               danger: true,
               onClick: handleCancel,
             },
@@ -129,109 +100,5 @@ export default function OrderDetailActions({
     ],
   })
 
-  return (
-    <div className="flex flex-col gap-3 mb-8">
-      {/* Tracking link */}
-      <div
-        className="rounded-xl border p-4 flex flex-col gap-3"
-        style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface)' }}
-      >
-        <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--color-ink-muted)' }}>
-          Customer Tracking Link
-        </p>
-        <button
-          type="button"
-          onClick={handleCopy}
-          className="flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium border transition-colors"
-          style={{
-            borderColor: 'var(--color-border)',
-            backgroundColor: 'var(--color-surface-raised)',
-            color: 'var(--color-ink-secondary)',
-          }}
-        >
-          {copied ? <Check size={15} weight="bold" /> : <Copy size={15} />}
-          {copied ? 'Copied!' : 'Copy Tracking Link'}
-        </button>
-        <p className="text-xs break-all" style={{ color: 'var(--color-ink-muted)', fontFamily: 'var(--font-mono)' }}>
-          {trackingLink}
-        </p>
-      </div>
-
-      {/* Advance status */}
-      {next && (
-        <button
-          type="button"
-          onClick={() => handleAdvance()}
-          disabled={pending}
-          className="flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-medium transition-colors disabled:opacity-60"
-          style={{ backgroundColor: 'var(--color-teal)', color: 'var(--color-cream)' }}
-        >
-          {next.label}
-          {advancing ? <Spinner size={15} className="animate-spin" /> : <ArrowRight size={15} />}
-        </button>
-      )}
-
-      {/* Repeat this order — mobile reaches this via the sticky header's overflow menu */}
-      <Link
-        href={`/admin/orders/new?from=${inquiry.id}`}
-        className="hidden lg:flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium border transition-colors"
-        style={{
-          borderColor: 'var(--color-border)',
-          backgroundColor: 'var(--color-surface-raised)',
-          color: 'var(--color-ink-secondary)',
-        }}
-      >
-        <ArrowClockwise size={15} />
-        Repeat this Order
-      </Link>
-
-      {/* Print / Save PDF — mobile reaches this via the sticky header's overflow menu */}
-      <button
-        type="button"
-        onClick={() => window.print()}
-        className="hidden lg:flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium border transition-colors"
-        style={{
-          borderColor: 'var(--color-border)',
-          backgroundColor: 'var(--color-surface-raised)',
-          color: 'var(--color-ink-secondary)',
-        }}
-      >
-        <Printer size={15} />
-        Print / Save PDF
-      </button>
-
-      {/* Download as Image — mobile reaches this via the sticky header's overflow menu */}
-      <button
-        type="button"
-        onClick={handleDownloadImage}
-        disabled={downloading}
-        className="hidden lg:flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium border transition-colors disabled:opacity-60"
-        style={{
-          borderColor: 'var(--color-border)',
-          backgroundColor: 'var(--color-surface-raised)',
-          color: 'var(--color-ink-secondary)',
-        }}
-      >
-        {downloading ? <Spinner size={15} className="animate-spin" /> : <Image size={15} />}
-        {downloading ? 'Generating…' : 'Download as Image'}
-      </button>
-
-      {/* Cancel — mobile reaches this via the sticky header's overflow menu */}
-      {canCancel && (
-        <button
-          type="button"
-          onClick={handleCancel}
-          disabled={pending}
-          className="hidden lg:flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium border transition-colors disabled:opacity-60"
-          style={{
-            borderColor: 'var(--color-danger-light)',
-            color: 'var(--color-danger)',
-          }}
-        >
-          {cancelling ? <Spinner size={15} className="animate-spin" /> : <X size={15} />}
-          Cancel Order
-        </button>
-      )}
-    </div>
-  )
+  return null
 }

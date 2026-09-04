@@ -6,7 +6,6 @@ import { getInquiryImages } from '@/lib/actions/images'
 import {
   formatKWD,
   confirmationLink,
-  trackingLink,
   myOrdersLink,
   orderSummary,
 } from '@/lib/utils'
@@ -14,7 +13,6 @@ import { pendingRecordLabel } from '@/lib/format'
 import { generatePortalToken } from '@/lib/portal'
 import { derivePaymentStatus, balanceOwed, orderTotal } from '@/lib/payments'
 import { StatusBadge, PaymentBadge } from '@/components/admin/StatusBadge'
-import InquiryActions from './_components/InquiryActions'
 import InquiryDetailForm from './_components/InquiryDetailForm'
 import CancelInquiryButton from './_components/CancelInquiryButton'
 import CollapsibleImages from './_components/CollapsibleImages'
@@ -23,13 +21,13 @@ import { CreatedBanner } from './_components/CreatedBanner'
 import OrderDetailActions from './_components/OrderDetailActions'
 import OrderEtaSection from './_components/OrderEtaSection'
 import OrderImageSection from './_components/OrderImageSection'
-import OrderWhatsAppActions from './_components/OrderWhatsAppActions'
+import OrderQuickActions from './_components/OrderQuickActions'
 import PaymentHistorySection from './_components/PaymentHistorySection'
 import InvoicePrint from '@/components/admin/InvoicePrint'
 import Link from 'next/link'
 import { ArrowLeft } from '@phosphor-icons/react/dist/ssr'
 import type { Metadata } from 'next'
-import type { InquiryItem, InquiryStatus, Payment, PaymentMethod, WhatsAppTemplates } from '@/lib/supabase/types'
+import type { InquiryItem, InquiryStatus, OrderStatus, Payment, PaymentMethod, WhatsAppTemplates } from '@/lib/supabase/types'
 
 interface Props {
   params: Promise<{ id: string }>
@@ -229,8 +227,6 @@ export default async function OrderDetailPage({ params, searchParams }: Props) {
   const balanceKwd = balanceOwed(orderTotalKwd, amountPaidKwd, settled)
   const paidPct = orderTotalKwd > 0 ? Math.min(100, Math.round((amountPaidKwd / orderTotalKwd) * 100)) : 0
 
-  const trackLink = order ? trackingLink(order.tracking_token) : null
-
   return (
     <div className="px-4 py-6 md:px-8 md:py-8 max-w-2xl mx-auto">
       <div className="no-print">
@@ -295,14 +291,56 @@ export default async function OrderDetailPage({ params, searchParams }: Props) {
           </div>
         </div>
 
-        {/* Actions: Next Step banner + WA buttons */}
+        {/* Quick Actions + Payment — both moved right under the header so neither needs a
+            scroll. Quick Actions leads (what to tell the customer beats what they paid for a
+            glanceable check), Payment follows; side-by-side on wider screens, stacked on
+            mobile where this admin is mostly used (see PRODUCT.md). Payments are keyed to the
+            inquiry (migration 037), so PaymentHistorySection works before an order exists
+            too: orderId is null pre-confirmation. */}
         {!isCancelled && (
-          <InquiryActions
-            inquiry={inquiry as any}
-            confirmLink={confirmLink}
-            templates={templates}
-            fallbackLinkUrl={myOrdersUrl}
-          />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4 items-start">
+            <OrderQuickActions
+              inquiry={{
+                id: inquiry.id,
+                customer_name: inquiry.customer_name,
+                customer_phone: inquiry.customer_phone,
+                fully_paid: inquiry.fully_paid,
+                amount_paid: inquiry.amount_paid,
+                customer_confirmed: (inquiry as any).customer_confirmed,
+                status: inquiry.status as InquiryStatus,
+                admin_price: inquiry.admin_price,
+                discount: inquiry.discount,
+                delivery_charge: inquiry.delivery_charge,
+              }}
+              order={
+                order
+                  ? {
+                      id: order.id,
+                      status: order.status as OrderStatus,
+                      final_price: order.final_price,
+                      amount_paid: order.amount_paid,
+                      tracking_token: order.tracking_token,
+                    }
+                  : null
+              }
+              confirmationLinkUrl={confirmLink}
+              myOrdersUrl={myOrdersUrl}
+              templates={templates}
+            />
+            <div id="payment-history">
+              <PaymentHistorySection
+                inquiryId={inquiry.id}
+                orderId={order?.id ?? null}
+                payments={payments}
+                orderTotal={orderTotalKwd}
+                amountPaid={amountPaidKwd}
+                customerName={inquiry.customer_name ?? ''}
+                customerPhone={inquiry.customer_phone ?? ''}
+                defaultMethod={(inquiry.payment_method || 'cash') as PaymentMethod}
+                templates={templates}
+              />
+            </div>
+          </div>
         )}
 
         {/* Timeline */}
@@ -420,47 +458,16 @@ export default async function OrderDetailPage({ params, searchParams }: Props) {
           templates={templates}
         />
 
-        {/* Order-only sections: these need an orders row (payments/ETA/actions/invoice
-            are all keyed off it, or read fields — final_price, tracking_token — that
-            only exist once the record is confirmed). */}
+        {/* ETA — needs an orders row (eta_date/eta_time/eta_note only exist once confirmed). */}
         {order && (
-          <>
-            <div className="mt-4" id="payment-history">
-              <PaymentHistorySection
-                inquiryId={inquiry.id}
-                orderId={order.id}
-                payments={payments}
-                orderTotal={orderTotalKwd}
-                amountPaid={amountPaidKwd}
-                customerName={inquiry.customer_name ?? ''}
-                customerPhone={inquiry.customer_phone ?? ''}
-                defaultMethod={(inquiry.payment_method || 'cash') as PaymentMethod}
-                templates={templates}
-              />
-            </div>
-
-            <div className="mt-4">
-              <OrderEtaSection
-                orderId={order.id}
-                initialDate={(order as any).eta_date ?? null}
-                initialTime={(order as any).eta_time ?? null}
-                initialNote={(order as any).eta_note ?? ''}
-              />
-            </div>
-
-            <div className="mt-4">
-              <OrderWhatsAppActions
-                order={{ final_price: order.final_price, amount_paid: order.amount_paid, tracking_token: order.tracking_token }}
-                inquiry={{
-                  customer_name: inquiry.customer_name,
-                  customer_phone: inquiry.customer_phone,
-                  fully_paid: inquiry.fully_paid,
-                }}
-                templates={templates}
-                myOrdersUrl={myOrdersUrl}
-              />
-            </div>
-          </>
+          <div className="mt-4">
+            <OrderEtaSection
+              orderId={order.id}
+              initialDate={(order as any).eta_date ?? null}
+              initialTime={(order as any).eta_time ?? null}
+              initialNote={(order as any).eta_note ?? ''}
+            />
+          </div>
         )}
 
         {/* Finished Cake Photos — only needs the inquiry id, so it can be added even
@@ -511,19 +518,20 @@ export default async function OrderDetailPage({ params, searchParams }: Props) {
           </div>
         )}
 
-        {/* Order-only actions: tracking link, advance/cancel order, print/download */}
-        {order && trackLink && (
-          <div className="mt-4">
-            <OrderDetailActions
-              order={order as any}
-              trackingLink={trackLink}
-              inquiry={{ customer_name: inquiry.customer_name ?? '', id: inquiry.id }}
-            />
-          </div>
+        {/* Order-only: registers the header's "More actions" menu (repeat/print/download/cancel) */}
+        {order && (
+          <OrderDetailActions
+            order={order as any}
+            inquiry={{ customer_name: inquiry.customer_name ?? '', id: inquiry.id }}
+          />
         )}
 
-        {/* Cancel button */}
-        {!isCancelled && <CancelInquiryButton inquiryId={id} />}
+        {/* Cancel button — only for records that never became an order. Once one exists,
+            "Cancel Order" (in the header's More actions menu above) is the only cancel
+            action: it runs sync_order_status, which cascades to the inquiry too. This
+            button calls cancelInquiry directly, which doesn't touch the orders row — using
+            it on a confirmed order would leave the two out of sync. */}
+        {!isCancelled && !order && <CancelInquiryButton inquiryId={id} />}
       </div>
 
       {/* Invoice print component — order-only, needs final_price/tracking_token/etc. */}

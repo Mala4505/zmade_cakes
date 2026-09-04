@@ -19,10 +19,12 @@ import { useOptionalNavPending } from '@/components/admin/NavPendingContext'
  * - `pending` is guaranteed to resolve on both the success and the throw path.
  * - A built-in synchronous lock drops overlapping calls (double-tap, double-submit).
  * - `successToast` fires once, automatically, only on a clean success.
- * - `onSuccess` runs *after* `pending` has cleared — so any navigation inside it
- *   never keeps the triggering button spinning. When a NavPendingProvider is in
- *   scope (the admin shell), that post-pending work is itself tracked so the
- *   top-of-viewport progress bar reflects the navigation.
+ * - `onSuccess` runs *after* `pending` has cleared (plus a short beat so the
+ *   success toast is visible before the page starts changing) — so any
+ *   navigation inside it never keeps the triggering button spinning. When a
+ *   NavPendingProvider is in scope (the admin shell), the write itself *and*
+ *   that post-pending work are tracked so the top-of-viewport progress bar
+ *   reflects "processing" for the whole lifecycle, not just the navigation.
  *
  * The action callback signals failure in whichever way is natural:
  *   - `return { error: 'message' }`  → error toast with that message, no onSuccess
@@ -76,23 +78,31 @@ export function useAsyncAction<Args extends unknown[]>(
 
   // Fire the queued onSuccess only once the write transition has fully settled,
   // so navigation runs outside it and the triggering button stops spinning now.
+  // A short beat after that — rather than starting the very next tick — gives the
+  // success toast (which fires synchronously inside the write, before this effect
+  // even runs) a moment to actually register before the page starts changing out
+  // from under it.
   useEffect(() => {
     if (pending) return
     const cb = pendingSuccessRef.current
     if (!cb) return
     pendingSuccessRef.current = null
-    startNavTransition(cb)
+    const timer = setTimeout(() => startNavTransition(cb), 500)
+    return () => clearTimeout(timer)
   }, [pending])
 
-  // Surface the post-success work (typically a route change) to the shared
-  // nav-progress bar when the admin shell is mounted. No-op elsewhere.
+  // Surface both the write itself and any post-success navigation to the shared
+  // nav-progress bar when the admin shell is mounted, so "processing" is visible
+  // from the moment the action starts, not just once it's navigating. No-op
+  // outside the admin shell (useOptionalNavPending returns null there).
   const nav = useOptionalNavPending()
   const navId = useId()
+  const anyPending = pending || navPending
   useEffect(() => {
     if (!nav) return
-    nav.setActionPending(navId, navPending)
+    nav.setActionPending(navId, anyPending)
     return () => nav.setActionPending(navId, false)
-  }, [nav, navPending, navId])
+  }, [nav, anyPending, navId])
 
   const run = useCallback((...args: Args) => {
     if (lockRef.current) return

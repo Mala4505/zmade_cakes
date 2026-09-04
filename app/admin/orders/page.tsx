@@ -193,6 +193,9 @@ export default async function OrdersPage({
     dir?: string
     q?: string
     page?: string
+    confirmedPage?: string
+    deliveredPage?: string
+    cancelledPage?: string
   }>
 }) {
   const {
@@ -204,13 +207,28 @@ export default async function OrdersPage({
     dir: dirParam,
     q,
     page: pageParam,
+    confirmedPage: confirmedPageParam,
+    deliveredPage: deliveredPageParam,
+    cancelledPage: cancelledPageParam,
   } = await searchParams
 
   // Board view is a separate, independent param namespace (its own `cancelled`
-  // toggle) from the table view's `status/payment/sort/dir/q/page` below — see
-  // ViewToggle's comment for why switching views doesn't carry params across.
+  // toggle, and its own per-column `payment`/`*Page`) from the table view's
+  // `status/payment/sort/dir/q/page` below — see ViewToggle's comment for why
+  // switching views doesn't carry params across. It shares the `payment` param's
+  // *name* with the table view (so a bookmarked/shared board URL reads naturally)
+  // but not its value, since the two views never render at the same time.
   if (viewParam === 'board') {
-    return <OrderKanbanBoard showCancelled={cancelled === '1'} />
+    const boardPayment = payment === 'unpaid' || payment === 'partial' || payment === 'paid' ? payment : 'all'
+    return (
+      <OrderKanbanBoard
+        showCancelled={cancelled === '1'}
+        payment={boardPayment}
+        confirmedPage={Math.max(1, parseInt(confirmedPageParam ?? '1', 10) || 1)}
+        deliveredPage={Math.max(1, parseInt(deliveredPageParam ?? '1', 10) || 1)}
+        cancelledPage={Math.max(1, parseInt(cancelledPageParam ?? '1', 10) || 1)}
+      />
+    )
   }
 
   // Default sort mirrors the pipeline: Inquired → Confirmed → Delivered (Cancelled last).

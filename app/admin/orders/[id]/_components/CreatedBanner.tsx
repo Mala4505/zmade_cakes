@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { CheckCircle } from '@phosphor-icons/react'
 
 /**
@@ -13,14 +12,19 @@ import { CheckCircle } from '@phosphor-icons/react'
  * doesn't depend on catching a transient toast at the right moment.
  */
 export function CreatedBanner({ created }: { created: boolean }) {
-  const router = useRouter()
   const [visible, setVisible] = useState(created)
 
   useEffect(() => {
     if (!created) return
     // Strip the param so a refresh or back/forward doesn't re-show the banner.
-    router.replace(window.location.pathname, { scroll: false })
-  }, [created, router])
+    // Deliberately `window.history.replaceState`, not `router.replace` — this page
+    // already does a fair amount of data fetching, and a Next router navigation
+    // here would re-run all of it just to tidy the URL, plus feed a real
+    // (occasionally slow) transition into the shared nav-progress state for
+    // something that's purely cosmetic. History API only touches the address bar.
+    // Mirrors the same pattern already used by `OrderForm.tsx`'s step wizard.
+    window.history.replaceState(null, '', window.location.pathname)
+  }, [created])
 
   if (!visible) return null
 

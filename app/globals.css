@@ -68,6 +68,17 @@
   --color-info: #0e6ba8;
   --color-info-light: #e8f3fb;
 
+  /* Calendar-only (app/admin/calendar/_components/CalendarView.tsx): the
+     "inquiry made" marker. "Confirmed order" reuses --color-info above;
+     delivered/blackout reuse --color-success/--color-danger. This one is
+     calendar-specific because nothing else in the app needed a "just-inquired"
+     state. Chosen via a categorical-palette validator (lightness band, chroma
+     floor, CVD-safe adjacent pairs, normal-vision floor) against the cream
+     surface — the previous plain --color-ink-muted read as too gray (chroma
+     0.01) to register as its own color rather than ordinary muted UI text. */
+  --color-calendar-marker: #4a3aa7;
+  --color-calendar-marker-light: #ece9f8;
+
   /* ---- Typography ---- */
   --font-sans: 'Open Sauce Sans', system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), monospace;
@@ -109,19 +120,6 @@
   --admin-tabbar-h: 64px;
   --safe-t: env(safe-area-inset-top, 0px);
   --safe-b: env(safe-area-inset-bottom, 0px);
-}
-
-/* PinnedOrderTotal sits `fixed`, so it positions against the viewport
-   regardless of where it's mounted in the DOM — it needs to clear the real
-   (non-fixed) tab bar's top edge on mobile, but on desktop there's no tab
-   bar at all, so it should hug the true bottom edge instead. */
-:root {
-  --pinned-total-bottom: calc(var(--admin-tabbar-h) + var(--safe-b));
-}
-@media (min-width: 768px) {
-  :root {
-    --pinned-total-bottom: 16px;
-  }
 }
 
 /* ---- Base ---- */

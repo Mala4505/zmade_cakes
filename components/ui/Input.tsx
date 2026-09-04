@@ -45,11 +45,31 @@ export type InputProps = Omit<React.InputHTMLAttributes<HTMLInputElement>, 'size
 }
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
-  { className, size = 'sm', prefix, prefixTone = 'neutral', ...props },
+  { className, size = 'sm', prefix, prefixTone = 'neutral', onWheel, ...props },
   ref
 ) {
+  // Scrolling over a focused number input silently changes its value — on a
+  // price/discount/payment field, a stray scroll while reading the page below
+  // it can misprice an order with no visual cue that anything changed. Blur on
+  // wheel so the browser's native increment never fires; a caller that ever
+  // wants scroll-to-change back can still pass its own `onWheel`.
+  const handleWheel =
+    props.type === 'number'
+      ? (e: React.WheelEvent<HTMLInputElement>) => {
+          e.currentTarget.blur()
+          onWheel?.(e)
+        }
+      : onWheel
+
   if (prefix === undefined) {
-    return <input ref={ref} className={cn(inputBaseClass, sizeClass[size], className)} {...props} />
+    return (
+      <input
+        ref={ref}
+        className={cn(inputBaseClass, sizeClass[size], className)}
+        onWheel={handleWheel}
+        {...props}
+      />
+    )
   }
 
   const invalid = props['aria-invalid'] === true || props['aria-invalid'] === 'true'
@@ -83,6 +103,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
           sizeClass[size],
           className
         )}
+        onWheel={handleWheel}
         {...props}
       />
     </div>

@@ -14,9 +14,8 @@ import { useAsyncAction } from '@/lib/hooks/useAsyncAction'
 import { upsertCustomer } from '@/lib/actions/customers'
 import { derivePaymentStatus, balanceOwed } from '@/lib/payments'
 import { PaymentBadge } from '@/components/admin/StatusBadge'
-import { PinnedOrderTotal } from '@/components/admin/PinnedOrderTotal'
 import RecordPaymentSheet from '@/components/admin/RecordPaymentSheet'
-import { Button, Checkbox, Field, IconButton, Input, RadioGroup, Select, Switch, Textarea } from '@/components/ui'
+import { Button, Checkbox, Field, IconButton, Input, RadioGroup, Select, Switch, Textarea, TimeScrollPicker } from '@/components/ui'
 import { Copy, WhatsappLogo, Plus, Wallet } from '@phosphor-icons/react'
 import type { OptionRow, Inquiry, BlackoutDate, WhatsAppTemplates } from '@/lib/supabase/types'
 import { z } from 'zod'
@@ -75,7 +74,6 @@ export default function InquiryDetailForm({
   const router = useRouter()
   const [copiedPhone, setCopiedPhone] = useState(false)
   const [paymentSheetOpen, setPaymentSheetOpen] = useState(false)
-  const ledgerRef = useRef<HTMLDivElement>(null)
   const [showDietary, setShowDietary] = useState(() =>
     !!(
       inquiry.allergen_nut_free ||
@@ -169,6 +167,7 @@ export default function InquiryDetailForm({
   const paymentMethod = watch('payment_method')
   const watchedPhone = watch('customer_phone')
   const watchedEventDate = watch('event_date')
+  const watchedPickupTime = watch('pickup_time')
   // Suggested pricing is keyed off a single size — pricing stays order-level (no per-item
   // pricing UI in this pass, see the multi-item plan), so this reads the first item's size
   // as the representative one for a multi-item order.
@@ -311,9 +310,7 @@ export default function InquiryDetailForm({
 
   return (
     <FormProvider {...form}>
-    {/* pb-20: clearance for PinnedOrderTotal, which can cover the last ~2-3 fields
-        (and the submit button) once the ledger above has scrolled out of view. */}
-    <form onSubmit={handleSubmit(submit, onInvalid)} className="flex flex-col gap-4 pb-20">
+    <form onSubmit={handleSubmit(submit, onInvalid)} className="flex flex-col gap-4">
       {/* Card 1: Customer & Contact */}
       <div
         className="rounded-xl border"
@@ -512,7 +509,10 @@ export default function InquiryDetailForm({
               )}
             </div>
             <Field label={deliveryType === 'delivery' ? 'Delivery Time' : 'Pickup Time'} error={errors.pickup_time?.message}>
-              <Input {...register('pickup_time')} type="time" />
+              <TimeScrollPicker
+                value={watchedPickupTime ?? ''}
+                onChange={(v) => setValue('pickup_time', v, { shouldDirty: true, shouldValidate: true })}
+              />
             </Field>
             {deliveryType === 'delivery' && (
               <div className="sm:col-span-2 pt-3 border-t grid grid-cols-1 sm:grid-cols-2 gap-3" style={{ borderColor: 'var(--color-border)' }}>
@@ -564,7 +564,7 @@ export default function InquiryDetailForm({
                     <Input
                       {...register('delivery_charge', { setValueAs: numberOrZero })}
                       type="number"
-                      step="0.001"
+                      step="0.05"
                       min="0"
                       placeholder="0.000"
                       prefix="+"
@@ -603,7 +603,7 @@ export default function InquiryDetailForm({
               <Input
                 {...register('admin_price', { setValueAs: numberOrNull })}
                 type="number"
-                step="0.001"
+                step="0.05"
                 min="0"
                 placeholder="12.500"
                 prefix="KD"
@@ -644,7 +644,7 @@ export default function InquiryDetailForm({
               <Input
                 {...register('discount', { setValueAs: numberOrZero })}
                 type="number"
-                step="0.001"
+                step="0.05"
                 min="0"
                 placeholder="0.000"
                 prefix="−"
@@ -657,7 +657,6 @@ export default function InquiryDetailForm({
                 line is entered in Delivery & Collection above, not here, but still
                 counts toward this total. */}
             <div
-              ref={ledgerRef}
               className="rounded-lg border px-3.5 py-3 flex flex-col gap-1.5"
               style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface-raised)' }}
             >
@@ -828,7 +827,7 @@ export default function InquiryDetailForm({
                 <Input
                   {...register('deposit_amount', { setValueAs: numberOrNull })}
                   type="number"
-                  step="0.001"
+                  step="0.05"
                   min="0"
                   prefix="KD"
                   aria-invalid={errors.deposit_amount ? true : undefined}
@@ -848,8 +847,6 @@ export default function InquiryDetailForm({
       <Button type="submit" size="lg" loading={pending} className="w-full">
         Save Changes
       </Button>
-
-      <PinnedOrderTotal anchorRef={ledgerRef} total={orderTotalAmt} />
     </form>
     </FormProvider>
   )

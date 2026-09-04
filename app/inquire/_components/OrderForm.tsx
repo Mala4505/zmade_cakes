@@ -16,7 +16,7 @@ import {
   type PublicInquiryInput,
   type PublicInquiryData,
 } from '@/lib/validations/publicInquiry'
-import { Button, CakeLoader, Checkbox, DetailRow, Field, Input, RadioGroup, Select, Textarea } from '@/components/ui'
+import { Button, CakeLoader, Checkbox, DetailRow, Field, Input, RadioGroup, Select, Textarea, TimeScrollPicker } from '@/components/ui'
 import { Check, PencilSimple, Plus, Trash, X } from '@phosphor-icons/react'
 
 interface Option { id: string; name: string }
@@ -565,6 +565,7 @@ export default function OrderForm({
               id="order-customer-phone"
               value={form.customer_phone}
               onChange={value => setValue('customer_phone', value, { shouldValidate: true })}
+              aria-invalid={errors.customer_phone ? true : undefined}
               size="base"
             />
           </Field>
@@ -798,7 +799,11 @@ export default function OrderForm({
           </Field>
 
           <Field label="Preferred Pickup / Delivery Time" htmlFor="order-pickup-time" error={errors.pickup_time?.message}>
-            <Input id="order-pickup-time" {...register('pickup_time')} type="time" size="base" />
+            <TimeScrollPicker
+              id="order-pickup-time"
+              value={form.pickup_time ?? ''}
+              onChange={(v) => setValue('pickup_time', v, { shouldValidate: true })}
+            />
           </Field>
 
           <Field label="Collection Method" error={errors.delivery_type?.message} required>

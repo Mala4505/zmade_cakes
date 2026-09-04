@@ -14,8 +14,7 @@ import { useAsyncAction } from '@/lib/hooks/useAsyncAction'
 import { lookupCustomerByPhone, searchCustomersByName, upsertCustomer, type CustomerWithHistory } from '@/lib/actions/customers'
 import { derivePaymentStatus, balanceOwed } from '@/lib/payments'
 import { PaymentBadge } from '@/components/admin/StatusBadge'
-import { PinnedOrderTotal } from '@/components/admin/PinnedOrderTotal'
-import { Button, Checkbox, Field, IconButton, Input, RadioGroup, Select, Switch, Textarea } from '@/components/ui'
+import { Button, Checkbox, Field, IconButton, Input, RadioGroup, Select, Switch, Textarea, TimeScrollPicker } from '@/components/ui'
 import { Plus, Trash } from '@phosphor-icons/react'
 import type { OptionRow, Inquiry, BlackoutDate } from '@/lib/supabase/types'
 import { z } from 'zod'
@@ -91,7 +90,6 @@ const todayISO = () => new Date().toISOString().slice(0, 10)
 
 export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, pricingMatrix, minPriceGuard, rushMultiplier, prefillFrom }: Props) {
   const router = useRouter()
-  const ledgerRef = useRef<HTMLDivElement>(null)
   // Holds the id of a freshly-created inquiry so the hook's `onSuccess` (which runs after
   // `pending` clears) knows where to navigate. Ref, not state — setting it never re-renders.
   const createdIdRef = useRef<string | null>(null)
@@ -207,6 +205,7 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
   const watchedPhone = watch('customer_phone')
   const watchedCustomerName = watch('customer_name')
   const watchedEventDate = watch('event_date')
+  const watchedPickupTime = watch('pickup_time')
   // Suggested pricing is keyed off a single size — pricing stays order-level (no per-item
   // pricing UI in this pass, see the multi-item plan), so this reads the first item's size
   // as the representative one for a multi-item order.
@@ -448,9 +447,7 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
 
   return (
     <FormProvider {...form}>
-    {/* pb-20: clearance for PinnedOrderTotal, which can cover the last ~2-3 fields
-        (and the submit button) once the ledger above has scrolled out of view. */}
-    <form onSubmit={handleSubmit(submit, onInvalid)} className="flex flex-col gap-8 pb-20">
+    <form onSubmit={handleSubmit(submit, onInvalid)} className="flex flex-col gap-8">
       {/* Customer info */}
       <Section title="Customer">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -465,6 +462,7 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
             <PhoneInput
               value={watchedPhone}
               onChange={value => setValue('customer_phone', value, { shouldValidate: true })}
+              aria-invalid={errors.customer_phone ? true : undefined}
             />
           </Field>
         </div>
@@ -634,7 +632,10 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
             )}
           </Field>
           <Field label={deliveryType === 'delivery' ? 'Delivery Time' : 'Pickup Time'} error={errors.pickup_time?.message}>
-            <Input {...register('pickup_time')} type="time" step={900} />
+            <TimeScrollPicker
+              value={watchedPickupTime ?? ''}
+              onChange={(v) => setValue('pickup_time', v, { shouldDirty: true, shouldValidate: true })}
+            />
           </Field>
         </div>
 
@@ -678,7 +679,7 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
                 <Input
                   {...register('delivery_charge', { setValueAs: numberOrZero })}
                   type="number"
-                  step="0.001"
+                  step="0.05"
                   min="0"
                   placeholder="0.000"
                   prefix="+"
@@ -726,7 +727,7 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
             <Input
               {...register('admin_price', { setValueAs: numberOrNull })}
               type="number"
-              step="0.001"
+              step="0.05"
               min="0"
               prefix="KD"
               aria-invalid={errors.admin_price ? true : undefined}
@@ -766,7 +767,7 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
             <Input
               {...register('discount', { setValueAs: numberOrZero })}
               type="number"
-              step="0.001"
+              step="0.05"
               min="0"
               placeholder="0.000"
               prefix="−"
@@ -779,7 +780,6 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
               line is entered in Event & Delivery above, not here, but still counts
               toward this total. */}
           <div
-            ref={ledgerRef}
             className="rounded-lg border px-3.5 py-3 flex flex-col gap-1.5"
             style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-surface-raised)' }}
           >
@@ -910,7 +910,7 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
                         <Input
                           {...register(`payments.${index}.amount`)}
                           type="number"
-                          step="0.001"
+                          step="0.05"
                           min="0"
                           placeholder="0.000"
                           prefix="KD"
@@ -968,7 +968,7 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
               <Input
                 {...register('deposit_amount', { setValueAs: numberOrNull })}
                 type="number"
-                step="0.001"
+                step="0.05"
                 min="0"
                 prefix="KD"
                 aria-invalid={errors.deposit_amount ? true : undefined}
@@ -998,8 +998,6 @@ export default function InquiryForm({ options, inquiry, minLeadDays, blackouts, 
       <Button type="submit" size="lg" loading={pending} className="w-full">
         {pending ? (inquiry ? 'Saving…' : 'Creating…') : (inquiry ? 'Save Changes' : 'Create Order')}
       </Button>
-
-      <PinnedOrderTotal anchorRef={ledgerRef} total={orderTotalAmt} />
     </form>
     </FormProvider>
   )

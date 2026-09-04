@@ -41,6 +41,7 @@ export default function OperatingRulesForm({ initialLeadDays }: { initialLeadDay
             max={90}
             step={1}
             value={value}
+            onWheel={(e) => e.currentTarget.blur()}
             onChange={(e) => setValue(parseInt(e.target.value) || 0)}
             className="w-full rounded-lg border px-3.5 py-2.5 text-sm outline-none transition-all"
             style={{

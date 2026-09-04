@@ -8,7 +8,7 @@ import { customerConfirmSchema, type CustomerConfirmData } from '@/lib/validatio
 import { CheckCircle, ArrowClockwise, WarningCircle, PencilSimple, X, WhatsappLogo } from '@phosphor-icons/react'
 import { GOVERNORATE_LABELS, formatTime, formatAddress } from '@/lib/utils'
 import { holdMinimumVisible } from '@/lib/motion'
-import { DetailRow, Field, Input, Textarea, Select, Button, CakeLoader } from '@/components/ui'
+import { DetailRow, Field, Input, Textarea, Select, Button, CakeLoader, TimeScrollPicker } from '@/components/ui'
 
 type Address = {
   governorate: string
@@ -491,16 +491,14 @@ export default function ConfirmForm({
           htmlFor="confirm-pickup-time"
           error={fieldErrors['pickup_time']}
         >
-          <Input
+          <TimeScrollPicker
             id="confirm-pickup-time"
-            type="time"
             value={pickupTime}
-            onChange={(e) => {
-              setPickupTime(e.target.value)
+            onChange={(v) => {
+              setPickupTime(v)
               clearFieldError('pickup_time')
             }}
             aria-invalid={fieldErrors['pickup_time'] ? true : undefined}
-            size="base"
           />
         </Field>
 

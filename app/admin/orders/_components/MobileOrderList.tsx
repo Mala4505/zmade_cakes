@@ -167,7 +167,24 @@ function MobileOrderCard({ order, templates }: { order: MobileOrder; templates?:
   )
 }
 
-export default function MobileOrderList({ orders, templates }: { orders: MobileOrder[]; templates?: WhatsAppTemplates }) {
+interface StatusPagination {
+  page: number
+  totalPages: number
+  totalCount: number
+  prevHref: string
+  nextHref: string
+}
+
+export default function MobileOrderList({
+  orders,
+  templates,
+  pagination,
+}: {
+  orders: MobileOrder[]
+  templates?: WhatsAppTemplates
+  /** Per-status Prev/Next — board view paginates each status column independently. */
+  pagination?: Record<string, StatusPagination>
+}) {
   const grouped = STATUS_ORDER.reduce<Record<string, MobileOrder[]>>((acc, s) => {
     acc[s] = orders.filter((o) => o.status === s)
     return acc
@@ -177,7 +194,11 @@ export default function MobileOrderList({ orders, templates }: { orders: MobileO
     <div className="flex flex-col">
       {STATUS_ORDER.map((status) => {
         const group = grouped[status]
-        if (!group.length) return null
+        const pageInfo = pagination?.[status]
+        // With pagination in play, an empty *page* of a non-empty status should still
+        // show its header + pager (e.g. jumping past the last page) — only skip the
+        // section entirely when the status has no orders at all.
+        if (!group.length && !pageInfo?.totalCount) return null
         return (
           <div key={status}>
             <div
@@ -188,7 +209,7 @@ export default function MobileOrderList({ orders, templates }: { orders: MobileO
                 borderBottom: '1px solid var(--color-border)',
               }}
             >
-              {STATUS_LABELS[status]} · {group.length}
+              {STATUS_LABELS[status]} · {pageInfo?.totalCount ?? group.length}
             </div>
             <div className="flex flex-col gap-3 p-4">
               <AnimatedCardList
@@ -198,6 +219,41 @@ export default function MobileOrderList({ orders, templates }: { orders: MobileO
                 }))}
               />
             </div>
+            {pageInfo && pageInfo.totalPages > 1 && (
+              <div className="flex items-center justify-between gap-2 px-4 pb-4">
+                <Link
+                  href={pageInfo.prevHref}
+                  aria-disabled={pageInfo.page <= 1}
+                  tabIndex={pageInfo.page <= 1 ? -1 : undefined}
+                  className="px-3 py-1.5 text-xs font-medium rounded-lg border transition-all active:scale-[0.97]"
+                  style={{
+                    borderColor: 'var(--color-border)',
+                    color: 'var(--color-ink-muted)',
+                    pointerEvents: pageInfo.page <= 1 ? 'none' : undefined,
+                    opacity: pageInfo.page <= 1 ? 0.5 : 1,
+                  }}
+                >
+                  Prev
+                </Link>
+                <span className="text-xs font-mono" style={{ color: 'var(--color-ink-muted)' }}>
+                  {pageInfo.page} / {pageInfo.totalPages}
+                </span>
+                <Link
+                  href={pageInfo.nextHref}
+                  aria-disabled={pageInfo.page >= pageInfo.totalPages}
+                  tabIndex={pageInfo.page >= pageInfo.totalPages ? -1 : undefined}
+                  className="px-3 py-1.5 text-xs font-medium rounded-lg border transition-all active:scale-[0.97]"
+                  style={{
+                    borderColor: 'var(--color-border)',
+                    color: 'var(--color-ink-muted)',
+                    pointerEvents: pageInfo.page >= pageInfo.totalPages ? 'none' : undefined,
+                    opacity: pageInfo.page >= pageInfo.totalPages ? 0.5 : 1,
+                  }}
+                >
+                  Next
+                </Link>
+              </div>
+            )}
           </div>
         )
       })}

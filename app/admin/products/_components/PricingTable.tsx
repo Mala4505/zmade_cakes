@@ -35,7 +35,7 @@ export function PricingTable({ sizes, priceMap, onChange }: Props) {
               type="number"
               min="0"
               max="9999.999"
-              step="0.001"
+              step="0.05"
               inputMode="decimal"
               value={raw}
               onChange={(e) => onChange(size.id, e.target.value)}

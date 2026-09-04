@@ -108,17 +108,66 @@ function LogoutButton() {
  * page-level actions).
  */
 export function AdminTopBar() {
+  const override = useAdminHeaderOverride()
+  const [moreOpen, setMoreOpen] = useState(false)
+  const hasMenuItems = !!override?.menuItems && override.menuItems.length > 0
+
+  // Same beat as the mobile "More actions" menu: close first, then fire the
+  // action after the modal's exit animation clears — Modal portals to
+  // document.body outside the page's `.no-print` wrapper, so an action like
+  // window.print() invoked in the same tick risks catching the modal mid-close
+  // in the print snapshot.
+  const runMenuAction = (fn: () => void) => {
+    setMoreOpen(false)
+    setTimeout(fn, 200)
+  }
+
   return (
-    <header
-      className="hidden lg:flex items-center gap-2.5 h-14 px-6 border-b shrink-0"
-      style={{
-        backgroundColor: 'var(--color-cream)',
-        borderColor: 'var(--color-border)',
-      }}
-    >
-      <span className="flex-1" />
-      <NotificationBellDesktop />
-    </header>
+    <>
+      <header
+        className="hidden lg:flex items-center gap-2.5 h-14 px-6 border-b shrink-0"
+        style={{
+          backgroundColor: 'var(--color-cream)',
+          borderColor: 'var(--color-border)',
+        }}
+      >
+        <span className="flex-1" />
+        <NotificationBellDesktop />
+        {hasMenuItems && (
+          <button
+            type="button"
+            onClick={() => setMoreOpen(true)}
+            aria-label="More actions"
+            aria-haspopup="true"
+            aria-expanded={moreOpen}
+            className="w-9 h-9 flex items-center justify-center rounded-lg transition-colors"
+            style={{ color: 'var(--color-ink-muted)' }}
+          >
+            <DotsThreeOutline size={20} aria-hidden="true" />
+          </button>
+        )}
+      </header>
+
+      {hasMenuItems && (
+        <Modal open={moreOpen} onClose={() => setMoreOpen(false)} title="More actions" size="sm">
+          <div className="flex flex-col gap-1 -mx-1">
+            {override!.menuItems!.map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                disabled={item.disabled}
+                onClick={() => runMenuAction(item.onClick)}
+                className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors disabled:opacity-60"
+                style={{ color: item.danger ? 'var(--color-danger)' : 'var(--color-ink-secondary)' }}
+              >
+                <item.icon size={18} aria-hidden="true" className={item.spinning ? 'animate-spin' : undefined} />
+                <span>{item.label}</span>
+              </button>
+            ))}
+          </div>
+        </Modal>
+      )}
+    </>
   )
 }
 

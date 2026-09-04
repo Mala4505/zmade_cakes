@@ -93,9 +93,10 @@ export function PricingPanel({ sizes, initialMatrix, initialMinGuard, initialRus
                       type="number"
                       min="0"
                       max="9999.999"
-                      step="0.001"
+                      step="0.05"
                       inputMode="decimal"
                       value={raw}
+                      onWheel={(e) => e.currentTarget.blur()}
                       onChange={(e) => setMatrix((prev) => ({ ...prev, [size.id]: e.target.value }))}
                       placeholder="0.000"
                       aria-label={`Base price for ${size.name}`}
@@ -116,7 +117,7 @@ export function PricingPanel({ sizes, initialMatrix, initialMinGuard, initialRus
               id="min-price"
               type="number"
               min="0"
-              step="0.001"
+              step="0.05"
               inputMode="decimal"
               value={minGuard}
               onChange={(e) => setMinGuard(e.target.value)}
