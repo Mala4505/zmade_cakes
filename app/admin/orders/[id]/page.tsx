@@ -20,7 +20,6 @@ import CustomerChangesBanner from './_components/CustomerChangesBanner'
 import { CreatedBanner } from './_components/CreatedBanner'
 import OrderDetailActions from './_components/OrderDetailActions'
 import OrderEtaSection from './_components/OrderEtaSection'
-import OrderImageSection from './_components/OrderImageSection'
 import OrderQuickActions from './_components/OrderQuickActions'
 import PaymentHistorySection from './_components/PaymentHistorySection'
 import InvoicePrint from '@/components/admin/InvoicePrint'
@@ -207,12 +206,7 @@ export default async function OrderDetailPage({ params, searchParams }: Props) {
 
   const isCancelled = inquiry.status === 'cancelled'
 
-  // The same inquiry_images table backs two separate galleries (reference photos the
-  // customer/admin add before the cake is made, finished photos added after) — split
-  // the single fetch by image_type rather than issuing it twice.
-  const allImages = imagesResult.data ?? []
-  const referenceImages = allImages.filter((img) => img.image_type === 'reference')
-  const finishedImages = allImages.filter((img) => img.image_type === 'finished')
+  const referenceImages = (imagesResult.data ?? []).filter((img) => img.image_type === 'reference')
 
   // Total / Paid / Balance — derived from the ledger, never a hand-typed field.
   // Once an order exists, final_price is the source of truth (kept re-synced with
@@ -293,12 +287,15 @@ export default async function OrderDetailPage({ params, searchParams }: Props) {
 
         {/* Quick Actions + Payment — both moved right under the header so neither needs a
             scroll. Quick Actions leads (what to tell the customer beats what they paid for a
-            glanceable check), Payment follows; side-by-side on wider screens, stacked on
-            mobile where this admin is mostly used (see PRODUCT.md). Payments are keyed to the
-            inquiry (migration 037), so PaymentHistorySection works before an order exists
-            too: orderId is null pre-confirmation. */}
+            glanceable check), Payment follows. Stacked at every width, not side-by-side: this
+            admin is used almost entirely on a phone (see PRODUCT.md), Payment History's row
+            count is unbounded while Quick Actions is a fixed handful of controls (so a
+            two-column pairing would leave one column visibly taller than the other), and a
+            672px page (max-w-2xl) splits into two cramped ~320px columns. Payments are keyed
+            to the inquiry (migration 037), so PaymentHistorySection works before an order
+            exists too: orderId is null pre-confirmation. */}
         {!isCancelled && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4 items-start">
+          <div className="flex flex-col gap-4 mb-4">
             <OrderQuickActions
               inquiry={{
                 id: inquiry.id,
@@ -469,18 +466,6 @@ export default async function OrderDetailPage({ params, searchParams }: Props) {
             />
           </div>
         )}
-
-        {/* Finished Cake Photos — only needs the inquiry id, so it can be added even
-            before the order is confirmed (matches how reference images already work). */}
-        <div className="mt-4">
-          <p
-            className="text-xs font-semibold uppercase tracking-wider mb-3"
-            style={{ color: 'var(--color-ink-muted)' }}
-          >
-            Finished Cake Photos
-          </p>
-          <OrderImageSection initialImages={finishedImages} inquiryId={inquiry.id} />
-        </div>
 
         {/* Reference Images */}
         <div className="mt-4">
