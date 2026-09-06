@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react'
 import { ErrorState } from '@/components/ui'
+import { attemptStaleRecoveryReload, isStaleBundleError } from '@/lib/stale-bundle'
 
 export default function AdminError({
   error,
@@ -14,6 +15,9 @@ export default function AdminError({
 }) {
   useEffect(() => {
     console.error(error)
+    // A deploy landed while this tab was open — reload once onto the new build
+    // instead of showing an error the user can't act on.
+    if (isStaleBundleError(error)) attemptStaleRecoveryReload()
   }, [error])
 
   return (

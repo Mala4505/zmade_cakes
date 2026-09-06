@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
-import { generatePortalToken, verifyPortalToken } from '@/lib/portal'
+import { getPortalToken, resolvePortalToken } from '@/lib/portal'
 import { normalizePhone, levenshteinDistance } from '@/lib/utils'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
@@ -97,9 +97,9 @@ export async function GET(request: NextRequest) {
 
   // Mode A — token-based lookup
   if (token) {
-    const customerId = verifyPortalToken(token)
-    if (!customerId) return NextResponse.json({ orders: [] })
     const supabase = createServiceClient()
+    const customerId = await resolvePortalToken(supabase, token)
+    if (!customerId) return NextResponse.json({ orders: [] })
     const [orders, { data: customerRow }] = await Promise.all([
       fetchOrdersForCustomer(supabase, customerId),
       supabase.from('customers').select('name').eq('id', customerId).maybeSingle() as unknown as Promise<{ data: { name: string } | null }>,
@@ -160,7 +160,7 @@ export async function GET(request: NextRequest) {
   }
 
   const orders = await fetchOrdersForCustomer(supabase, customer.id)
-  const portal_token = generatePortalToken(customer.id)
+  const portal_token = await getPortalToken(supabase, customer.id)
 
   return NextResponse.json({ orders, portal_token, customer_name: customer.name })
 }

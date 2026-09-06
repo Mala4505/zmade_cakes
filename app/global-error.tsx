@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react'
 import { BRAND_NAME } from '@/lib/brand'
+import { attemptStaleRecoveryReload, isStaleBundleError } from '@/lib/stale-bundle'
 
 /**
  * Top-level catch-all. Replaces the root layout when active, so it must
@@ -19,6 +20,7 @@ export default function GlobalError({
 }) {
   useEffect(() => {
     console.error(error)
+    if (isStaleBundleError(error)) attemptStaleRecoveryReload()
   }, [error])
 
   const retry = unstable_retry ?? reset

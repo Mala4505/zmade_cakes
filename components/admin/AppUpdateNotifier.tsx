@@ -1,15 +1,16 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
+import { toast } from 'sonner'
 
 // The build id compiled into *this* running bundle (injected via next.config.ts `env`).
 const RUNNING_BUILD_ID = process.env.NEXT_PUBLIC_BUILD_ID
 
-const POLL_INTERVAL_MS = 60_000
+const POLL_INTERVAL_MS = 30_000
 // In the foreground, wait for this much input-free time before reloading.
-const IDLE_BEFORE_RELOAD_MS = 20_000
+const IDLE_BEFORE_RELOAD_MS = 8_000
 // Treat a form control touched within this window as "still being edited".
-const RECENT_EDIT_MS = 90_000
+const RECENT_EDIT_MS = 30_000
 // sessionStorage key: the build id we've already reloaded for (loop guard).
 const RELOADED_FOR_KEY = 'zmade:reloaded-for-build'
 
@@ -17,16 +18,22 @@ const RELOADED_FOR_KEY = 'zmade:reloaded-for-build'
  * Silently reloads the installed PWA into a newer deployment.
  *
  * The installed app (home-screen, especially iOS) resumes its old session
- * instead of reloading, so a deploy goes unnoticed until a manual refresh. This
- * polls the server's live build id and, when it differs from the build the user
- * is running, reloads automatically — but only at a moment that can't lose work:
+ * instead of reloading, so a deploy goes unnoticed until a manual refresh — and
+ * on the Vercel Hobby plan (no Skew Protection) the stale bundle doesn't just
+ * look old, it *breaks*: its server-action ids and RSC payloads no longer match
+ * the live deployment, so buttons go dead and navigation wedges until a hard
+ * reload. This polls the server's live build id and, when it differs from the
+ * build the user is running, reloads automatically — but only at a moment that
+ * can't lose work:
  *
  *   1. when the app is backgrounded / being closed (reload lands on next open), or
- *   2. after ~20s of no typing or tapping while it's open,
+ *   2. after ~8s of no typing or tapping while it's open, or
+ *   3. immediately on returning to the foreground if a mismatch is already known.
  *
- * and never while a form field is focused or was edited in the last ~90s. A form
- * that must not be interrupted can set `window.__ZMADE_BLOCK_RELOAD__ = true`
- * while it has unsaved changes.
+ * It never reloads while a form field is focused or was edited in the last ~30s;
+ * in that case it shows a persistent "New version available" toast with a manual
+ * Refresh button instead. A form that must not be interrupted can set
+ * `window.__ZMADE_BLOCK_RELOAD__ = true` while it has unsaved changes.
  *
  * No service-worker caching involved; behaves the same on iOS and Android.
  */
@@ -35,6 +42,7 @@ export function AppUpdateNotifier() {
   const lastEditAt = useRef(0)
   const lastActivityAt = useRef(Date.now())
   const reloading = useRef(false)
+  const toastShownForBuild = useRef<string | null>(null)
 
   useEffect(() => {
     if (!RUNNING_BUILD_ID) return
@@ -64,6 +72,20 @@ export function AppUpdateNotifier() {
       window.location.reload()
     }
 
+    const showManualRefreshToast = () => {
+      const build = pendingBuildId.current
+      if (!build || toastShownForBuild.current === build) return
+      toastShownForBuild.current = build
+      toast('New version available', {
+        description: 'Refresh to load the latest — some actions may not work until you do.',
+        duration: Infinity,
+        action: {
+          label: 'Refresh',
+          onClick: () => window.location.reload(),
+        },
+      })
+    }
+
     const maybeReload = () => {
       if (cancelled || reloading.current || !pendingBuildId.current) return
       // Backgrounded or unloading: safe to reload now — it takes effect on reopen.
@@ -73,7 +95,13 @@ export function AppUpdateNotifier() {
       }
       // Foreground: only once the user has clearly paused and isn't mid-edit.
       const idleFor = Date.now() - lastActivityAt.current
-      if (idleFor >= IDLE_BEFORE_RELOAD_MS && !isEditing()) doReload()
+      if (idleFor >= IDLE_BEFORE_RELOAD_MS && !isEditing()) {
+        doReload()
+        return
+      }
+      // Can't reload yet (still active / mid-edit) — give them a manual way out
+      // that beats closing and reopening the whole site.
+      showManualRefreshToast()
     }
 
     async function check() {
@@ -121,8 +149,23 @@ export function AppUpdateNotifier() {
       }
     }
     const onVisibility = () => {
-      if (document.visibilityState === 'hidden') maybeReload()
-      else check()
+      if (document.visibilityState === 'hidden') {
+        maybeReload()
+      } else if (pendingBuildId.current) {
+        // Coming back to a tab we already know is stale — take the chance now.
+        if (!isEditing()) doReload()
+        else maybeReload()
+      } else {
+        check()
+      }
+    }
+    const onFocus = () => {
+      if (pendingBuildId.current) {
+        if (!isEditing()) doReload()
+        else maybeReload()
+      } else {
+        check()
+      }
     }
 
     const startTimer = setTimeout(check, 3_000)
@@ -131,7 +174,7 @@ export function AppUpdateNotifier() {
 
     document.addEventListener('visibilitychange', onVisibility)
     window.addEventListener('pagehide', maybeReload)
-    window.addEventListener('focus', check)
+    window.addEventListener('focus', onFocus)
     window.addEventListener('pointerdown', markActivity, { passive: true, capture: true })
     window.addEventListener('keydown', markActivity, { passive: true, capture: true })
     window.addEventListener('input', markEdit, { passive: true, capture: true })
@@ -144,7 +187,7 @@ export function AppUpdateNotifier() {
       clearInterval(idleTimer)
       document.removeEventListener('visibilitychange', onVisibility)
       window.removeEventListener('pagehide', maybeReload)
-      window.removeEventListener('focus', check)
+      window.removeEventListener('focus', onFocus)
       window.removeEventListener('pointerdown', markActivity, { capture: true })
       window.removeEventListener('keydown', markActivity, { capture: true })
       window.removeEventListener('input', markEdit, { capture: true })

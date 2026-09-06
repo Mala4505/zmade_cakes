@@ -192,6 +192,8 @@ export interface Customer {
   name: string
   notes: string
   vip: boolean
+  /** Short random token for the passwordless /my-orders portal link (migration 039). */
+  portal_token: string
   created_at: string
   updated_at: string
 }
@@ -309,9 +311,9 @@ export type Database = {
         Relationships: []
       }
       customers: {
-        Row: { created_at: string; id: string; name: string; notes: string; phone: string; updated_at: string; vip: boolean }
-        Insert: { created_at?: string; id?: string; name: string; notes?: string; phone: string; updated_at?: string; vip?: boolean }
-        Update: { created_at?: string; id?: string; name?: string; notes?: string; phone?: string; updated_at?: string; vip?: boolean }
+        Row: { created_at: string; id: string; name: string; notes: string; phone: string; portal_token: string; updated_at: string; vip: boolean }
+        Insert: { created_at?: string; id?: string; name: string; notes?: string; phone: string; portal_token?: string; updated_at?: string; vip?: boolean }
+        Update: { created_at?: string; id?: string; name?: string; notes?: string; phone?: string; portal_token?: string; updated_at?: string; vip?: boolean }
         Relationships: []
       }
       decoration_style_options: {

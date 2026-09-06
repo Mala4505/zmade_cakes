@@ -22,9 +22,10 @@ import { useOptionalNavPending } from '@/components/admin/NavPendingContext'
  * - `onSuccess` runs *after* `pending` has cleared (plus a short beat so the
  *   success toast is visible before the page starts changing) — so any
  *   navigation inside it never keeps the triggering button spinning. When a
- *   NavPendingProvider is in scope (the admin shell), the write itself *and*
- *   that post-pending work are tracked so the top-of-viewport progress bar
- *   reflects "processing" for the whole lifecycle, not just the navigation.
+ *   NavPendingProvider is in scope (the admin shell), that post-pending work
+ *   is itself tracked so the top-of-viewport progress bar reflects the
+ *   navigation — not the write itself, so a quick inline action with no
+ *   `onSuccess` navigation never sweeps the shared bar for no reason.
  *
  * The action callback signals failure in whichever way is natural:
  *   - `return { error: 'message' }`  → error toast with that message, no onSuccess
@@ -91,18 +92,23 @@ export function useAsyncAction<Args extends unknown[]>(
     return () => clearTimeout(timer)
   }, [pending])
 
-  // Surface both the write itself and any post-success navigation to the shared
-  // nav-progress bar when the admin shell is mounted, so "processing" is visible
-  // from the moment the action starts, not just once it's navigating. No-op
-  // outside the admin shell (useOptionalNavPending returns null there).
+  // Surface the post-success work (typically a route change) to the shared
+  // nav-progress bar when the admin shell is mounted. No-op elsewhere.
+  //
+  // Deliberately *not* `pending` (the write itself) here too — that was tried,
+  // and it meant every quick inline mutation in the app (a settle toggle in a
+  // table row, a status change, anything with no navigation at all) swept the
+  // top-of-viewport bar across the whole page on every click. The button's own
+  // `loading` state already gives immediate local feedback for those; the
+  // shared bar stays reserved for the create/save flows that actually navigate
+  // afterward, where a page-wide "still loading" cue earns its keep.
   const nav = useOptionalNavPending()
   const navId = useId()
-  const anyPending = pending || navPending
   useEffect(() => {
     if (!nav) return
-    nav.setActionPending(navId, anyPending)
+    nav.setActionPending(navId, navPending)
     return () => nav.setActionPending(navId, false)
-  }, [nav, anyPending, navId])
+  }, [nav, navPending, navId])
 
   const run = useCallback((...args: Args) => {
     if (lockRef.current) return
@@ -130,6 +136,14 @@ export function useAsyncAction<Args extends unknown[]>(
         if (opts.successToast) toast.success(opts.successToast)
         if (opts.onSuccess) pendingSuccessRef.current = opts.onSuccess
       } catch (err) {
+        // Next.js signals redirect() / notFound() / forbidden() by throwing an
+        // error whose `digest` is a framework sentinel ("NEXT_REDIRECT",
+        // "NEXT_HTTP_ERROR_FALLBACK;404", …). Those must propagate so the
+        // navigation/404 actually happens — swallowing them into a toast breaks
+        // any action that redirects on success.
+        const digest = (err as { digest?: unknown })?.digest
+        if (typeof digest === 'string' && digest.startsWith('NEXT_')) throw err
+
         const message = err instanceof Error ? err.message : 'Please try again.'
         console.error('[useAsyncAction]', err)
         setError(message)

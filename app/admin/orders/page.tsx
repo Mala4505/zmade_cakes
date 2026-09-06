@@ -1,7 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { getSettings } from '@/lib/actions/settings'
 import { formatDate, formatKWD, orderSummary, myOrdersLink } from '@/lib/utils'
-import { generatePortalToken } from '@/lib/portal'
 import { PageHeader } from '@/components/admin/PageHeader'
 import { InquiryStatusSelect } from '@/components/admin/InquiryStatusSelect'
 import { ResponsiveList } from '@/components/ui'
@@ -149,6 +148,22 @@ async function getCustomerInquiryCounts(customerIds: string[]): Promise<Record<s
   return counts
 }
 
+// Short portal tokens (customers.portal_token, migration 039) for every customer
+// in the visible page, so the "My Orders" WhatsApp link in each row's actions is
+// as compact as the tracking link. Missing tokens (row predates the migration)
+// just mean that row has no My-Orders fallback link — a safe degradation.
+async function getCustomerPortalTokens(customerIds: string[]): Promise<Record<string, string>> {
+  if (customerIds.length === 0) return {}
+  const supabase = await createClient()
+  const { data, error } = await supabase.from('customers').select('id, portal_token').in('id', customerIds)
+  if (error) throw new Error(`Orders: failed to load customer portal tokens — ${error.message}`)
+  const tokens: Record<string, string> = {}
+  for (const row of (data ?? []) as { id: string; portal_token: string | null }[]) {
+    if (row.portal_token) tokens[row.id] = row.portal_token
+  }
+  return tokens
+}
+
 function isUrgent(eventDate: string): { label: string } | null {
   const now = new Date()
   const event = new Date(eventDate)
@@ -247,7 +262,10 @@ export default async function OrdersPage({
   const customerIds = [...new Set(
     inquiries.filter((i: any) => i.customer_id).map((i: any) => i.customer_id as string)
   )]
-  const customerInquiryCounts = await getCustomerInquiryCounts(customerIds)
+  const [customerInquiryCounts, customerPortalTokens] = await Promise.all([
+    getCustomerInquiryCounts(customerIds),
+    getCustomerPortalTokens(customerIds),
+  ])
 
   // Shared per-row derivation — computed once, consumed by both the desktop table
   // and the mobile card list below so the two views can never drift out of sync.
@@ -466,7 +484,9 @@ export default async function OrdersPage({
                           }}
                           templates={templates}
                           fallbackLinkUrl={
-                            inq.customer_id ? myOrdersLink(generatePortalToken(inq.customer_id)) : undefined
+                            inq.customer_id && customerPortalTokens[inq.customer_id]
+                              ? myOrdersLink(customerPortalTokens[inq.customer_id])
+                              : undefined
                           }
                         />
                       </td>

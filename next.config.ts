@@ -14,6 +14,13 @@ const buildId =
 const nextConfig: NextConfig = {
   generateBuildId: () => buildId,
   env: { NEXT_PUBLIC_BUILD_ID: buildId },
+  // When Vercel Skew Protection is enabled (Pro plan), Vercel sets
+  // VERCEL_DEPLOYMENT_ID and Next appends it as `?dpl=` to asset / RSC /
+  // server-action requests so a still-open old client is routed to the exact
+  // deployment that served it — no dead buttons in the gap before
+  // AppUpdateNotifier reloads. Undefined (Hobby plan) → no-op; the client-side
+  // recovery in AppUpdateNotifier + StaleBundleRecovery carries it there.
+  deploymentId: process.env.VERCEL_DEPLOYMENT_ID,
   images: {
     remotePatterns: [
       {

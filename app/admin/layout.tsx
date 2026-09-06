@@ -9,6 +9,7 @@ import { NavigationOverlay } from '@/components/admin/NavigationOverlay'
 import { NotificationProvider } from '@/components/admin/NotificationContext'
 import { ServiceWorkerRegistration } from '@/components/admin/ServiceWorkerRegistration'
 import { AppUpdateNotifier } from '@/components/admin/AppUpdateNotifier'
+import { StaleBundleRecovery } from '@/components/admin/StaleBundleRecovery'
 import type { Notification } from '@/lib/supabase/types'
 
 export const metadata: Metadata = {
@@ -52,6 +53,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         <AdminHeaderProvider>
           <ServiceWorkerRegistration />
           <AppUpdateNotifier />
+          <StaleBundleRecovery />
           {/* Row at the top level: the sidebar first, then a column carrying
               everything else — top bar, scroll region, bottom nav — so the
               desktop top bar starts where the sidebar ends instead of

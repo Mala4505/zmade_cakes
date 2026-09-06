@@ -10,7 +10,6 @@ import {
   orderSummary,
 } from '@/lib/utils'
 import { pendingRecordLabel } from '@/lib/format'
-import { generatePortalToken } from '@/lib/portal'
 import { derivePaymentStatus, balanceOwed, orderTotal } from '@/lib/payments'
 import { StatusBadge, PaymentBadge } from '@/components/admin/StatusBadge'
 import InquiryDetailForm from './_components/InquiryDetailForm'
@@ -129,7 +128,6 @@ export default async function OrderDetailPage({ params, searchParams }: Props) {
   }
 
   const customerId = (inquiry as any).customer_id
-  const myOrdersUrl = customerId ? myOrdersLink(generatePortalToken(customerId)) : undefined
 
   // Everything here only depends on `inquiry`/`id` from the lookup above, so it all fires
   // in one wave — customerData, payments, and pastOrderCount used to be awaited one after
@@ -194,6 +192,10 @@ export default async function OrderDetailPage({ params, searchParams }: Props) {
   }
   if (paymentsResult.error) throw new Error(`Order: failed to load payments — ${paymentsResult.error.message}`)
   const payments = (paymentsResult.data ?? []) as unknown as Payment[]
+
+  const myOrdersUrl = (customerData as { portal_token?: string } | null)?.portal_token
+    ? myOrdersLink((customerData as { portal_token: string }).portal_token)
+    : undefined
 
   const confirmLink = confirmationLink(inquiry.confirmation_token)
   const templates = settingsResult.data?.whatsapp_templates as WhatsAppTemplates | undefined
