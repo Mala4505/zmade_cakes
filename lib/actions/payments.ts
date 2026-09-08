@@ -1,9 +1,17 @@
 'use server'
 
+import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { tokenSchema } from '@/lib/validations/inquiry'
 import { generateShortToken } from '@/lib/tokens'
 import type { Payment, PaymentMethod } from '@/lib/supabase/types'
+
+// See lib/actions/orders.ts — mark the whole /admin subtree stale after a write
+// so the result renders when the action resolves, without the client needing a
+// `router.refresh()` to land.
+function revalidateAdmin() {
+  revalidatePath('/admin', 'layout')
+}
 
 type ActionResult<T> =
   | { data: T; error: null }
@@ -110,6 +118,7 @@ export async function recordPayment(
   if (error || !data) {
     return { data: null, error: error?.message ?? 'Failed to record payment' }
   }
+  revalidateAdmin()
   return { data: data as unknown as Payment, error: null }
 }
 
@@ -175,6 +184,7 @@ export async function updatePayment(
   if (error || !data) {
     return { data: null, error: error?.message ?? 'Failed to update payment' }
   }
+  revalidateAdmin()
   return { data: data as unknown as Payment, error: null }
 }
 
@@ -191,5 +201,6 @@ export async function deletePayment(paymentId: string): Promise<ActionResult<voi
 
   const { error } = await supabase.from('payments').delete().eq('id', paymentId)
   if (error) return { data: null, error: error.message }
+  revalidateAdmin()
   return { data: undefined, error: null }
 }

@@ -1,6 +1,7 @@
 'use server'
 
 import { after } from 'next/server'
+import { revalidatePath } from 'next/cache'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import {
@@ -18,6 +19,14 @@ import { recordPayment } from './payments'
 import type { Inquiry, Order, InquiryStatus, PaymentMethod, Json, Database } from '@/lib/supabase/types'
 
 type FieldErrors = Record<string, string[]>
+
+// See lib/actions/orders.ts — every admin page reads the same inquiries / orders
+// / payments data and is rendered per request, so after any write mark the whole
+// /admin subtree stale. The mutation's result then renders when the action
+// resolves, so the client no longer depends on a `router.refresh()` landing.
+function revalidateAdmin() {
+  revalidatePath('/admin', 'layout')
+}
 
 function editSummary(diff: CustomerEditDiffEntry[]): string {
   if (diff.length === 0) return ''
@@ -269,6 +278,7 @@ export async function createInquiry(
     }
   }
 
+  revalidateAdmin()
   return { data: inquiry as unknown as Inquiry, error: null, fieldErrors: null }
 }
 
@@ -351,6 +361,7 @@ export async function updateInquiry(
       .eq('inquiry_id', id)
   }
 
+  revalidateAdmin()
   return { data: data as unknown as Inquiry, error: null, fieldErrors: null }
 }
 
@@ -384,6 +395,7 @@ export async function setInquiryPaymentFlags(
     return { data: null, error: error?.message ?? 'Failed to update payment status', fieldErrors: null }
   }
 
+  revalidateAdmin()
   return { data, error: null, fieldErrors: null }
 }
 
@@ -405,6 +417,7 @@ export async function cancelInquiry(id: string): Promise<ActionResult<void>> {
     .not('status', 'eq', 'cancelled')
 
   if (error) return { data: null, error: error.message, fieldErrors: null }
+  revalidateAdmin()
   return { data: undefined, error: null, fieldErrors: null }
 }
 
@@ -558,6 +571,7 @@ export async function confirmInquiry(
       }
     }
 
+    revalidateAdmin()
     return { data: { inquiry: updatedInquiry as unknown as Inquiry, order }, error: null, fieldErrors: null }
   } else {
     // action === 'request_changes'
@@ -612,6 +626,7 @@ export async function confirmInquiry(
       }
     }
 
+    revalidateAdmin()
     return { data: { inquiry: updatedInquiry as unknown as Inquiry }, error: null, fieldErrors: null }
   }
 }
@@ -645,6 +660,7 @@ export async function updateInquiryStatus(
       p_new_status: status,
     })
     if (error) return { data: null, error: error.message, fieldErrors: null }
+    revalidateAdmin()
     return { data: undefined, error: null, fieldErrors: null }
   }
 
@@ -658,5 +674,6 @@ export async function updateInquiryStatus(
     .update({ status })
     .eq('id', id)
   if (error) return { data: null, error: error.message, fieldErrors: null }
+  revalidateAdmin()
   return { data: undefined, error: null, fieldErrors: null }
 }

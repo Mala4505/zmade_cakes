@@ -1,8 +1,7 @@
 'use client'
 
-import { useCallback, useEffect, useId, useRef, useState, useTransition } from 'react'
+import { useCallback, useEffect, useRef, useState, useTransition } from 'react'
 import { toast } from 'sonner'
-import { useOptionalNavPending } from '@/components/admin/NavPendingContext'
 
 /**
  * The one place a client mutation's loading + error lifecycle lives.
@@ -21,11 +20,15 @@ import { useOptionalNavPending } from '@/components/admin/NavPendingContext'
  * - `successToast` fires once, automatically, only on a clean success.
  * - `onSuccess` runs *after* `pending` has cleared (plus a short beat so the
  *   success toast is visible before the page starts changing) — so any
- *   navigation inside it never keeps the triggering button spinning. When a
- *   NavPendingProvider is in scope (the admin shell), that post-pending work
- *   is itself tracked so the top-of-viewport progress bar reflects the
- *   navigation — not the write itself, so a quick inline action with no
- *   `onSuccess` navigation never sweeps the shared bar for no reason.
+ *   navigation inside it never keeps the triggering button spinning.
+ *
+ * `onSuccess` is invoked directly — never wrapped in a userland `startTransition`.
+ * A `router.refresh()` (or `router.push()`) wrapped in `React.startTransition`
+ * can leave that transition pending indefinitely if the refreshed render doesn't
+ * commit cleanly; while it's pending React defers *other* transitions, so every
+ * subsequent sidebar `<Link>` click queues behind it and never fires and the
+ * whole admin appears frozen until a full page reload. The App Router already
+ * runs `push`/`refresh` in its own internal transition — it does not need ours.
  *
  * The action callback signals failure in whichever way is natural:
  *   - `return { error: 'message' }`  → error toast with that message, no onSuccess
@@ -61,7 +64,6 @@ export function useAsyncAction<Args extends unknown[]>(
   options: AsyncActionOptions = {}
 ) {
   const [pending, startTransition] = useTransition()
-  const [navPending, startNavTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
 
   // Refs so `run` can stay identity-stable (safe to pass to memoised children)
@@ -79,36 +81,17 @@ export function useAsyncAction<Args extends unknown[]>(
 
   // Fire the queued onSuccess only once the write transition has fully settled,
   // so navigation runs outside it and the triggering button stops spinning now.
-  // A short beat after that — rather than starting the very next tick — gives the
-  // success toast (which fires synchronously inside the write, before this effect
-  // even runs) a moment to actually register before the page starts changing out
-  // from under it.
+  // A short beat after that — rather than the very next tick — gives the success
+  // toast (which fires synchronously inside the write, before this effect even
+  // runs) a moment to register before the page starts changing out from under it.
   useEffect(() => {
     if (pending) return
     const cb = pendingSuccessRef.current
     if (!cb) return
     pendingSuccessRef.current = null
-    const timer = setTimeout(() => startNavTransition(cb), 500)
+    const timer = setTimeout(cb, 400)
     return () => clearTimeout(timer)
   }, [pending])
-
-  // Surface the post-success work (typically a route change) to the shared
-  // nav-progress bar when the admin shell is mounted. No-op elsewhere.
-  //
-  // Deliberately *not* `pending` (the write itself) here too — that was tried,
-  // and it meant every quick inline mutation in the app (a settle toggle in a
-  // table row, a status change, anything with no navigation at all) swept the
-  // top-of-viewport bar across the whole page on every click. The button's own
-  // `loading` state already gives immediate local feedback for those; the
-  // shared bar stays reserved for the create/save flows that actually navigate
-  // afterward, where a page-wide "still loading" cue earns its keep.
-  const nav = useOptionalNavPending()
-  const navId = useId()
-  useEffect(() => {
-    if (!nav) return
-    nav.setActionPending(navId, navPending)
-    return () => nav.setActionPending(navId, false)
-  }, [nav, navPending, navId])
 
   const run = useCallback((...args: Args) => {
     if (lockRef.current) return

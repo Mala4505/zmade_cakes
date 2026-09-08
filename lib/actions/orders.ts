@@ -1,10 +1,20 @@
 'use server'
 
 import { after } from 'next/server'
+import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { tokenSchema } from '@/lib/validations/inquiry'
 import { sendPushToAdmin } from '@/lib/push'
 import type { Order, OrderStatus } from '@/lib/supabase/types'
+
+// Every admin page is server-rendered per request and reads the same orders /
+// inquiries / payments data, so after any write mark the whole /admin subtree
+// stale. This makes a mutation's result show up on its own when the action
+// resolves (Next ships a fresh RSC payload with the action response), so the
+// client no longer depends on a `router.refresh()` landing to see its own write.
+function revalidateAdmin() {
+  revalidatePath('/admin', 'layout')
+}
 
 type ActionResult<T> =
   | { data: T; error: null }
@@ -74,6 +84,7 @@ export async function updateOrderStatus(id: string, status: OrderStatus): Promis
     }
   }
 
+  revalidateAdmin()
   return { data: data as unknown as Order, error: null }
 }
 
@@ -101,6 +112,7 @@ export async function cancelOrder(id: string): Promise<ActionResult<void>> {
   const { error } = await supabase.rpc('sync_order_status', { p_order_id: id, p_new_status: 'cancelled' })
   if (error) return { data: null, error: error.message }
 
+  revalidateAdmin()
   return { data: undefined, error: null }
 }
 
@@ -127,5 +139,6 @@ export async function updateOrderEta(
     .single()
 
   if (error || !data) return { data: null, error: error?.message ?? 'Failed to update ETA' }
+  revalidateAdmin()
   return { data: data as unknown as Order, error: null }
 }
