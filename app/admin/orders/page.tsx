@@ -246,9 +246,9 @@ export default async function OrdersPage({
     )
   }
 
-  // Default sort mirrors the pipeline: Inquired → Confirmed → Delivered (Cancelled last).
-  const sort: SortField = sortParam === 'customer_name' || sortParam === 'event_date' || sortParam === 'price' ? sortParam : 'status'
-  const dir: SortDir = dirParam === 'desc' ? 'desc' : 'asc'
+  // Default sort: most recent event date first.
+  const sort: SortField = sortParam === 'customer_name' || sortParam === 'status' || sortParam === 'price' ? sortParam : 'event_date'
+  const dir: SortDir = dirParam === 'asc' ? 'asc' : 'desc'
   const page = Math.max(1, parseInt(pageParam ?? '1', 10) || 1)
 
   const [{ data: inquiries, count: totalCount }, settingsResult] = await Promise.all([
@@ -257,7 +257,7 @@ export default async function OrdersPage({
   ])
   const templates = settingsResult.data?.whatsapp_templates as WhatsAppTemplates | undefined
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
-  const hasActiveFilters = Boolean(q?.trim()) || status !== 'all' || payment !== 'all' || sort !== 'status' || dir !== 'asc'
+  const hasActiveFilters = Boolean(q?.trim()) || status !== 'all' || payment !== 'all' || sort !== 'event_date' || dir !== 'desc'
 
   const customerIds = [...new Set(
     inquiries.filter((i: any) => i.customer_id).map((i: any) => i.customer_id as string)
