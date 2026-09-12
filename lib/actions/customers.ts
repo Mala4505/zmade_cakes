@@ -1,8 +1,17 @@
 'use server'
 
+import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import type { Customer, InquiryItem } from '@/lib/supabase/types'
 import { normalizePhone } from '@/lib/utils'
+
+// See lib/actions/orders.ts — every admin page reads the same data and is
+// rendered per request, so after any write mark the whole /admin subtree
+// stale. The mutation's result then renders when the action resolves, so the
+// client no longer depends on a `router.refresh()` landing.
+function revalidateAdmin() {
+  revalidatePath('/admin', 'layout')
+}
 
 type ActionResult<T> = { data: T; error: null } | { data: null; error: string }
 
@@ -92,6 +101,7 @@ export async function upsertCustomer(phone: string, name: string): Promise<Actio
     .single()
 
   if (error || !data) return { data: null, error: error?.message ?? 'Failed to upsert customer' }
+  revalidateAdmin()
   return { data, error: null }
 }
 
@@ -106,6 +116,7 @@ export async function updateCustomerNotes(id: string, notes: string): Promise<Ac
     .eq('id', id)
 
   if (error) return { data: null, error: error.message }
+  revalidateAdmin()
   return { data: undefined, error: null }
 }
 
@@ -120,5 +131,6 @@ export async function updateCustomerVip(id: string, vip: boolean): Promise<Actio
     .eq('id', id)
 
   if (error) return { data: null, error: error.message }
+  revalidateAdmin()
   return { data: undefined, error: null }
 }

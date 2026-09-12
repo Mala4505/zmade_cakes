@@ -1,9 +1,15 @@
 'use server'
 
+import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import type { FlavorWithPrices, FlavorSizePrice } from '@/lib/supabase/types'
 
 type ActionResult<T> = { data: T; error: null } | { data: null; error: string }
+
+// See lib/actions/orders.ts.
+function revalidateAdmin() {
+  revalidatePath('/admin', 'layout')
+}
 
 export async function getFlavorsWithPrices(): Promise<FlavorWithPrices[]> {
   const supabase = await createClient()
@@ -34,13 +40,17 @@ export async function upsertFlavorPrices(
     .eq('flavor_id', flavorId)
   if (delErr) return { data: null, error: delErr.message }
 
-  if (prices.length === 0) return { data: [], error: null }
+  if (prices.length === 0) {
+    revalidateAdmin()
+    return { data: [], error: null }
+  }
 
   const { data, error } = await supabase
     .from('flavor_size_prices')
     .insert(prices.map((p) => ({ flavor_id: flavorId, size_id: p.sizeId, price: p.price })))
     .select()
   if (error) return { data: null, error: error.message }
+  revalidateAdmin()
   return { data: (data as FlavorSizePrice[]) ?? [], error: null }
 }
 
@@ -59,6 +69,7 @@ export async function updateFlavorThemeAvailable(
     .update({ theme_available: themeAvailable })
     .eq('id', flavorId)
   if (error) return { data: null, error: error.message }
+  revalidateAdmin()
   return { data: undefined, error: null }
 }
 
@@ -98,6 +109,7 @@ export async function uploadFlavorImage(
     .eq('id', flavorId)
   if (updateErr) return { data: null, error: updateErr.message }
 
+  revalidateAdmin()
   return { data: { url: publicUrl }, error: null }
 }
 
@@ -113,5 +125,6 @@ export async function removeFlavorImage(flavorId: string): Promise<ActionResult<
     .update({ image_url: null })
     .eq('id', flavorId)
   if (error) return { data: null, error: error.message }
+  revalidateAdmin()
   return { data: undefined, error: null }
 }

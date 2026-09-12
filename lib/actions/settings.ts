@@ -1,8 +1,14 @@
 'use server'
+import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import type { BlackoutDate, BusinessSetting, BusinessSettingKey } from '@/lib/supabase/types'
 
 type ActionResult<T> = { data: T; error: null } | { data: null; error: string }
+
+// See lib/actions/orders.ts.
+function revalidateAdmin() {
+  revalidatePath('/admin', 'layout')
+}
 
 export async function getSettings(keys: BusinessSettingKey[]): Promise<ActionResult<Record<BusinessSettingKey, unknown>>> {
   const supabase = await createClient()
@@ -42,6 +48,7 @@ export async function updateSetting(key: BusinessSettingKey, value: unknown): Pr
     .upsert({ key, value: value as any, updated_at: new Date().toISOString() }, { onConflict: 'key' })
 
   if (error) return { data: null, error: error.message }
+  revalidateAdmin()
   return { data: undefined, error: null }
 }
 
@@ -73,6 +80,7 @@ export async function createBlackout(
     .single()
 
   if (error || !data) return { data: null, error: error?.message ?? 'Failed to create blackout' }
+  revalidateAdmin()
   return { data, error: null }
 }
 
@@ -83,5 +91,6 @@ export async function deleteBlackout(id: string): Promise<ActionResult<void>> {
 
   const { error } = await supabase.from('blackout_dates').delete().eq('id', id)
   if (error) return { data: null, error: error.message }
+  revalidateAdmin()
   return { data: undefined, error: null }
 }

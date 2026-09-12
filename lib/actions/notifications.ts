@@ -1,7 +1,13 @@
 'use server'
+import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 
 type ActionResult<T> = { data: T; error: null } | { data: null; error: string }
+
+// See lib/actions/orders.ts.
+function revalidateAdmin() {
+  revalidatePath('/admin', 'layout')
+}
 
 export async function markNotificationRead(id: string): Promise<ActionResult<void>> {
   const supabase = await createClient()
@@ -14,6 +20,7 @@ export async function markNotificationRead(id: string): Promise<ActionResult<voi
     .eq('id', id)
 
   if (error) return { data: null, error: error.message }
+  revalidateAdmin()
   return { data: undefined, error: null }
 }
 
@@ -28,5 +35,6 @@ export async function markAllNotificationsRead(): Promise<ActionResult<void>> {
     .eq('is_read', false)
 
   if (error) return { data: null, error: error.message }
+  revalidateAdmin()
   return { data: undefined, error: null }
 }

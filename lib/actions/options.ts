@@ -1,9 +1,15 @@
 'use server'
 
+import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { optionSchema, OPTION_TABLES, type OptionTable } from '@/lib/validations/options'
 import { tokenSchema } from '@/lib/validations/inquiry'
 import type { OptionRow } from '@/lib/supabase/types'
+
+// See lib/actions/orders.ts.
+function revalidateAdmin() {
+  revalidatePath('/admin', 'layout')
+}
 
 type FieldErrors = Record<string, string[]>
 type ActionResult<T> =
@@ -78,6 +84,7 @@ export async function createOption(
   if (error || !data) {
     return { data: null, error: error?.message ?? 'Failed to create option', fieldErrors: null }
   }
+  revalidateAdmin()
   return { data: data as OptionRow, error: null, fieldErrors: null }
 }
 
@@ -112,6 +119,7 @@ export async function updateOption(
   if (error || !data) {
     return { data: null, error: error?.message ?? 'Failed to update option', fieldErrors: null }
   }
+  revalidateAdmin()
   return { data: data as OptionRow, error: null, fieldErrors: null }
 }
 
@@ -131,5 +139,6 @@ export async function deleteOption(id: string, type: OptionTable): Promise<Actio
   const { error } = await supabase.from(type).update({ is_active: false } as never).eq('id', id)
 
   if (error) return { data: null, error: error.message, fieldErrors: null }
+  revalidateAdmin()
   return { data: undefined, error: null, fieldErrors: null }
 }

@@ -1,9 +1,15 @@
 'use server'
+import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import type { PushSubscriptionRow } from '@/lib/supabase/types'
 import { sendPushToAdmin } from '@/lib/push'
 
 type ActionResult<T> = { data: T; error: null } | { data: null; error: string }
+
+// See lib/actions/orders.ts.
+function revalidateAdmin() {
+  revalidatePath('/admin', 'layout')
+}
 
 export async function savePushSubscription(
   sub: { endpoint: string; keys: { p256dh: string; auth: string } },
@@ -27,6 +33,7 @@ export async function savePushSubscription(
     )
 
   if (error) return { data: null, error: error.message }
+  revalidateAdmin()
   return { data: undefined, error: null }
 }
 
@@ -37,6 +44,7 @@ export async function deletePushSubscription(endpoint: string): Promise<ActionRe
 
   const { error } = await supabase.from('push_subscriptions').delete().eq('endpoint', endpoint)
   if (error) return { data: null, error: error.message }
+  revalidateAdmin()
   return { data: undefined, error: null }
 }
 

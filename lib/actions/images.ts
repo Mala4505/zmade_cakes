@@ -1,9 +1,15 @@
 'use server'
 
+import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import type { InquiryImage } from '@/lib/supabase/types'
 
 type ActionResult<T> = { data: T; error: null } | { data: null; error: string }
+
+// See lib/actions/orders.ts.
+function revalidateAdmin() {
+  revalidatePath('/admin', 'layout')
+}
 
 export async function getInquiryImages(inquiry_id: string): Promise<ActionResult<InquiryImage[]>> {
   const supabase = await createClient()
@@ -51,5 +57,6 @@ export async function deleteInquiryImage(id: string): Promise<ActionResult<void>
     }
   } catch { /* ignore */ }
 
+  revalidateAdmin()
   return { data: undefined, error: null }
 }
