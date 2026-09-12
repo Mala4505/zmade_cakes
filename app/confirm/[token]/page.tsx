@@ -85,7 +85,7 @@ export default async function ConfirmPage({ params }: Props) {
     return (
       <StatusPage
         title="Already Confirmed"
-        message="Your order has been confirmed. You'll receive a tracking link from us."
+        message="Your order has been confirmed. You'll receive your order details link from us."
         businessPhone={businessPhone}
         businessInstagram={businessInstagram}
         waUrl={waUrl}
@@ -110,7 +110,7 @@ export default async function ConfirmPage({ params }: Props) {
           <span style={{ color: 'var(--color-border)' }}>—</span>
           <span style={{ color: 'var(--color-ink-muted)' }}>Confirm</span>
           <span style={{ color: 'var(--color-border)' }}>—</span>
-          <span style={{ color: 'var(--color-ink-muted)' }}>Track</span>
+          <span style={{ color: 'var(--color-ink-muted)' }}>Details</span>
         </div>
 
         {/* Intro — cover band, matches the "Atelier Cover" treatment on /my-orders */}

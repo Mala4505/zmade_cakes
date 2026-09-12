@@ -17,7 +17,7 @@ import { EditOrderModal } from './_components/EditOrderModal'
 
 interface Props { params: Promise<{ token: string }> }
 
-export const metadata: Metadata = { title: 'Track Your Order' }
+export const metadata: Metadata = { title: 'Order Details' }
 
 const STEPS: { status: OrderStatus; label: string; sublabel: string }[] = [
   { status: 'confirmed', label: 'Order Confirmed', sublabel: 'Your order is with us' },
@@ -129,7 +129,7 @@ export default async function TrackPage({ params }: Props) {
           </h1>
           {!isCancelled && (
             <p className="text-sm mt-2" style={{ color: 'var(--color-ink-muted)' }}>
-              Hi {inq?.customer_name?.split(' ')[0]}, here's where your order stands.
+              Hi {inq?.customer_name?.split(' ')[0]}, here are your order details.
             </p>
           )}
           {isCancelled && (

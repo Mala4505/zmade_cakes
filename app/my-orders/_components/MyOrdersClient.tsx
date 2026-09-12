@@ -5,7 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import { motion, useReducedMotion } from 'framer-motion'
 import PhoneInput from '@/components/PhoneInput'
 import { Button, CakeLoader } from '@/components/ui'
-import { Truck, Receipt } from '@phosphor-icons/react'
+import { ClipboardText, Receipt } from '@phosphor-icons/react'
 import { Navbar } from '@/components/public/Navbar'
 import { appUrl } from '@/lib/links'
 import { EASE_OUT_QUART, holdMinimumVisible } from '@/lib/motion'
@@ -393,8 +393,8 @@ function MyOrdersContent({ businessPhone, businessInstagram }: Props) {
                       href={`/track/${item.order.tracking_token}`}
                       className="flex-1 flex items-center justify-center gap-1.5 min-h-11 px-3 py-2 rounded-lg text-xs font-medium border border-transparent transition-colors bg-[var(--color-surface-raised)] text-[var(--color-ink-secondary)] hover:border-[var(--color-border-strong)]"
                     >
-                      <Truck size={14} weight="bold" />
-                      Track Order
+                      <ClipboardText size={14} weight="bold" />
+                      Order Details
                     </Link>
                     <Link
                       href={`/invoice/${item.order.tracking_token}`}

@@ -247,7 +247,7 @@ export const DEFAULT_WHATSAPP_TEMPLATES: WhatsAppTemplates = {
   confirmationLink: `Hi {name}! Here is your ${BRAND_NAME} confirmation link: {link}`,
   orderDelivered: "Hi {name}! Great news — your order has been delivered. We hope you enjoy every bite!\n\n{link}",
   balanceDue: 'Hi {name}! A reminder that your balance of KWD {amount} is due on delivery.\n\n{link}',
-  trackingLink: `Hi {name}! Track your ${BRAND_NAME} order here: {link}`,
+  trackingLink: `Hi {name}! Here are your ${BRAND_NAME} order details: {link}`,
   myOrdersLink: `Hi {name}! You can view all your ${BRAND_NAME} orders anytime here: {link}`,
   paymentReceived:
     "Hi {name}! We've received KD {amount} for your order.\nPaid so far: KD {paid} of KD {total}\nBalance due: KD {balance}\n\nReceipt: {link}",

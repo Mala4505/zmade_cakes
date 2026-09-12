@@ -13,7 +13,7 @@ const TEMPLATE_FIELDS: {
   { key: 'confirmationLink', label: 'Confirmation Link', variables: '{name}, {link}' },
   { key: 'orderDelivered', label: 'Order Delivered', variables: '{name}' },
   { key: 'balanceDue', label: 'Balance Due', variables: '{name}, {amount}' },
-  { key: 'trackingLink', label: 'Tracking Link', variables: '{name}, {link}' },
+  { key: 'trackingLink', label: 'Order Details Link', variables: '{name}, {link}' },
   { key: 'myOrdersLink', label: 'My Orders Link', variables: '{name}, {link}' },
   { key: 'paymentReceived', label: 'Payment Received', variables: '{name}, {amount}, {paid}, {total}, {balance}, {link}' },
 ]
