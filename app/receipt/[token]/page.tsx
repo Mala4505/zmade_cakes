@@ -1,10 +1,13 @@
 import { notFound } from 'next/navigation'
 import { createServiceClient } from '@/lib/supabase/server'
-import PaymentReceiptLayout from '@/components/PaymentReceiptLayout'
+import { A4PaymentReceipt } from '@/components/receipt/A4PaymentReceipt'
+import { ThermalReceiptContent } from '@/components/receipt/ThermalReceiptContent'
 import { Navbar } from '@/components/public/Navbar'
 import { getBusinessContactSettings } from '@/lib/supabase/business-settings'
+import { filenameDate } from '@/lib/utils'
 import { PrintButton } from '@/app/invoice/[token]/_components/PrintButton'
 import { DownloadPaymentReceiptButton } from './_components/DownloadPaymentReceiptButton'
+import { ReceiptReveal } from './_components/ReceiptReveal'
 import type { Metadata } from 'next'
 
 interface Props { params: Promise<{ token: string }> }
@@ -56,6 +59,11 @@ export default async function PaymentReceiptPage({ params }: Props) {
     fully_paid: amountPaidThroughThisPayment >= Number(order.final_price),
   }
 
+  const customerSlug =
+    String(inquiry.customer_name ?? '').toLowerCase().trim().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') ||
+    'customer'
+  const shareFileName = `zmade-receipt-${filenameDate(new Date(p.paid_at))}_${customerSlug}`
+
   return (
     <main
       className="invoice-page-bg flex-1"
@@ -63,7 +71,7 @@ export default async function PaymentReceiptPage({ params }: Props) {
     >
       <style>{`
         @media print {
-          @page { margin: 16mm 14mm; }
+          @page { size: A4; margin: 0; }
           .no-print { display: none !important; }
           .invoice-page-bg { background: #fff !important; }
         }
@@ -71,7 +79,7 @@ export default async function PaymentReceiptPage({ params }: Props) {
 
       <Navbar businessPhone={businessPhone} businessInstagram={businessInstagram} />
 
-      <div className="max-w-lg mx-auto px-4 py-8 flex flex-col gap-6">
+      <div className="max-w-lg mx-auto px-4 py-8 flex flex-col gap-6 print:max-w-none print:p-0 print:gap-0">
         {/* Print / download buttons */}
         <div className="no-print flex justify-end gap-2">
           <PrintButton label="Print Receipt" />
@@ -84,14 +92,29 @@ export default async function PaymentReceiptPage({ params }: Props) {
           />
         </div>
 
-        {/* Receipt */}
-        <PaymentReceiptLayout
-          payment={p}
-          order={frozenOrder}
-          inquiry={frozenInquiry}
-          businessPhone={businessPhone}
-          businessInstagram={businessInstagram}
-        />
+        {/* Receipt — bill style on screen (prints out on first view); the saved image
+            and the PDF use the formal layout */}
+        <ReceiptReveal
+          receiptToken={p.receipt_token}
+          shareFileName={shareFileName}
+          shareContent={
+            <A4PaymentReceipt
+              payment={p}
+              order={frozenOrder}
+              inquiry={frozenInquiry}
+              businessPhone={businessPhone}
+              businessInstagram={businessInstagram}
+            />
+          }
+        >
+          <ThermalReceiptContent
+            payment={p}
+            order={frozenOrder}
+            inquiry={frozenInquiry}
+            businessPhone={businessPhone}
+            businessInstagram={businessInstagram}
+          />
+        </ReceiptReveal>
       </div>
     </main>
   )

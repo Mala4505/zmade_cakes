@@ -143,6 +143,7 @@ export async function proxy(request: NextRequest) {
       !pathname.startsWith('/inquire') &&
       !pathname.startsWith('/order') && // legacy path, kept public so next.config's redirect to /inquire can resolve before any auth gate
       !pathname.startsWith('/invoice') &&
+      !pathname.startsWith('/receipt') && // per-payment receipt links sent to customers
       !pathname.startsWith('/my-orders') &&
       !pathname.startsWith('/api') &&
       !pathname.startsWith('/_next'))
