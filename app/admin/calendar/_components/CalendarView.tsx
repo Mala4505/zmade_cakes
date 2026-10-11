@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect } from 'react'
 import { Calendar, dateFnsLocalizer, type View } from 'react-big-calendar'
-import { format, parse, startOfWeek, getDay, parseISO, startOfMonth, addMonths, getDaysInMonth } from 'date-fns'
+import { format, parse, startOfWeek, getDay, parseISO, startOfMonth, addMonths } from 'date-fns'
 import { enUS } from 'date-fns/locale'
 import 'react-big-calendar/lib/css/react-big-calendar.css'
 import { ArrowSquareOut, CaretLeft, CaretRight } from '@phosphor-icons/react'
@@ -12,7 +12,18 @@ import { IconButton } from '@/components/ui/IconButton'
 import { StatusBadge, PaymentBadge } from '@/components/admin/StatusBadge'
 import { derivePaymentStatus, orderTotal } from '@/lib/payments'
 import { formatDate, formatTime, formatKWD, orderSummary } from '@/lib/utils'
-import type { InquiryItem, InquiryStatus, OrderStatus } from '@/lib/supabase/types'
+import { SkeletonCalendar } from '@/components/ui'
+import type { InquiryStatus, OrderStatus } from '@/lib/supabase/types'
+import MobileMonth from './MobileMonth'
+import {
+  eventDotColor,
+  type BlackoutEvent,
+  type CalendarEvent,
+  type DetailEvent,
+  type EventDetails,
+  type InquiryMadeEvent,
+  type OrderEvent,
+} from './calendar-events'
 
 const localizer = dateFnsLocalizer({
   format,
@@ -25,48 +36,6 @@ const localizer = dateFnsLocalizer({
 // Only show "Inquiry made" markers for inquiries created in the last 60 days,
 // so old creation dates don't clutter the calendar.
 const INQUIRY_MADE_WINDOW_DAYS = 60
-
-type EventKind = 'order' | 'inquiry-made' | 'blackout'
-
-/** Everything the detail modal needs, normalized from either an order or an inquiry. */
-type EventDetails = {
-  /** Order id for order events, inquiry id for inquiry events. */
-  linkId: string
-  linkKind: 'order' | 'inquiry'
-  status: OrderStatus | InquiryStatus
-  customerName: string
-  customerPhone: string
-  items: InquiryItem[]
-  nutFree: boolean
-  dairyFree: boolean
-  eggFree: boolean
-  rawSugar: boolean
-  eventDate: string
-  pickupTime: string | null
-  deliveryType: string
-  /** For an order event this is the order's final_price; for an inquiry event it's admin_price. */
-  price: string | null
-  discount: string | null
-  deliveryCharge: string | null
-  depositAmount: string | null
-  amountPaid: string | null
-  fullyPaid: boolean
-}
-
-type BaseEvent = {
-  id: string
-  title: string
-  start: Date
-  end: Date
-  allDay: true
-}
-
-type OrderEvent = BaseEvent & { kind: 'order'; status: OrderStatus; resource: EventDetails }
-type InquiryMadeEvent = BaseEvent & { kind: 'inquiry-made'; resource: EventDetails }
-type BlackoutEvent = BaseEvent & { kind: 'blackout'; resource: null }
-
-type CalendarEvent = OrderEvent | InquiryMadeEvent | BlackoutEvent
-type DetailEvent = OrderEvent | InquiryMadeEvent
 
 function toDetails(inq: any, opts: { linkId: string; linkKind: 'order' | 'inquiry'; status: OrderStatus | InquiryStatus; deliveryType: string; price: unknown }): EventDetails {
   return {
@@ -97,13 +66,11 @@ function CustomToolbar({
   onView,
   onNavigate,
   view,
-  hideViewSwitcher,
 }: {
   label: string
   onView: (v: View) => void
   onNavigate: (action: string) => void
   view: View
-  hideViewSwitcher?: boolean
 }) {
   return (
     <div
@@ -143,25 +110,23 @@ function CustomToolbar({
         </span>
       </div>
 
-      {!hideViewSwitcher && (
-        <div className="flex items-center gap-1">
-          {(['month', 'week', 'day'] as const).map((v) => (
-            <button
-              key={v}
-              type="button"
-              onClick={() => onView(v)}
-              className="px-2.5 py-1 rounded-lg text-xs font-medium capitalize transition-colors"
-              style={
-                view === v
-                  ? { backgroundColor: 'var(--color-teal)', color: 'var(--color-cream)' }
-                  : { color: 'var(--color-ink-muted)', backgroundColor: 'transparent' }
-              }
-            >
-              {v}
-            </button>
-          ))}
-        </div>
-      )}
+      <div className="flex items-center gap-1">
+        {(['month', 'week', 'day'] as const).map((v) => (
+          <button
+            key={v}
+            type="button"
+            onClick={() => onView(v)}
+            className="px-2.5 py-1 rounded-lg text-xs font-medium capitalize transition-colors"
+            style={
+              view === v
+                ? { backgroundColor: 'var(--color-teal)', color: 'var(--color-cream)' }
+                : { color: 'var(--color-ink-muted)', backgroundColor: 'transparent' }
+            }
+          >
+            {v}
+          </button>
+        ))}
+      </div>
     </div>
   )
 }
@@ -300,27 +265,11 @@ function DateCellWrapper({
   )
 }
 
-// Solid (non-"-light") swatch per event kind/status — used for the agenda-row
-// dot below. Month/week/day pills get their color from eventPropGetter's own
-// background instead; this is the color that has to survive on its own once an
-// event is just a table row (agenda view, forced on mobile) with no pill behind it.
-function eventDotColor(event: CalendarEvent): string {
-  switch (event.kind) {
-    case 'blackout':
-      return 'var(--color-danger)'
-    case 'inquiry-made':
-      return 'var(--color-calendar-marker)'
-    case 'order':
-      return event.status === 'delivered' ? 'var(--color-success)' : 'var(--color-info)'
-  }
-}
-
 // Custom event content — flavor leads so it survives the single-line ellipsis
 // truncation react-big-calendar applies to month-view event pills.
 //
-// The leading dot matters specifically for the agenda view (forced on mobile,
-// see `effectiveView` below): agenda rows are plain table cells with no colored
-// background, and a blanket `.rbc-agenda-event-cell a { color: ... }` rule in
+// The leading dot matters specifically for the agenda view: agenda rows are
+// plain table cells with no colored background, and a blanket `.rbc-agenda-event-cell a { color: ... }` rule in
 // globals.css flattens every row's text to the same muted color — without this
 // dot, an agenda list can't tell an order from a tentative inquiry from a
 // blackout at a glance the way the month view's colored pills can.
@@ -397,10 +346,12 @@ export default function CalendarView({ orders, inquiries, blackouts, deliveryCou
   const [detailOpen, setDetailOpen] = useState(false)
   const [view, setView] = useState<View>('month')
   const [date, setDate] = useState(new Date())
-  const [isMobile, setIsMobile] = useState(false)
+  // null until mounted: the server can't know the viewport, and MobileMonth's
+  // "today" must come from the phone's clock (Kuwait, UTC+3), not the server's.
+  const [isMobile, setIsMobile] = useState<boolean | null>(null)
 
   // react-big-calendar's month grid collapses to ~47px/column on a phone and is
-  // unusable. Below `md` we force the agenda list and hide the view switcher.
+  // unusable. Below `md` we swap in MobileMonth (dot grid + day list) instead.
   useEffect(() => {
     if (typeof window === 'undefined' || !window.matchMedia) return
     const mq = window.matchMedia('(max-width: 767px)')
@@ -410,7 +361,7 @@ export default function CalendarView({ orders, inquiries, blackouts, deliveryCou
     return () => mq.removeEventListener('change', apply)
   }, [])
 
-  const effectiveView: View = isMobile ? 'agenda' : view
+  const effectiveView: View = view
 
   const events = useMemo<CalendarEvent[]>(() => {
     const orderEvents: OrderEvent[] = orders
@@ -510,15 +461,30 @@ export default function CalendarView({ orders, inquiries, blackouts, deliveryCou
     }
   }
 
+  function openDetail(e: DetailEvent) {
+    setSelected(e)
+    setDetailOpen(true)
+  }
+
   return (
     <div className="flex flex-col gap-3 flex-1">
-      {/* Calendar */}
+      {isMobile === null && (
+        <div className="md:hidden">
+          <SkeletonCalendar />
+        </div>
+      )}
+      {isMobile === true && <MobileMonth events={events} onSelectEvent={openDetail} />}
+
+      {/* Desktop calendar. Before mount it's CSS-hidden on phones so they don't
+          flash the cramped month grid. */}
+      {isMobile !== true && (
+      <>
       <div
-        className="flex-1 rounded-xl border overflow-hidden flex flex-col"
+        className="flex-1 rounded-xl border overflow-hidden hidden md:flex flex-col"
         style={{
           borderColor: 'var(--color-border)',
           backgroundColor: 'var(--color-surface)',
-          minHeight: isMobile ? 360 : 560,
+          minHeight: 560,
         }}
       >
         <CustomToolbar
@@ -539,7 +505,6 @@ export default function CalendarView({ orders, inquiries, blackouts, deliveryCou
             setDate(d)
           }}
           view={effectiveView}
-          hideViewSwitcher={isMobile}
         />
         <div className="flex-1 min-h-0 flex flex-col">
           <Calendar
@@ -547,20 +512,14 @@ export default function CalendarView({ orders, inquiries, blackouts, deliveryCou
             localizer={localizer}
             events={events}
             view={effectiveView}
-            // The agenda view lists `length` days starting at `date` (30 by default),
-            // which didn't match the "MMMM yyyy" heading: in October it showed
-            // Oct 11 – Nov 10. Pin it to the heading's calendar month instead.
-            date={effectiveView === 'agenda' ? startOfMonth(date) : date}
-            length={effectiveView === 'agenda' ? getDaysInMonth(date) : undefined}
+            date={date}
             onView={setView}
             onNavigate={setDate}
             views={['month', 'week', 'day', 'agenda']}
             eventPropGetter={eventPropGetter as any}
             onSelectEvent={(event) => {
               const e = event as CalendarEvent
-              if (e.kind === 'blackout') return
-              setSelected(e)
-              setDetailOpen(true)
+              if (e.kind !== 'blackout') openDetail(e)
             }}
             components={{
               dateCellWrapper: ({ children, value }: any) => (
@@ -574,7 +533,11 @@ export default function CalendarView({ orders, inquiries, blackouts, deliveryCou
         </div>
       </div>
 
-      <Legend />
+      <div className="hidden md:block">
+        <Legend />
+      </div>
+      </>
+      )}
 
       {/* Event detail modal — portals to document.body, so react-big-calendar's
           overflow:hidden containers can't clip it. */}
