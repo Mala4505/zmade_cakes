@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect } from 'react'
 import { Calendar, dateFnsLocalizer, type View } from 'react-big-calendar'
-import { format, parse, startOfWeek, getDay, parseISO } from 'date-fns'
+import { format, parse, startOfWeek, getDay, parseISO, startOfMonth, addMonths, getDaysInMonth } from 'date-fns'
 import { enUS } from 'date-fns/locale'
 import 'react-big-calendar/lib/css/react-big-calendar.css'
 import { ArrowSquareOut, CaretLeft, CaretRight } from '@phosphor-icons/react'
@@ -533,7 +533,9 @@ export default function CalendarView({ orders, inquiries, blackouts, deliveryCou
             const dir = action === 'PREV' ? -1 : 1
             if (effectiveView === 'week') d.setDate(d.getDate() + dir * 7)
             else if (effectiveView === 'day') d.setDate(d.getDate() + dir)
-            else d.setMonth(d.getMonth() + dir)
+            // Step whole months from the 1st: setMonth() keeps the day number, so
+            // Jan 31 + 1 overflowed to Mar 3.
+            else { setDate(addMonths(startOfMonth(date), dir)); return }
             setDate(d)
           }}
           view={effectiveView}
@@ -545,7 +547,11 @@ export default function CalendarView({ orders, inquiries, blackouts, deliveryCou
             localizer={localizer}
             events={events}
             view={effectiveView}
-            date={date}
+            // The agenda view lists `length` days starting at `date` (30 by default),
+            // which didn't match the "MMMM yyyy" heading: in October it showed
+            // Oct 11 – Nov 10. Pin it to the heading's calendar month instead.
+            date={effectiveView === 'agenda' ? startOfMonth(date) : date}
+            length={effectiveView === 'agenda' ? getDaysInMonth(date) : undefined}
             onView={setView}
             onNavigate={setDate}
             views={['month', 'week', 'day', 'agenda']}
